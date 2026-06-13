@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#010102"/>
+      <stop offset="100%" stop-color="#0a0a0d"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#d95f3b"/>
+      <stop offset="100%" stop-color="#ff8a5c"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <text x="80" y="240" font-family="Inter, sans-serif" font-size="92" font-weight="800" fill="#fafaf9">NexusAI Agency</text>
+  <text x="80" y="320" font-family="Inter, sans-serif" font-size="48" font-weight="400" fill="#a3a3a3">AI Marketing That Actually Delivers</text>
+  <rect x="80" y="380" width="120" height="6" fill="url(#accent)"/>
+  <text x="80" y="480" font-family="Inter, sans-serif" font-size="32" font-weight="500" fill="#d95f3b">19 AI agents • 9 workflows • 24/7 optimization</text>
+  <text x="80" y="540" font-family="Inter, sans-serif" font-size="24" font-weight="400" fill="#737373">nexusai.marketing</text>
+</svg>

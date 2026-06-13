@@ -1,0 +1,547 @@
+/* ═══════════════════════════════════════════════
+   Linear Design System — Agency Control Center
+   Source: awesome-design-md/design-md/linear.app/DESIGN.md
+   ═══════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;550;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Linear Dark Mode CSS Variables ─── */
+:root {
+  /* Surface ladder */
+  --background:    #010102;  /* Linear canvas — deepest dark */
+  --foreground:    #f7f8f8;  /* Linear ink — primary text */
+  --card:          #0f1011;  /* Linear surface-1 — cards, panels */
+  --card-foreground: #f7f8f8;
+  --popover:       #0f1011;
+  --popover-foreground: #f7f8f8;
+  --primary:       #5e6ad2;  /* Linear lavender — single chromatic accent */
+  --primary-foreground: #ffffff;
+  --secondary:     #141516;  /* Linear surface-2 */
+  --secondary-foreground: #f7f8f8;
+  --muted:         #141516;  /* Linear surface-2 */
+  --muted-foreground: #8a8f98;  /* Linear ink-subtle */
+  --accent:        #141516;  /* Linear surface-2 for hover */
+  --accent-foreground: #f7f8f8;
+  --destructive:   #e54848;
+  --destructive-foreground: #f7f8f8;
+
+  /* Borders — Linear hairline system */
+  --border:        #23252a;  /* Linear hairline */
+  --input:         #23252a;
+  --ring:          #5e6ad2;  /* Linear primary for focus */
+
+  /* Sidebar */
+  --sidebar:       #010102;
+  --sidebar-foreground: #f7f8f8;
+  --sidebar-primary: #5e6ad2;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #141516;
+  --sidebar-accent-foreground: #f7f8f8;
+  --sidebar-border: #23252a;
+  --sidebar-ring:  #5e6ad2;
+
+  /* Charts */
+  --chart-1: #5e6ad2;
+  --chart-2: #27a644;
+  --chart-3: #f59e0b;
+  --chart-4: #8b5cf6;
+  --chart-5: #ef4444;
+
+  /* Linear semantic colors */
+  --success: #27a644;
+  --warning: #f59e0b;
+  --error: #e54848;
+
+  /* Radius — Linear uses 8px for buttons/inputs, 12px for cards */
+  --radius:    8px;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 24px;
+
+  accent-color: #5e6ad2;
+  color-scheme: dark;
+}
+
+/* ─── Legacy Variable Aliases (for pages still using old names) ─── */
+:root {
+  --bg-elevated:   #0f1011;   /* same as --card */
+  --bg-hover:      #141516;   /* same as --muted */
+  --text-muted:    #8a8f98;   /* same as --muted-foreground */
+  --text-secondary:#8a8f98;   /* same as --muted-foreground */
+  --green:         #27a644;   /* semantic success */
+  --yellow:        #f59e0b;   /* semantic warning */
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.01em;
+  overflow: hidden;
+}
+
+/* Linear: text-wrap: balance on headings */
+h1, h2, h3, h4, h5, h6 {
+  text-wrap: balance;
+  letter-spacing: -0.02em;
+}
+
+/* Linear: touch-action: manipulation on interactive elements */
+button, a, input, select, textarea, [role="button"] {
+  touch-action: manipulation;
+}
+
+/* ─── Scrollbar (Linear: 8px, dark hairline) ─── */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted-foreground); }
+
+/* Auto-hide scrollbar */
+.scrollbar-auto-hide {
+  scrollbar-width: thin;
+}
+.scrollbar-auto-hide::-webkit-scrollbar-thumb {
+  background: transparent;
+}
+.scrollbar-auto-hide:hover::-webkit-scrollbar-thumb {
+  background: var(--border);
+}
+
+/* ─── Selection ─── */
+::selection {
+  background: var(--primary);
+  color: #fff;
+}
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* ─── Links ─── */
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* ─── Inputs (Linear: surface-1 bg, hairline border) ─── */
+input, textarea, select {
+  font-family: inherit;
+  font-size: 13px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--foreground);
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  width: 100%;
+}
+input:focus, textarea:focus, select:focus {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 2px rgba(94, 106, 210, 0.15);
+}
+input::placeholder { color: var(--muted-foreground); }
+
+/* ─── Button base (Linear: 8px radius, 14px padding) ─── */
+button {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+/* Linear primary button */
+.btn-primary {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border: none;
+  padding: 8px 14px;
+}
+.btn-primary:hover {
+  background: #828fff;
+}
+.btn-primary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Linear secondary button */
+.btn-secondary {
+  background: var(--card);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  padding: 8px 14px;
+}
+.btn-secondary:hover {
+  background: var(--muted);
+}
+
+/* ─── Card (Linear: surface-1 bg, hairline border, 12px radius) ─── */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+/* ─── Badge / Status Pill (Linear: pill radius) ─── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+.badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+}
+.badge-green {
+  background: rgba(39, 166, 68, 0.12);
+  color: #27a644;
+}
+.badge-green .badge-dot { background: #27a644; }
+.badge-red {
+  background: rgba(229, 72, 72, 0.12);
+  color: #e54848;
+}
+.badge-red .badge-dot { background: #e54848; }
+.badge-yellow {
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+}
+.badge-yellow .badge-dot { background: #f59e0b; }
+.badge-blue {
+  background: rgba(94, 106, 210, 0.12);
+  color: #5e6ad2;
+}
+.badge-blue .badge-dot { background: #5e6ad2; }
+.badge-gray {
+  background: rgba(138, 143, 152, 0.12);
+  color: #8a8f98;
+}
+.badge-gray .badge-dot { background: #8a8f98; }
+
+/* ─── Typography helpers ─── */
+h1 { font-size: 24px; font-weight: 600; letter-spacing: -0.02em; }
+h2 { font-size: 20px; font-weight: 600; letter-spacing: -0.015em; }
+h3 { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
+p { color: var(--muted-foreground); line-height: 1.6; }
+
+/* ─── Linear Animations ─── */
+
+/* Dashboard activity enter */
+@keyframes dashboard-activity-enter {
+  0% { opacity: 0; transform: translateY(-14px) scale(0.985); filter: blur(4px); }
+  62% { opacity: 1; transform: translateY(2px) scale(1.002); filter: blur(0); }
+  100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+
+/* Typing dots (chat bubble) */
+@keyframes typing-bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30% { transform: translateY(-3px); opacity: 1; }
+}
+.typing-dot {
+  animation: typing-bounce 1.4s ease-in-out infinite;
+}
+.typing-dot:nth-child(2) { animation-delay: 0.15s; }
+.typing-dot:nth-child(3) { animation-delay: 0.3s; }
+
+/* Shimmer text (Working status) */
+@keyframes shimmer-text-slide {
+  0% { background-position: 100% center; }
+  60% { background-position: 0% center; }
+  100% { background-position: 0% center; }
+}
+.shimmer-text {
+  background: linear-gradient(90deg, var(--foreground) 0%, var(--muted-foreground) 50%, var(--foreground) 100%);
+  background-size: 200% auto;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmer-text-slide 2s ease-in-out infinite;
+}
+
+/* Agent heartbeat */
+@keyframes hb-pulse {
+  0%, 100% { opacity: 0.4; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1); }
+}
+.hb-pulse {
+  animation: hb-pulse 1.2s ease-in-out infinite;
+}
+
+/* Modal in animation */
+@keyframes modalIn {
+  0% { opacity: 0; transform: scale(0.96) translateY(8px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .animate-ping, .hb-pulse, .shimmer-text, .typing-dot,
+  [class*="animate-"] { animation: none !important; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   Linear Component Classes — Pages Reference These
+   ═══════════════════════════════════════════════ */
+
+/* ─── Topbar (Linear: hairline bottom border, surface bg) ─── */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  min-height: 56px;
+}
+.topbar h2 {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--foreground);
+  margin: 0;
+}
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ─── Page Content (Linear: 24px padding on canvas) ─── */
+.page-content {
+  padding: 16px 24px 24px;
+  background: var(--background);
+  overflow-y: auto;
+}
+
+/* ─── Page Tabs (Linear: pill toggle style) ─── */
+.page-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--muted);
+  border-radius: var(--radius-md);
+  width: fit-content;
+  margin-bottom: 16px;
+}
+.page-tab {
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.page-tab:hover {
+  color: var(--foreground);
+}
+.page-tab.active {
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+/* ─── Toggle Group (Linear: segmented control) ─── */
+.toggle-group {
+  display: flex;
+  gap: 1px;
+  padding: 2px;
+  background: var(--border);
+  border-radius: var(--radius-md);
+}
+.toggle-btn {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.toggle-btn.active {
+  background: var(--card);
+  color: var(--foreground);
+}
+.toggle-btn:hover:not(.active) {
+  color: var(--foreground);
+}
+
+/* ─── Sidebar Nav Section (Linear: uppercase tracking) ─── */
+.sidebar-nav-section {
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted-foreground);
+  padding: 4px 0;
+}
+
+/* ─── Agent Status Item (Linear: row with hover) ─── */
+.agent-status-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+  color: var(--foreground);
+  transition: background 0.12s;
+  cursor: pointer;
+}
+.agent-status-item:hover {
+  background: var(--accent);
+}
+.as-name {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.as-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+
+/* ─── Auth Pages (Linear: surface card on canvas) ─── */
+.auth-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: var(--background);
+  padding: 24px;
+}
+.auth-card {
+  width: 100%;
+  max-width: 400px;
+  padding: 32px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.form-group {
+  margin-bottom: 16px;
+}
+.form-group label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--foreground);
+  margin-bottom: 6px;
+}
+.password-wrap {
+  position: relative;
+}
+.password-toggle {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  padding: 4px;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+.password-toggle:hover {
+  color: var(--foreground);
+}
+.flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.flex-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.error-msg {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  margin-bottom: 16px;
+  background: rgba(229, 72, 72, 0.08);
+  border: 1px solid rgba(229, 72, 72, 0.2);
+  border-radius: var(--radius-md);
+  color: #e54848;
+  font-size: 12px;
+}
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+.checkbox-row input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary);
+}
+.forgot-link {
+  background: none;
+  border: none;
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0;
+}
+.forgot-link:hover {
+  color: #828fff;
+}
+.auth-link {
+  text-align: center;
+  margin-top: 24px;
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+.auth-link a {
+  color: var(--primary);
+  font-weight: 500;
+}
+.auth-link a:hover {
+  color: #828fff;
+}
+.btn-full {
+  width: 100%;
+}

@@ -1,0 +1,57 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+.yarn/install-state.gz
+
+# Testing
+coverage/
+
+# Next.js
+.next/
+out/
+build/
+dist/
+
+# Production
+*.tsbuildinfo
+next-env.d.ts
+
+# Environment files (NEVER commit secrets)
+.env
+.env.local
+.env.development
+.env.production
+.env.vercel
+.env.deployment
+*.env.local
+
+# Vercel
+.vercel
+.vercelignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Misc
+.cache/
+.turbo/
+
+.vercel
+
+# Stray empty files from PowerShell/Bash tool quoting bugs
+`
+0
+
+.vercel

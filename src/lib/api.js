@@ -1,0 +1,231 @@
+const API_BASE = ''
+
+async function fetchAPI(endpoint, options = {}) {
+  const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`
+
+  const config = {
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+    ...options,
+  }
+
+  if (config.body && typeof config.body === 'object') {
+    config.body = JSON.stringify(config.body)
+  }
+
+  try {
+    const res = await fetch(url, config)
+    const data = await res.json()
+
+    if (!res.ok) {
+      return { success: false, error: data.detail || data.message || `API error: ${res.status}` }
+    }
+
+    return data
+  } catch (error) {
+    return { success: false, error: error.message, offline: true }
+  }
+}
+
+export const api = {
+  login(email, password) {
+    return fetchAPI('/api/auth/login', {
+      method: 'POST',
+      body: { email, password },
+    })
+  },
+
+  signup(fullName, email, password) {
+    return fetchAPI('/api/auth/signup', {
+      method: 'POST',
+      body: { fullName, email, password },
+    })
+  },
+
+  logout() {
+    return fetchAPI('/api/auth/logout', { method: 'POST' })
+  },
+
+  getClients() {
+    return fetchAPI('/api/clients')
+  },
+
+  getClient(id) {
+    return fetchAPI(`/api/clients/${id}`)
+  },
+
+  createClient(data) {
+    return fetchAPI('/api/clients', {
+      method: 'POST',
+      body: data,
+    })
+  },
+
+  updateClient(id, data) {
+    return fetchAPI(`/api/clients/${id}`, {
+      method: 'PUT',
+      body: data,
+    })
+  },
+
+  deleteClient(id) {
+    return fetchAPI(`/api/clients/${id}`, {
+      method: 'DELETE',
+    })
+  },
+
+  getAgents() {
+    return fetchAPI('/api/agents')
+  },
+
+  executeAgent(name, task, context) {
+    return fetchAPI('/api/agents/execute', {
+      method: 'POST',
+      body: { name, task, context },
+    })
+  },
+
+  chatWithAgent(name, message, history) {
+    return fetchAPI('/api/agents/chat', {
+      method: 'POST',
+      body: { name, message, history },
+    })
+  },
+
+  ceoChat(message, context) {
+    return fetchAPI('/api/ceo/chat', {
+      method: 'POST',
+      body: { message, context },
+    })
+  },
+
+  getWorkflows() {
+    return fetchAPI('/api/workflows')
+  },
+
+  runWorkflow(clientId, workflowName) {
+    return fetchAPI('/api/workflows/run', {
+      method: 'POST',
+      body: { client_id: clientId, workflow_name: workflowName },
+    })
+  },
+
+  getWorkflowStatus(id) {
+    return fetchAPI(`/api/workflows/${id}`)
+  },
+
+  getReports() {
+    return fetchAPI('/api/reports')
+  },
+
+  generateReport(clientId, type) {
+    return fetchAPI('/api/reports/generate', {
+      method: 'POST',
+      body: { client_id: clientId, type },
+    })
+  },
+
+  getDashboardStats() {
+    return fetchAPI('/api/dashboard')
+  },
+
+  // ── Meta Ads API (via MCP) ──
+  metaSetApiKey(clientName, accessToken, adAccountId) {
+    return fetchAPI('/api/meta/set-key', {
+      method: 'POST',
+      body: { client_name: clientName, access_token: accessToken, ad_account_id: adAccountId },
+    })
+  },
+
+  metaHealthCheck(clientName) {
+    return fetchAPI(`/api/meta/health/${clientName}`)
+  },
+
+  metaGetAccounts(clientName) {
+    return fetchAPI(`/api/meta/accounts/${clientName}`)
+  },
+
+  metaCreateCampaign(clientName, name, objective, dailyBudgetCents, accountId) {
+    return fetchAPI('/api/meta/create-campaign', {
+      method: 'POST',
+      body: { client_name: clientName, name, objective, daily_budget_cents: dailyBudgetCents, account_id: accountId },
+    })
+  },
+
+  metaCreateFullCampaign(data) {
+    return fetchAPI('/api/meta/create-full-campaign', {
+      method: 'POST',
+      body: data,
+    })
+  },
+
+  metaResumeCampaign(clientName, campaignId) {
+    return fetchAPI('/api/meta/resume-campaign', {
+      method: 'POST',
+      body: { client_name: clientName, campaign_id: campaignId },
+    })
+  },
+
+  metaPauseCampaign(clientName, campaignId) {
+    return fetchAPI('/api/meta/pause-campaign', {
+      method: 'POST',
+      body: { client_name: clientName, campaign_id: campaignId },
+    })
+  },
+
+  metaGetInsights(clientName, datePreset, level, accountId) {
+    return fetchAPI('/api/meta/insights', {
+      method: 'POST',
+      body: { client_name: clientName, date_preset: datePreset, level, account_id: accountId },
+    })
+  },
+
+  metaExecuteAgent(clientName, task) {
+    return fetchAPI('/api/meta/execute-agent', {
+      method: 'POST',
+      body: { client_name: clientName, task },
+    })
+  },
+
+  // ── Social Media Manager API ──
+  socialManagerCommand(command) {
+    return fetchAPI('/api/social-manager/command', {
+      method: 'POST',
+      body: { command },
+    })
+  },
+
+  socialManagerChat(message) {
+    return fetchAPI('/api/social-manager/chat', {
+      method: 'POST',
+      body: { message },
+    })
+  },
+
+  // ── Social OAuth API ──
+  getSocialAccountStatus(clientName) {
+    return fetchAPI(`/api/social/oauth/status?client_name=${encodeURIComponent(clientName || 'default')}`)
+  },
+
+  getSocialOAuthUrl(platform, clientName) {
+    return fetchAPI(`/api/social/oauth/${platform}/authorize?client_name=${encodeURIComponent(clientName || 'default')}`)
+  },
+
+  // ── Client Content API ──
+  getClientContent(clientId) {
+    return fetchAPI(`/api/clients/${clientId}/content`)
+  },
+
+  generateClientContent(clientId, contentType, topic, framework) {
+    return fetchAPI(`/api/clients/${clientId}/generate-content`, {
+      method: 'POST',
+      body: { content_type: contentType, topic, framework },
+    })
+  },
+
+  getClientStats(clientId) {
+    return fetchAPI(`/api/clients/${clientId}/stats`)
+  },
+}
