@@ -168,7 +168,7 @@ export default function CEOPage() {
           var res = await fetch('/api/agents/' + targetWorker.id + '/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: text }),
+            body: JSON.stringify({ message: text, client_name: activeCompany?.name || '' }),
           })
           var data = res.ok ? (await res.json()) : null
         } catch (e) {}
@@ -184,7 +184,7 @@ export default function CEOPage() {
           var res2 = await fetch('/api/agents/intake-researcher/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: 'Respond as a helpful CEO assistant to this message. Be brief and natural. Message: ' + text }),
+            body: JSON.stringify({ message: 'Respond as a helpful CEO assistant to this message. Be brief and natural. Message: ' + text, client_name: activeCompany?.name || '' }),
           })
           var data2 = res2.ok ? (await res2.json()) : null
           ceoReply = (data2 && (data2.response || data2.reply || data2.content))

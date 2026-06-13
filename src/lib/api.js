@@ -228,4 +228,22 @@ export const api = {
   getClientStats(clientId) {
     return fetchAPI(`/api/clients/${clientId}/stats`)
   },
+
+  // ── Memory API (Session 102) ──
+  getAgentMemories(agentSlug, clientName = '', memoryType = '', limit = 20) {
+    const params = new URLSearchParams({ client_name: clientName, limit })
+    if (memoryType) params.set('memory_type', memoryType)
+    return fetchAPI(`/api/agents/${agentSlug}/memories?${params}`)
+  },
+
+  getAgentConversations(agentSlug, clientName = '', limit = 10) {
+    return fetchAPI(`/api/agents/${agentSlug}/conversations?client_name=${encodeURIComponent(clientName)}&limit=${limit}`)
+  },
+
+  agentChat(agentSlug, message, clientName = '') {
+    return fetchAPI(`/api/agents/${agentSlug}/chat`, {
+      method: 'POST',
+      body: { message, client_name: clientName },
+    })
+  },
 }
