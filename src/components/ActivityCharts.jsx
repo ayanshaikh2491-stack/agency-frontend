@@ -29,18 +29,28 @@ function ChartTooltip({ active, payload }) {
   )
 }
 
-/* ─── 1. Run Activity Chart (Paperclip AreaChart) ─── */
-export function RunActivityChart({ data }) {
-  const now = Date.now()
-  const chartData = []
-  for (let i = 13; i >= 0; i--) {
-    const d = new Date(now - i * 86400000)
-    chartData.push({
-      date: d.toLocaleDateString('en', { month: 'short', day: 'numeric' }),
-      runs: Math.floor(Math.random() * 50) + 10,
-    })
-  }
+/* ─── Empty state ─── */
+function EmptyChart() {
+  return (
+    <div className="flex items-center justify-center h-[200px] text-[11px] text-[var(--text-muted)] italic">
+      No data yet — agents need to run tasks first
+    </div>
+  )
+}
 
+/* ─── 1. Run Activity Chart (Area) ─── */
+export function RunActivityChart({ activity, metrics }) {
+  if (!activity || activity.length === 0) {
+    return (
+      <ChartShell title="Run Activity" subtitle="Last 14 days">
+        <EmptyChart />
+      </ChartShell>
+    )
+  }
+  const chartData = activity.slice(0, 14).map((a, i) => ({
+    date: a.timestamp ? new Date(a.timestamp).toLocaleDateString('en', { month: 'short', day: 'numeric' }) : `Day ${14 - i}`,
+    runs: a.count || 1,
+  }))
   return (
     <ChartShell title="Run Activity" subtitle="Last 14 days">
       <ResponsiveContainer width="100%" height={200}>
@@ -61,17 +71,22 @@ export function RunActivityChart({ data }) {
   )
 }
 
-/* ─── 2. Priority Chart (Bar) ─── */
-export function PriorityChart() {
+/* ─── 2. Priority Chart (Bar) — uses real agent status ─── */
+export function PriorityChart({ agents }) {
+  const running = agents?.filter(a => a.status === 'active' || a.status === 'running').length || 0
+  const idle = agents?.filter(a => a.status === 'idle').length || 0
+  const error = agents?.filter(a => a.status === 'error').length || 0
+  const total = agents?.length || 0
+  if (total === 0) {
+    return <ChartShell title="Agent Status" subtitle="Current"><EmptyChart /></ChartShell>
+  }
   const data = [
-    { name: 'Urgent', value: 3 },
-    { name: 'High', value: 7 },
-    { name: 'Medium', value: 12 },
-    { name: 'Low', value: 5 },
+    { name: 'Running', value: running },
+    { name: 'Idle', value: idle },
+    { name: 'Error', value: error },
   ]
-
   return (
-    <ChartShell title="Tasks by Priority" subtitle="Current">
+    <ChartShell title="Agent Status" subtitle={`${total} total`}>
       <ResponsiveContainer width="100%" height={200}>
         <BarChart data={data}>
           <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
@@ -79,7 +94,7 @@ export function PriorityChart() {
           <Tooltip content={<ChartTooltip />} />
           <Bar dataKey="value" radius={[4, 4, 0, 0]}>
             {data.map((_, i) => (
-              <Cell key={i} fill={['var(--error)', 'var(--warning)', 'var(--accent)', 'var(--text-muted)'][i]} />
+              <Cell key={i} fill={['var(--success)', 'var(--text-muted)', 'var(--error)'][i]} />
             ))}
           </Bar>
         </BarChart>
@@ -88,23 +103,24 @@ export function PriorityChart() {
   )
 }
 
-/* ─── 3. Issue Status Chart (Pie) ─── */
-export function IssueStatusChart() {
+/* ─── 3. Issue Status Chart (Pie) — uses real client data ─── */
+export function IssueStatusChart({ clients }) {
+  const active = clients?.filter(c => c.status === 'active').length || 0
+  const total = clients?.length || 0
+  if (total === 0) {
+    return <ChartShell title="Clients" subtitle="Current"><EmptyChart /></ChartShell>
+  }
   const data = [
-    { name: 'Open', value: 8 },
-    { name: 'In Progress', value: 5 },
-    { name: 'Done', value: 12 },
-    { name: 'Blocked', value: 2 },
+    { name: 'Active', value: active },
+    { name: 'Other', value: total - active },
   ]
-
   return (
-    <ChartShell title="Tasks by Status" subtitle="Current">
+    <ChartShell title="Clients" subtitle={`${total} total`}>
       <ResponsiveContainer width="100%" height={200}>
         <PieChart>
           <Pie data={data} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={3} dataKey="value" stroke="none">
-            {data.map((_, i) => (
-              <Cell key={i} fill={['var(--accent)', 'var(--info)', 'var(--success)', 'var(--warning)'][i]} />
-            ))}
+            <Cell fill="var(--success)" />
+            <Cell fill="var(--text-muted)" />
           </Pie>
           <Tooltip content={<ChartTooltip />} />
         </PieChart>
@@ -113,43 +129,31 @@ export function IssueStatusChart() {
   )
 }
 
-/* ─── 4. Success Rate Chart (Area) ─── */
-export function SuccessRateChart() {
-  const now = Date.now()
-  const data = []
-  for (let i = 13; i >= 0; i--) {
-    const d = new Date(now - i * 86400000)
-    const rate = 70 + Math.random() * 25
-    data.push({
-      date: d.toLocaleDateString('en', { month: 'short', day: 'numeric' }),
-      rate: Math.round(rate),
-    })
+/* ─── 4. Success Rate Chart — uses pipeline status ─── */
+export function SuccessRateChart({ pipelineStatus }) {
+  if (!pipelineStatus) {
+    return <ChartShell title="Pipeline Status" subtitle="Current"><EmptyChart /></ChartShell>
   }
-
+  const queue = pipelineStatus.queue?.total || 0
+  const processed = pipelineStatus.processed || 0
   return (
-    <ChartShell title="Success Rate" subtitle="Last 14 days">
-      <ResponsiveContainer width="100%" height={200}>
-        <AreaChart data={data}>
-          <defs>
-            <linearGradient id="gradSuccess" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="var(--success)" stopOpacity={0.3}/>
-              <stop offset="95%" stopColor="var(--success)" stopOpacity={0}/>
-            </linearGradient>
-          </defs>
-          <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
-          <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
-          <Tooltip content={({ active, payload }) => {
-            if (!active || !payload?.length) return null
-            return (
-              <div className="rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--bg-elevated)] px-3 py-2 text-[11px]">
-                <p className="font-medium text-[var(--text-primary)]">{payload[0].payload.date}</p>
-                <p style={{ color: 'var(--success)' }}>Success: {payload[0].value}%</p>
-              </div>
-            )
-          }} />
-          <Area type="monotone" dataKey="rate" stroke="var(--success)" strokeWidth={2} fill="url(#gradSuccess)" name="Rate" />
-        </AreaChart>
-      </ResponsiveContainer>
+    <ChartShell title="Pipeline" subtitle="Current">
+      <div className="flex flex-col gap-3">
+        <div className="flex justify-between text-xs">
+          <span className="text-[var(--text-muted)]">Queue</span>
+          <span className="font-mono">{queue}</span>
+        </div>
+        <div className="flex justify-between text-xs">
+          <span className="text-[var(--text-muted)]">Processed</span>
+          <span className="font-mono">{processed}</span>
+        </div>
+        {queue > 0 && (
+          <div className="w-full bg-[var(--border)] rounded-full h-2 mt-2">
+            <div className="h-2 rounded-full bg-[var(--accent)]"
+              style={{ width: `${Math.min(100, (processed / (queue + processed)) * 100)}%` }} />
+          </div>
+        )}
+      </div>
     </ChartShell>
   )
 }

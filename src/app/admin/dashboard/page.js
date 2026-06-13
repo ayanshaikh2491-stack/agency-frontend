@@ -252,6 +252,7 @@ export default function Dashboard() {
     metrics,
     activity,
     agentsFull,
+    pipelineStatus,
   } = useCompany()
 
   const [budgetAlert, setBudgetAlert] = useState(null)
@@ -415,10 +416,10 @@ export default function Dashboard() {
 
       {/* 4 Chart Cards (Paperclip grid) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <RunActivityChart />
-        <PriorityChart />
-        <IssueStatusChart />
-        <SuccessRateChart />
+        <RunActivityChart activity={activity} metrics={metrics} />
+        <PriorityChart agents={agentsFull} />
+        <IssueStatusChart clients={metrics} />
+        <SuccessRateChart pipelineStatus={pipelineStatus} />
       </div>
 
       {/* Activity + Recent Tasks 2-column grid */}

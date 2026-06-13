@@ -1,8 +1,10 @@
 'use client'
 import { useState, useRef, useEffect } from 'react'
+import { useCompany } from '@/lib/client-context'
 import { ORCHESTRATORS, BACKEND_AGENTS } from './AgentList'
 
 export default function ChatWindow({ selected, agentOrchestrators, onBack }) {
+  const { selectedCompany } = useCompany()
   const [input, setInput] = useState('')
   const [chat, setChat] = useState([])
   const [sending, setSending] = useState(false)
@@ -44,7 +46,7 @@ export default function ChatWindow({ selected, agentOrchestrators, onBack }) {
         const res = await fetch(`/api/agents/${selected.id}/chat`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: msg }),
+          body: JSON.stringify({ message: msg, client_name: selectedCompany?.name || '' }),
         })
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const data = await res.json()
