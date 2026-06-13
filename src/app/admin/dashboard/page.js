@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import { Bot, CircleDot, DollarSign, ShieldCheck, AlertTriangle } from 'lucide-react'
 import { useCompany } from '@/lib/client-context'
+import { RunActivityChart, PriorityChart, IssueStatusChart, SuccessRateChart } from '@/components/ActivityCharts'
 
 /* ═══════════════════════════════════════════════
    Dashboard — Real Data (no mocks)
@@ -410,6 +411,14 @@ export default function Dashboard() {
             : realMetrics.map((m) => <MetricCard key={m.label} {...m} />)
           }
         </div>
+      </div>
+
+      {/* 4 Chart Cards (Paperclip grid) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <RunActivityChart />
+        <PriorityChart />
+        <IssueStatusChart />
+        <SuccessRateChart />
       </div>
 
       {/* Activity + Recent Tasks 2-column grid */}
