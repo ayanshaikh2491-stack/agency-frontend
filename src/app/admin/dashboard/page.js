@@ -418,7 +418,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <RunActivityChart activity={activity} metrics={metrics} />
         <PriorityChart agents={agentsFull} />
-        <IssueStatusChart clients={metrics} />
+        <IssueStatusChart clients={[]} />
         <SuccessRateChart pipelineStatus={pipelineStatus} />
       </div>
 

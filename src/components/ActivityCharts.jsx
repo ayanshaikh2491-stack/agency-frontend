@@ -40,14 +40,15 @@ function EmptyChart() {
 
 /* ─── 1. Run Activity Chart (Area) ─── */
 export function RunActivityChart({ activity, metrics }) {
-  if (!activity || activity.length === 0) {
+  const actList = Array.isArray(activity) ? activity : []
+  if (actList.length === 0) {
     return (
       <ChartShell title="Run Activity" subtitle="Last 14 days">
         <EmptyChart />
       </ChartShell>
     )
   }
-  const chartData = activity.slice(0, 14).map((a, i) => ({
+  const chartData = actList.slice(0, 14).map((a, i) => ({
     date: a.timestamp ? new Date(a.timestamp).toLocaleDateString('en', { month: 'short', day: 'numeric' }) : `Day ${14 - i}`,
     runs: a.count || 1,
   }))
@@ -73,10 +74,11 @@ export function RunActivityChart({ activity, metrics }) {
 
 /* ─── 2. Priority Chart (Bar) — uses real agent status ─── */
 export function PriorityChart({ agents }) {
-  const running = agents?.filter(a => a.status === 'active' || a.status === 'running').length || 0
-  const idle = agents?.filter(a => a.status === 'idle').length || 0
-  const error = agents?.filter(a => a.status === 'error').length || 0
-  const total = agents?.length || 0
+  const agentList = Array.isArray(agents) ? agents : []
+  const running = agentList.filter(a => a.status === 'active' || a.status === 'running').length || 0
+  const idle = agentList.filter(a => a.status === 'idle').length || 0
+  const error = agentList.filter(a => a.status === 'error').length || 0
+  const total = agentList.length || 0
   if (total === 0) {
     return <ChartShell title="Agent Status" subtitle="Current"><EmptyChart /></ChartShell>
   }
