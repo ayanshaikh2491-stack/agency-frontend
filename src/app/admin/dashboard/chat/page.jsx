@@ -8,6 +8,8 @@ import {
   MessageSquare, Bot, Radio, Sparkles, Terminal, User, FileText,
   Target, Mail, Globe, Twitter, Hash, Layers, Briefcase
 } from 'lucide-react'
+import { uid as uidShared } from '@/lib/chat-utils'
+import PageShell from '@/components/PageShell'
 
 /* ═══════════════════════════════════════════════
    CEO Boardroom — Chat left + Intelligence Dashboard right
@@ -20,7 +22,7 @@ const AGENTS = [
   { id: 'ads',    name: 'Ads Strategist',  emoji: '📢', color: '#F97316', accent: 'orange' },
 ]
 
-function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6) }
+var uid = uidShared  // shared
 
 function ts() {
   return new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
@@ -453,7 +455,8 @@ export default function BoardroomPage() {
   }, [activeTab])
 
   return (
-    <div className="flex h-[calc(100vh-64px)] w-full bg-[var(--background)] overflow-hidden">
+    <PageShell>
+      <div className="flex h-screen w-full overflow-hidden">
       {/* ═══════ LEFT: CEO Chat ═══════ */}
       <div className="flex flex-col w-1/2 min-w-0 bg-[var(--card)] border-r border-[var(--border)]">
         {/* Header */}
@@ -653,5 +656,8 @@ export default function BoardroomPage() {
         </div>
       </div>
     </div>
+    </PageShell>
   )
 }
+
+

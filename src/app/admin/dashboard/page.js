@@ -1,13 +1,11 @@
 'use client'
 import { useState, useEffect, useMemo, useRef } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { Bot, CircleDot, DollarSign, ShieldCheck, AlertTriangle, Sparkles, Activity as ActivityIcon, Clock } from 'lucide-react'
+import { Bot, CircleDot, DollarSign, ShieldCheck, AlertTriangle } from 'lucide-react'
 import { useCompany } from '@/lib/client-context'
 
 /* ═══════════════════════════════════════════════
-   Paperclip-Exact Dashboard
-   Source: github.com/paperclipai/paperclip/ui/src/pages/Dashboard.tsx
+   Dashboard — Real Data (no mocks)
    ═══════════════════════════════════════════════ */
 
 /* ─── MetricCard (Paperclip exact) ─── */
@@ -94,7 +92,7 @@ function timeAgo(dateOrStr) {
 }
 
 /* ─── Agent Run Card (Paperclip ActiveAgentsPanel style) ─── */
-function AgentRunCard({ agent, isActive, status }) {
+function AgentRunCard({ agent, isActive }) {
   const statusColors = {
     running: '#3b82f6',
     idle: '#b4b4b4',
@@ -102,11 +100,11 @@ function AgentRunCard({ agent, isActive, status }) {
     error: 'var(--error)',
     active: '#4ade80',
   }
-  const color = statusColors[status] || '#b4b4b4'
+  const color = statusColors[agent?.status] || '#b4b4b4'
 
   return (
     <Link
-      href={agent?.route || '#'}
+      href={agent?.route || agent?.id ? `/admin/agents/${agent.id}` : '#'}
       className={`flex flex-col overflow-hidden border ${
         isActive
           ? 'border-blue-500/25 bg-blue-500/[0.04]'
@@ -125,12 +123,12 @@ function AgentRunCard({ agent, isActive, status }) {
               ) : (
                 <span className="inline-flex h-2.5 w-2.5 rounded-full bg-muted-foreground/35" />
               )}
-              <span className="text-[11px] font-medium text-foreground">{agent?.name || 'Agent'}</span>
+              <span className="text-[11px] font-medium text-foreground">{agent?.agentName || agent?.name || 'Agent'}</span>
             </div>
             <div className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground">
               <span>{isActive ? 'Live now' : 'Idle'}</span>
               <span>·</span>
-              <span>{agent?.task || 'No active task'}</span>
+              <span>{agent?.title || agent?.task || 'No active task'}</span>
             </div>
           </div>
           <span className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-background/70 px-2 py-1 text-[10px] text-muted-foreground">
@@ -158,7 +156,6 @@ function ActivityRow({ event, index }) {
   const elRef = useRef(null)
 
   useEffect(() => {
-    // Apply entrance animation on mount with stagger delay
     const el = elRef.current
     if (el) {
       el.style.animation = `dashboard-activity-enter 0.4s ease-out both`
@@ -173,6 +170,10 @@ function ActivityRow({ event, index }) {
     alert: '⚠️',
     budget: '💰',
     deploy: '🚀',
+    pipeline: '📊',
+    'agent-running': '🟢',
+    'agent-idle': '⚪',
+    'agent-error': '🔴',
   }
 
   return (
@@ -181,11 +182,11 @@ function ActivityRow({ event, index }) {
       className="px-4 py-3 text-sm text-foreground/80 hover:bg-accent/50 transition-colors"
     >
       <div className="flex items-center gap-2.5">
-        <span className="text-xs shrink-0">{ICONS[event.type] || '📌'}</span>
+        <span className="text-xs shrink-0">{ICONS[event.type] || event.icon || '📌'}</span>
         <div className="flex-1 min-w-0">
-          <div className="truncate">{event.desc}</div>
+          <div className="truncate">{event.desc || event.summary}</div>
           <div className="text-[11px] text-muted-foreground mt-0.5">
-            {event.agent} · {timeAgo(event.time)}
+            {event.agent || event.agentName}{(event.agent || event.agentName) ? ' · ' : ''}{timeAgo(event.time || event.timestamp)}
           </div>
         </div>
       </div>
@@ -240,107 +241,114 @@ function EmptyState({ icon: Icon, title, description, action, actionHref }) {
 }
 
 /* ═══════════════════════════════════════════════
-   MOCK DATA — will be replaced by API
-   ═══════════════════════════════════════════════ */
-const MOCK_METRICS = [
-  {
-    icon: Bot,
-    label: 'Agents Enabled',
-    value: '10',
-    description: '6 running, 2 paused, 0 errors',
-    href: '/admin/agents',
-  },
-  {
-    icon: CircleDot,
-    label: 'Tasks In Progress',
-    value: '24',
-    description: '18 open, 3 blocked',
-    href: '/admin/dashboard/tickets',
-  },
-  {
-    icon: DollarSign,
-    label: 'Month Revenue',
-    value: '$12.4k',
-    description: '78% of $16k target',
-    href: '/admin/costs',
-  },
-  {
-    icon: ShieldCheck,
-    label: 'Pending Approvals',
-    value: '4',
-    description: '2 budget overrides awaiting review',
-    href: '/admin/approvals',
-  },
-]
-
-const MOCK_AGENTS = [
-  { name: 'CEO Console', status: 'running', tasks: 3, route: '/admin/agents/ceo-console', recentLog: ['→ Delegated research to Intake', '✓ Lead scoring complete', '→ Waiting for Content Creator'] },
-  { name: 'Intake Researcher', status: 'running', tasks: 5, route: '/admin/agents/intake', recentLog: ['🔍 Searching for leads...', '✓ Found 12 new prospects', '→ Enriching contact data'] },
-  { name: 'Content Creator', status: 'idle', tasks: 1, route: '/admin/agents/content', recentLog: ['✍️ Drafting blog post...', '✓ SEO optimization done', '→ Awaiting approval'] },
-  { name: 'Sales Close', status: 'running', tasks: 2, route: '/admin/agents/sales', recentLog: ['📧 Sent follow-up to Acme Corp', '✓ Demo scheduled for Friday', '→ Preparing proposal'] },
-  { name: 'Review QC', status: 'running', tasks: 4, route: '/admin/agents/qc', recentLog: ['✅ Content review passed', '✓ No issues found', '→ Moving to publish queue'] },
-]
-
-const MOCK_ACTIVITY = [
-  { type: 'lead', desc: 'New lead captured from Google Ads', time: Date.now() - 2 * 60000, agent: 'Intake Researcher' },
-  { type: 'content', desc: 'Blog post "AI in 2026" published', time: Date.now() - 8 * 60000, agent: 'Content Creator' },
-  { type: 'task', desc: 'Sales outreach to Acme Corp completed', time: Date.now() - 15 * 60000, agent: 'Sales Close' },
-  { type: 'alert', desc: 'SEO Optimizer paused — budget exceeded', time: Date.now() - 32 * 60000, agent: 'Ads Manager' },
-  { type: 'lead', desc: 'New lead from LinkedIn campaign', time: Date.now() - 45 * 60000, agent: 'Intake Researcher' },
-  { type: 'task', desc: 'Client Onboarding — DesignCo signed off', time: Date.now() - 60 * 60000, agent: 'Client Success' },
-  { type: 'content', desc: 'SEO audit for blog completed', time: Date.now() - 120 * 60000, agent: 'Review QC' },
-  { type: 'alert', desc: 'Analytics report generated', time: Date.now() - 180 * 60000, agent: 'Analytics Engine' },
-]
-
-const MOCK_TASKS = [
-  { id: 'AA-1', title: 'Research top 10 real estate agencies in Dubai', agent: 'Intake Researcher', time: Date.now() - 2 * 3600000 },
-  { id: 'AA-2', title: 'Draft cold email campaign for luxury real estate', agent: 'Content Creator', time: Date.now() - 4 * 3600000 },
-  { id: 'AA-3', title: 'Follow up with Acme Corp for demo scheduling', agent: 'Sales Close', time: Date.now() - 5 * 3600000 },
-  { id: 'AA-4', title: 'SEO audit for agency blog — keyword analysis', agent: 'Review QC', time: Date.now() - 8 * 3600000 },
-  { id: 'AA-5', title: 'Budget review — Ads Manager paused due to limits', agent: 'CEO Console', time: Date.now() - 12 * 3600000 },
-]
-
-// ─── Simulated loading ───
-function useSimulatedLoading(delay = 800) {
-  const [ready, setReady] = useState(false)
-  useEffect(() => {
-    const t = setTimeout(() => setReady(true), delay)
-    return () => clearTimeout(t)
-  }, [delay])
-  return ready
-}
-
-/* ═══════════════════════════════════════════════
    Dashboard Page
    ═══════════════════════════════════════════════ */
 export default function Dashboard() {
-  const { selectedCompany, loading: companyLoading } = useCompany()
-  const loaded = useSimulatedLoading(600)
-  const showSkeleton = companyLoading || !loaded
+  const {
+    selectedCompany,
+    loading: companyLoading,
+    agentRuns,
+    metrics,
+    activity,
+    agentsFull,
+  } = useCompany()
 
-  // Budget banner state (simulated)
-  const budgetAlert = {
-    exceeded: true,
-    agentName: 'Ads Manager',
-    details: 'Monthly budget limit of $2,500 reached. Agent auto-paused at 100%.',
-  }
+  const [budgetAlert, setBudgetAlert] = useState(null)
+  const [tasks, setTasks] = useState([])
+  const [dataLoaded, setDataLoaded] = useState(false)
+
+  // Fetch budget alerts and tasks when agents are loaded
+  useEffect(() => {
+    if (!companyLoading) {
+      setDataLoaded(true)
+
+      // Fetch tasks/workflows
+      fetch('/api/workflows')
+        .then(r => r.json())
+        .then(data => {
+          const list = data?.data || data?.tasks || data || []
+          setTasks(Array.isArray(list) ? list.slice(0, 5) : [])
+        })
+        .catch(() => setTasks([]))
+
+      // Check for budget alerts from agents with error/paused status
+      const budgetIssues = agentsFull?.filter(a =>
+        a.status === 'error' || a.status === 'paused'
+      ) || []
+      if (budgetIssues.length > 0) {
+        setBudgetAlert({
+          exceeded: true,
+          agentName: budgetIssues[0].name || 'Agent',
+          details: `${budgetIssues[0].name} is ${budgetIssues[0].status}. Check agent configuration.`,
+        })
+      }
+    }
+  }, [companyLoading, agentsFull])
+
+  const showSkeleton = companyLoading || !dataLoaded
 
   // Company prefix for task IDs
   const prefix = selectedCompany?.issuePrefix || 'AA'
 
-  // Derive running count from mock agents
-  const runningCount = MOCK_AGENTS.filter(a => a.status === 'running').length
+  // Build real metrics from context
+  const realMetrics = useMemo(() => {
+    const running = metrics?.runningAgents || 0
+    const idle = metrics?.idleAgents || 0
+    const error = metrics?.errorAgents || 0
+    const total = metrics?.totalAgents || 0
+    const activeClients = metrics?.activeClients || 0
 
-  // Enhanced metrics with dynamic data
-  const metrics = useMemo(() => [
-    {
-      ...MOCK_METRICS[0],
-      description: `${runningCount} running, ${MOCK_AGENTS.filter(a => a.status === 'paused').length} paused, ${MOCK_AGENTS.filter(a => a.status === 'error').length} errors`,
-    },
-    MOCK_METRICS[1],
-    MOCK_METRICS[2],
-    MOCK_METRICS[3],
-  ], [runningCount])
+    return [
+      {
+        icon: Bot,
+        label: 'Agents Enabled',
+        value: String(total),
+        description: `${running} running, ${idle} idle, ${error} errors`,
+        href: '/admin/agents',
+      },
+      {
+        icon: CircleDot,
+        label: 'Active Clients',
+        value: String(activeClients),
+        description: `${metrics?.totalClients || 0} total`,
+        href: '/admin/crm',
+      },
+      {
+        icon: DollarSign,
+        label: 'Leads In Queue',
+        value: String(metrics?.leadsInQueue || 0),
+        description: 'Pipeline status',
+        href: '/admin/crm',
+      },
+      {
+        icon: ShieldCheck,
+        label: 'Agents Online',
+        value: String(metrics?.agentsOnline || 0),
+        description: `${total > 0 ? Math.round((metrics?.agentsOnline || 0) / total * 100) : 0}% uptime`,
+        href: '/admin/agents',
+      },
+    ]
+  }, [metrics])
+
+  // Map agentRuns to AgentRunCard format
+  const agentsForDisplay = agentRuns || []
+
+  // Map activity to ActivityRow format
+  const activityForDisplay = (activity || []).slice(0, 8).map(a => ({
+    type: a.type || 'task',
+    desc: a.summary || '',
+    time: a.timestamp || Date.now(),
+    agent: a.agentName || '',
+    icon: a.icon,
+  }))
+
+  // Map tasks to task rows
+  const tasksForDisplay = (tasks || []).slice(0, 5).map((t, i) => ({
+    id: `${prefix}-${i + 1}`,
+    title: t.title || t.name || t.summary || 'Untitled task',
+    agent: t.agent || t.assignee || t.assignedTo || 'System',
+    time: t.time || t.createdAt || t.timestamp || Date.now(),
+  }))
 
   // ─── Empty State: no company selected ───
   if (!companyLoading && !selectedCompany) {
@@ -378,14 +386,15 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
           {showSkeleton
             ? Array.from({ length: 4 }).map((_, i) => <AgentRunCardSkeleton key={i} />)
-            : MOCK_AGENTS.map((agent) => (
-                <AgentRunCard
-                  key={agent.name}
-                  agent={agent}
-                  isActive={agent.status === 'running'}
-                  status={agent.status}
-                />
-              ))
+            : agentsForDisplay.length === 0
+              ? <EmptyState icon={Bot} title="No agents configured" description="Add agents to see them here." action="Add Agent" actionHref="/admin/agents" />
+              : agentsForDisplay.map((agent) => (
+                  <AgentRunCard
+                    key={agent.id || agent.agentName}
+                    agent={agent}
+                    isActive={agent.status === 'running'}
+                  />
+                ))
           }
         </div>
       </div>
@@ -398,7 +407,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-1 sm:gap-2">
           {showSkeleton
             ? Array.from({ length: 4 }).map((_, i) => <MetricCardSkeleton key={i} />)
-            : metrics.map((m) => <MetricCard key={m.label} {...m} />)
+            : realMetrics.map((m) => <MetricCard key={m.label} {...m} />)
           }
         </div>
       </div>
@@ -423,9 +432,11 @@ export default function Dashboard() {
                     </div>
                   </div>
                 ))
-              : MOCK_ACTIVITY.map((ev, i) => (
-                  <ActivityRow key={i} event={ev} index={i} />
-                ))
+              : activityForDisplay.length === 0
+                ? <div className="px-4 py-6 text-center text-xs text-muted-foreground/60 italic">No recent activity</div>
+                : activityForDisplay.map((ev, i) => (
+                    <ActivityRow key={i} event={ev} index={i} />
+                  ))
             }
           </div>
         </div>
@@ -456,25 +467,27 @@ export default function Dashboard() {
                     </div>
                   </div>
                 ))
-              : MOCK_TASKS.map((task) => (
-                  <Link
-                    key={task.id}
-                    href="/admin/dashboard/tickets"
-                    className="px-4 py-3 text-sm cursor-pointer hover:bg-accent/50 transition-colors no-underline text-inherit block"
-                  >
-                    <div className="flex items-start gap-3">
-                      <span className="shrink-0 flex items-center justify-center size-5 border border-border text-[10px] font-mono text-muted-foreground">{task.id}</span>
-                      <div className="flex-1 min-w-0">
-                        <div className="truncate font-medium">{task.title}</div>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-[11px] text-muted-foreground">{task.agent}</span>
-                          <span className="text-[11px] text-muted-foreground">·</span>
-                          <span className="text-[11px] text-muted-foreground">{timeAgo(task.time)}</span>
+              : tasksForDisplay.length === 0
+                ? <div className="px-4 py-6 text-center text-xs text-muted-foreground/60 italic">No recent tasks</div>
+                : tasksForDisplay.map((task) => (
+                    <Link
+                      key={task.id}
+                      href="/admin/dashboard/tickets"
+                      className="px-4 py-3 text-sm cursor-pointer hover:bg-accent/50 transition-colors no-underline text-inherit block"
+                    >
+                      <div className="flex items-start gap-3">
+                        <span className="shrink-0 flex items-center justify-center size-5 border border-border text-[10px] font-mono text-muted-foreground">{task.id}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="truncate font-medium">{task.title}</div>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-[11px] text-muted-foreground">{task.agent}</span>
+                            <span className="text-[11px] text-muted-foreground">·</span>
+                            <span className="text-[11px] text-muted-foreground">{timeAgo(task.time)}</span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </Link>
-                ))
+                    </Link>
+                  ))
             }
           </div>
         </div>

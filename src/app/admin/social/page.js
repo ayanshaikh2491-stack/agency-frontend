@@ -2,46 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
-
-function uid() { return 'm' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6) }
-function ts() { return new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' }) }
-
-const PAPERCLIP_BUBBLE = 'min-w-0 max-w-[85%] break-words px-3 py-2 text-sm overflow-x-auto overflow-y-visible'
-
-function AgentBubbleHeader({ emoji, name }) {
-  return (
-    <div className="mb-1 flex items-center gap-1.5 pl-1">
-      <div className="flex h-4 w-4 shrink-0 items-center justify-center text-[11px] leading-none">{emoji}</div>
-      <span className="text-sm font-medium text-[var(--foreground)]">{name}</span>
-    </div>
-  )
-}
-
-function TypingBubble() {
-  return (
-    <div className="flex justify-start">
-      <div className={PAPERCLIP_BUBBLE + ' bg-[var(--card)] border border-[var(--border)] text-[var(--foreground)] [border-radius:14px_14px_14px_4px]'}>
-        <span className="inline-flex gap-1">
-          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--muted-foreground)]" style={{ animationDelay: '0ms' }} />
-          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--muted-foreground)]" style={{ animationDelay: '150ms' }} />
-          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--muted-foreground)]" style={{ animationDelay: '300ms' }} />
-        </span>
-      </div>
-    </div>
-  )
-}
-
-function renderMD(text) {
-  var h = (text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  h = h.replace(/```(\w*)\n([\s\S]*?)```/g, function(_, lang, code) {
-    var esc = code.replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    return '<pre class="bg-[var(--background)] border border-[var(--border)]/50 rounded p-3 my-2 text-[12px] leading-relaxed text-emerald-400/90 font-mono overflow-x-auto">' + esc + '</pre>'
-  })
-  h = h.replace(/`([^`]+)`/g, '<code class="bg-[var(--background)]/80 text-[var(--muted-foreground)] px-1.5 py-0.5 rounded text-[12px] font-mono border border-[var(--border)]/40">$1</code>')
-  h = h.replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-white">$1</strong>')
-  h = h.replace(/\n/g, '<br>')
-  return h
-}
+import { uid, ts, PAPERCLIP_BUBBLE, AgentBubbleHeader, TypingBubble, renderMD } from '@/lib/chat-utils'
+import PageShell from '@/components/PageShell'
 
 var SUGGESTIONS = [
   { label: '📊 Social Overview', prompt: 'Show me social media performance across all platforms' },
@@ -207,7 +169,7 @@ export default function SocialPage() {
   var welcomeBody = 'Hey! I\'m your **Social Media Manager** 📱\n\nI manage all your platforms — Instagram, Facebook, LinkedIn, Twitter & YouTube.\n\n**What do you need?**\n📊 Full social overview\n📅 Scheduled posts & calendar\n📈 Instagram/Facebook/LinkedIn analytics\n⚡ Engagement report & best posts'
 
   return (
-    <div className="flex h-[calc(100%+2rem)] flex-col -m-4">
+    <PageShell>
       <div className="flex min-h-0 min-w-0 flex-1 flex-row">
         {/* ─── LEFT: Chat ─── */}
         <div className="relative flex min-h-0 min-w-0 w-full md:w-[45%] shrink-0 flex-col bg-[var(--card)]">
@@ -612,6 +574,6 @@ export default function SocialPage() {
           </div>
         </div>
       </div>
-    </div>
+    </PageShell>
   )
 }
