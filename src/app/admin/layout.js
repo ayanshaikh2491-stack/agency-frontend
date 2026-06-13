@@ -20,6 +20,8 @@ import {
   LogOut,
   BookOpen,
   Package,
+  ShieldCheck,
+  DollarSign,
 } from 'lucide-react'
 
 /* ─── NavItem ─── */
@@ -182,6 +184,8 @@ function SidebarNav() {
           <NavItem href="/admin/routines" icon={Repeat} label="Routines" />
           <NavItem href="/admin/goals" icon={Target} label="Goals" />
           <NavItem href="/admin/activity" icon={History} label="Activity" />
+          <NavItem href="/admin/approvals" icon={ShieldCheck} label="Approvals" />
+          <NavItem href="/admin/costs" icon={DollarSign} label="Costs" />
         </SidebarSection>
 
         {/* Agency */}
