@@ -163,6 +163,8 @@ export default function CEOPage() {
     } else {
       // Route to worker behind the scenes
       var targetWorker = detectWorker(text)
+      var backendResponse = null
+
       if (targetWorker) {
         try {
           var res = await fetch('/api/agents/' + targetWorker.id + '/chat', {
@@ -170,16 +172,28 @@ export default function CEOPage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ message: text, client_name: activeCompany?.name || '' }),
           })
-          var data = res.ok ? (await res.json()) : null
+          backendResponse = res.ok ? (await res.json()) : null
         } catch (e) {}
 
-        if (l.includes('lead') || l.includes('find') || l.includes('research')) ceoReply = CEO_RESPONSES.lead()
-        else if (l.includes('content') || l.includes('blog') || l.includes('write') || l.includes('post') || l.includes('draft')) ceoReply = CEO_RESPONSES.content()
-        else if (l.includes('ads') || l.includes('facebook') || l.includes('linkedin') || l.includes('campaign')) ceoReply = CEO_RESPONSES.ads()
-        else if (l.includes('status') || l.includes('health') || l.includes('update') || l.includes('how is') || l.includes('check')) ceoReply = CEO_RESPONSES.status()
-        else ceoReply = "On it. Let me put the right people on this and get you a solid answer. 💪"
+        // Use backend response if available, otherwise fall back to static
+        var backendText = backendResponse
+          ? (backendResponse.response || backendResponse.reply || backendResponse.content || backendResponse.message || backendResponse.output || null)
+          : null
+        if (backendText && backendText.length > 3) {
+          ceoReply = backendText
+        } else if (l.includes('lead') || l.includes('find') || l.includes('research')) {
+          ceoReply = CEO_RESPONSES.lead()
+        } else if (l.includes('content') || l.includes('blog') || l.includes('write') || l.includes('post') || l.includes('draft')) {
+          ceoReply = CEO_RESPONSES.content()
+        } else if (l.includes('ads') || l.includes('facebook') || l.includes('linkedin') || l.includes('campaign')) {
+          ceoReply = CEO_RESPONSES.ads()
+        } else if (l.includes('status') || l.includes('health') || l.includes('update') || l.includes('how is') || l.includes('check')) {
+          ceoReply = CEO_RESPONSES.status()
+        } else {
+          ceoReply = "On it. Let me put the right people on this and get you a solid answer. 💪"
+        }
       } else {
-        // No worker match -> conversational response
+        // No worker match -> try backend intake-researcher for conversational response
         try {
           var res2 = await fetch('/api/agents/intake-researcher/chat', {
             method: 'POST',
@@ -187,8 +201,11 @@ export default function CEOPage() {
             body: JSON.stringify({ message: 'Respond as a helpful CEO assistant to this message. Be brief and natural. Message: ' + text, client_name: activeCompany?.name || '' }),
           })
           var data2 = res2.ok ? (await res2.json()) : null
-          ceoReply = (data2 && (data2.response || data2.reply || data2.content))
-            ? (data2.response || data2.reply || data2.content)
+          var backendText2 = data2
+            ? (data2.response || data2.reply || data2.content || data2.message || data2.output || null)
+            : null
+          ceoReply = backendText2 && backendText2.length > 3
+            ? backendText2
             : "Got it. Let me check on this and get back to you. 👍"
         } catch (e) {
           ceoReply = "Got it. Let me check on this and get back to you. 👍"
