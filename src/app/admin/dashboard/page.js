@@ -313,14 +313,14 @@ export default function Dashboard() {
         label: 'Active Clients',
         value: String(activeClients),
         description: `${metrics?.totalClients || 0} total`,
-        href: '/admin/crm',
+        href: '/admin/agents',
       },
       {
         icon: DollarSign,
         label: 'Leads In Queue',
         value: String(metrics?.leadsInQueue || 0),
         description: 'Pipeline status',
-        href: '/admin/crm',
+        href: '/admin/dashboard',
       },
       {
         icon: ShieldCheck,
