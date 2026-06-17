@@ -62,15 +62,15 @@ export default function WorkspacesPage() {
             <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
               <div style={{flex:1,minWidth:200}}>
                 <label style={{fontSize:11,color:'var(--text-muted)',display:'block',marginBottom:4}}>Client Name</label>
-                <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Acme Corp" style={{fontSize:12}} />
+                <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Enter client name" style={{fontSize:12}} />
               </div>
               <div style={{flex:1,minWidth:150}}>
                 <label style={{fontSize:11,color:'var(--text-muted)',display:'block',marginBottom:4}}>Industry</label>
-                <input value={newIndustry} onChange={e => setNewIndustry(e.target.value)} placeholder="Real Estate" style={{fontSize:12}} />
+                <input value={newIndustry} onChange={e => setNewIndustry(e.target.value)} placeholder="Enter industry" style={{fontSize:12}} />
               </div>
               <div style={{flex:1,minWidth:200}}>
                 <label style={{fontSize:11,color:'var(--text-muted)',display:'block',marginBottom:4}}>Website</label>
-                <input value={newWebsite} onChange={e => setNewWebsite(e.target.value)} placeholder="https://acme.com" style={{fontSize:12}} />
+                <input value={newWebsite} onChange={e => setNewWebsite(e.target.value)} placeholder="https://example.com" style={{fontSize:12}} />
               </div>
               <div style={{display:'flex',alignItems:'flex-end'}}>
                 <button className="btn btn-primary" onClick={createWorkspace} style={{fontSize:12,padding:'7px 16px'}}>Create</button>
