@@ -378,13 +378,13 @@ export default function AdsPage() {
                 <div className="grid grid-cols-2 gap-1.5">
                   <div className="rounded-lg border border-emerald-500/20 bg-[var(--card)] p-3">
                     <span className="text-[10px] text-emerald-400 font-medium">🔥 Top Performer</span>
-                    <p className="text-xs text-[var(--foreground)] font-medium mt-1 truncate">{topCampaign.name}</p>
-                    <p className="text-[10px] text-[var(--muted-foreground)]">ROAS {topCampaign.roas}x · ${formatNum(topCampaign.spend)} spend</p>
+                    <p className="text-xs text-[var(--foreground)] font-medium mt-1 truncate">{topCampaign ? topCampaign.name : 'No data'}</p>
+                    <p className="text-[10px] text-[var(--muted-foreground)]">ROAS {topCampaign ? topCampaign.roas : 0}x · ${topCampaign ? formatNum(topCampaign.spend) : 0} spend</p>
                   </div>
                   <div className="rounded-lg border border-red-500/20 bg-[var(--card)] p-3">
                     <span className="text-[10px] text-red-400 font-medium">⚠️ Needs Attention</span>
-                    <p className="text-xs text-[var(--foreground)] font-medium mt-1 truncate">{worstCampaign.name}</p>
-                    <p className="text-[10px] text-[var(--muted-foreground)]">ROAS {worstCampaign.roas}x · {worstCampaign.change} change</p>
+                    <p className="text-xs text-[var(--foreground)] font-medium mt-1 truncate">{worstCampaign ? worstCampaign.name : 'No data'}</p>
+                    <p className="text-[10px] text-[var(--muted-foreground)]">ROAS {worstCampaign ? worstCampaign.roas : 0}x · {worstCampaign ? worstCampaign.change : '-'}</p>
                   </div>
                 </div>
 
