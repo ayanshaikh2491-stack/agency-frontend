@@ -34,7 +34,7 @@ const TICKETS = [
   ]},
   { id: 106, title: 'Weekly analytics report', agent: 'Analytics Engine', status: 'completed', priority: 'low', goal: 'Reporting', budget: { used: 890, limit: 2000 }, messages: [
     { id: 1, sender: 'CEO Console', type: 'agent-ceo', msg: 'Pull this week\'s metrics: leads, conversions, spend, ROI.', time: '08:00' },
-    { id: 2, sender: 'Analytics Engine', type: 'agent-worker', msg: 'Report generated. 47 leads, 12 conversions, $2,340 spend, ROI 85%.', time: '08:15' },
+    { id: 2, sender: 'Analytics Engine', type: 'agent-worker', msg: 'Report generated. Awaiting first report.', time: '08:15' },
   ]},
 ]
 

@@ -23,7 +23,7 @@ const SAMPLE_LOGS = [
   { ts: 18, type: 'error', msg: '[ERROR] Build failed: Missing dependency @types/react' },
   { ts: 19, type: 'info', msg: '[RECOVERY] Installing @types/react...' },
   { ts: 20, type: 'info', msg: '[WORKER] Intake Researcher completed Ticket #101' },
-  { ts: 21, type: 'highlight', msg: '[RESULT] Ticket #101: 247 leads collected, avg price $425K' },
+  { ts: 21, type: 'highlight', msg: '[RESULT] Ticket #101: No results yet, avg price $425K' },
   { ts: 22, type: 'info', msg: '[HEARTBEAT] Cycle completed. Sleeping 30s...' },
 ]
 

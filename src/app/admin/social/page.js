@@ -21,13 +21,7 @@ var ACCOUNTS = [
   { platform: 'YouTube', handle: 'AyanAgency', connected: false, followers: 0, growth: '-', posts: 0, engagement: 0, reach: 0, status: 'disconnected' },
 ]
 
-var SCHEDULED_POSTS = [
-  { id: 'sp1', platform: 'Instagram', content: 'New client success story — Dental SEO increased leads by 150% 🔥', type: 'carousel', status: 'scheduled', date: '2026-06-14', time: '10:00', media: '📸' },
-  { id: 'sp2', platform: 'LinkedIn', content: 'Deep dive: How AI is changing B2B lead generation in 2026', type: 'article', status: 'scheduled', date: '2026-06-15', time: '09:00', media: '📄' },
-  { id: 'sp3', platform: 'Instagram', content: 'Behind the scenes — Our agency workflow for scaling ads 🚀', type: 'reel', status: 'scheduled', date: '2026-06-16', time: '12:00', media: '🎬' },
-  { id: 'sp4', platform: 'Facebook', content: 'Case study: How we helped a local biz get 300% more calls', type: 'image', status: 'draft', date: '2026-06-18', time: '14:00', media: '🖼' },
-  { id: 'sp5', platform: 'LinkedIn', content: '5 ad copywriting tips that doubled our CTR this quarter', type: 'carousel', status: 'scheduled', date: '2026-06-19', time: '10:00', media: '📸' },
-]
+var SCHEDULED_POSTS = [] // Real data from backend
 
 var TOP_POSTS = [
   { platform: 'Instagram', content: 'AI tools that saved us 20hrs/week ⚡', type: 'reel', engagement: 12.4, reach: 12800, date: '2026-06-08' },

@@ -44,14 +44,14 @@ const mockOps = [
 ]
 
 const mockPipeline = {
-  leadsToday: 47,
-  leadsTotal: 1428,
-  queueDepth: 23,
-  cycleCount: 312,
-  cycleActive: true,
-  avgResponse: '2.4s',
-  conversionRate: 8.3,
-  topSource: 'Twitter',
+  leadsToday: 0,
+  leadsTotal: 0,
+  queueDepth: 0,
+  cycleCount: 0,
+  cycleActive: false,
+  avgResponse: '—',
+  conversionRate: 0,
+  topSource: '—',
 }
 
 const mockAgentLogs = {

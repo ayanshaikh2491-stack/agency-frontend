@@ -58,7 +58,8 @@ var SCENARIOS = [
   { level: '🚀 Best', desc: 'Restructure +$10K', budget: 25000, projected: 600, roas: 3.8, cpl: 32 },
 ]
 
-var CAMPAIGNS = [
+var CAMPAIGNS = [] // Real data from backend
+var _CAMPAIGNS_OLD = [
   { id: 'c1', name: 'B2B SaaS Lead Gen', platform: 'Meta', status: 'active', impressions: 84700, clicks: 2150, spend: 4800, ctr: 2.54, cpc: 2.23, conversions: 128, cpl: 37.50, roas: 3.2, rating: '🔥', change: '+12%' },
   { id: 'c2', name: 'Site Retargeting', platform: 'Meta', status: 'active', impressions: 32100, clicks: 980, spend: 1900, ctr: 3.05, cpc: 1.94, conversions: 45, cpl: 42.22, roas: 2.8, rating: '✅', change: '+8%' },
   { id: 'c3', name: 'Brand — Dental SEO', platform: 'Google', status: 'active', impressions: 62300, clicks: 1420, spend: 3600, ctr: 2.28, cpc: 2.54, conversions: 72, cpl: 50.00, roas: 2.1, rating: '⚠️', change: '-3%' },
