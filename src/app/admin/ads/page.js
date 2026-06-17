@@ -94,8 +94,8 @@ export default function AdsPage() {
   var scrollRef = useRef(null)
   var keepScrolled = useRef(true)
 
-  var topCampaign = CAMPAIGNS.filter(function(c) { return c.status === 'active' }).sort(function(a, b) { return b.roas - a.roas })[0]
-  var worstCampaign = CAMPAIGNS.filter(function(c) { return c.status === 'active' }).sort(function(a, b) { return a.roas - b.roas })[0]
+  var topCampaign = CAMPAIGNS.filter(function(c) { return c.status === 'active' }).sort(function(a, b) { return b.roas - a.roas })[0] || null
+  var worstCampaign = CAMPAIGNS.filter(function(c) { return c.status === 'active' }).sort(function(a, b) { return a.roas - b.roas })[0] || null
   var activeImps = CAMPAIGNS.filter(function(c) { return c.status === 'active' }).reduce(function(s, c) { return s + c.impressions }, 0)
   var activeSpend = CAMPAIGNS.filter(function(c) { return c.status === 'active' }).reduce(function(s, c) { return s + c.spend }, 0)
   var activeConvs = CAMPAIGNS.filter(function(c) { return c.status === 'active' }).reduce(function(s, c) { return s + c.conversions }, 0)
