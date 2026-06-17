@@ -2,13 +2,7 @@
 import { useState } from 'react'
 import { ShieldCheck, CheckCircle2, XCircle, Bot } from 'lucide-react'
 
-const APPROVALS = [
-  { id: 'APP-001', agent: 'Ads Runner', type: 'Budget Override', amount: '$500', reason: 'Campaign performance exceeded budget due to high CTR. Need $500 extra to complete Q3 campaign.', requested: Date.now() - 10800000, status: 'pending', priority: 'high' },
-  { id: 'APP-002', agent: 'SEO Engine', type: 'Budget Increase', amount: '$1,200', reason: 'New keyword targets identified. Monthly budget needs increase from $400 to $1,600.', requested: Date.now() - 28800000, status: 'pending', priority: 'medium' },
-  { id: 'APP-003', agent: 'Content Creator', type: 'New Tool', amount: '$200', reason: 'Request to subscribe to Grammarly Premium for improved content quality.', requested: Date.now() - 43200000, status: 'pending', priority: 'low' },
-  { id: 'APP-004', agent: 'Sales Closer', type: 'Budget Override', amount: '$350', reason: 'LinkedIn Sales Navigator trial ended. Need extension.', requested: Date.now() - 86400000, status: 'approved', priority: 'high' },
-  { id: 'APP-005', agent: 'Analytics Bot', type: 'Budget Increase', amount: '$800', reason: 'Additional data sources require higher API quota.', requested: Date.now() - 172800000, status: 'rejected', priority: 'medium' },
-]
+const APPROVALS = []
 
 function timeAgo(ts) {
   const diff = Date.now() - ts

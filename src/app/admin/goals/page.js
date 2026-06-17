@@ -59,33 +59,12 @@ function renderMD(text) {
 
 function formatNum(n) { if (!n) return '0'; if (n >= 1000000) return (n/1000000).toFixed(1) + 'M'; if (n >= 1000) return (n/1000).toFixed(1) + 'K'; return n.toLocaleString() }
 
-// ─── MOCK GOALS DATA ───
-var GOALS = [
-  { id: 'g1', title: 'Launch lead gen campaign for Miami real estate', status: 'active', tickets: 8, done: 3, priority: 'high', start: '2026-06-01', deadline: '2026-07-15', agent: 'Ads Runner' },
-  { id: 'g2', title: 'Scale content output to 50 posts/week', status: 'active', tickets: 5, done: 1, priority: 'medium', start: '2026-06-05', deadline: '2026-07-30', agent: 'Content Creator' },
-  { id: 'g3', title: 'Optimize ad conversion funnel', status: 'pending', tickets: 4, done: 0, priority: 'medium', start: '2026-06-10', deadline: '2026-08-01', agent: 'Ads Runner' },
-  { id: 'g4', title: 'Improve client retention program', status: 'completed', tickets: 6, done: 6, priority: 'low', start: '2026-05-01', deadline: '2026-06-10', agent: 'Client Success' },
-]
+// ─── REAL DATA — loaded from backend; empty until agents work ───
+var GOALS = []
 
-var TOTALS = {
-  active: 4,
-  completed: 12,
-  avgCompletion: '78%',
-  onTrack: 3,
-}
+var TOTALS = { active: 0, completed: 0, avgCompletion: '0%', onTrack: 0 }
 
-var MILESTONES = [
-  { id: 'm1', goalId: 'g1', title: 'Market research complete', date: '2026-06-10', done: true },
-  { id: 'm2', goalId: 'g1', title: 'Ad creative drafts ready', date: '2026-06-20', done: false },
-  { id: 'm3', goalId: 'g1', title: 'Campaign launch', date: '2026-07-01', done: false },
-  { id: 'm4', goalId: 'g2', title: 'Content calendar built', date: '2026-06-12', done: true },
-  { id: 'm5', goalId: 'g2', title: '10 writers onboarded', date: '2026-06-25', done: false },
-  { id: 'm6', goalId: 'g2', title: 'First 50 posts live', date: '2026-07-10', done: false },
-  { id: 'm7', goalId: 'g3', title: 'Funnel audit complete', date: '2026-06-18', done: false },
-  { id: 'm8', goalId: 'g3', title: 'A/B test running', date: '2026-07-05', done: false },
-  { id: 'm9', goalId: 'g4', title: 'Client survey sent', date: '2026-05-15', done: true },
-  { id: 'm10', goalId: 'g4', title: 'Retention playbook written', date: '2026-05-30', done: true },
-]
+var MILESTONES = []
 
 var DECOMPOSITION_EXAMPLE = {
   goal: 'Launch lead gen campaign for Miami real estate',

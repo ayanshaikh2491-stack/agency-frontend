@@ -33,60 +33,21 @@ function ago(minutes) {
   return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
 }
 
-/* ─── Mock data generators ─── */
-const mockOps = [
-  { id: 'op-1', agent: 'ceo',    agentName: 'CEO Commander',   emoji: '👑', task: 'Lead enrichment pipeline',       status: 'executing', progress: 78, started: '09:32' },
-  { id: 'op-2', agent: 'social', agentName: 'Social Manager',  emoji: '📱', task: 'Twitter thread — AI trends',     status: 'running',   progress: 42, started: '09:45' },
-  { id: 'op-3', agent: 'ads',    agentName: 'Ads Strategist',  emoji: '📢', task: 'Facebook ad A/B test — Q3',      status: 'running',   progress: 63, started: '09:10' },
-  { id: 'op-4', agent: 'ceo',    agentName: 'CEO Commander',   emoji: '👑', task: 'Client intake — Acme Corp',       status: 'pending',   progress: 0,  started: '09:52' },
-  { id: 'op-5', agent: 'social', agentName: 'Social Manager',  emoji: '📱', task: 'LinkedIn post — case study',       status: 'pending',   progress: 0,  started: '09:55' },
-  { id: 'op-6', agent: 'ads',    agentName: 'Ads Strategist',  emoji: '📢', task: 'Google Ads keyword expansion',     status: 'done',     progress: 100, started: '08:15' },
-]
+/* ─── REAL DATA — loaded from backend; empty until agents work ─── */
+const mockOps = []
 
 const mockPipeline = {
-  leadsToday: 0,
-  leadsTotal: 0,
-  queueDepth: 0,
-  cycleCount: 0,
-  cycleActive: false,
-  avgResponse: '—',
-  conversionRate: 0,
-  topSource: '—',
+  leadsToday: 0, leadsTotal: 0, queueDepth: 0, cycleCount: 0,
+  cycleActive: false, avgResponse: '—', conversionRate: 0, topSource: '—',
 }
 
 const mockAgentLogs = {
-  ceo:    { status: 'running', tasks: 12, lastLog: 'Enriched 5 leads via LinkedIn scraping',           uptime: '6h 12m' },
-  social: { status: 'running', tasks: 8,  lastLog: 'Published Twitter thread — 2.1K impressions',       uptime: '4h 35m' },
-  ads:    { status: 'idle',    tasks: 5,  lastLog: 'Facebook Ad A/B test results uploaded to drive',    uptime: '3h 50m' },
+  ceo: { status: 'idle', tasks: 0, lastLog: 'No activity yet', uptime: '' },
+  social: { status: 'idle', tasks: 0, lastLog: 'No activity yet', uptime: '' },
+  ads: { status: 'idle', tasks: 0, lastLog: 'No activity yet', uptime: '' },
 }
 
-function generateRecentActivities() {
-  const activities = []
-  const events = [
-    { agent: 'ceo',    text: 'CEO: Lead enrichment completed — 12 new prospects' },
-    { agent: 'social', text: 'Social: Twitter thread "AI Trends 2026" published — 2.1K impressions' },
-    { agent: 'ads',    text: 'Ads: Facebook A/B test variant B winning by 14% CTR' },
-    { agent: 'ceo',    text: 'CEO: Pipeline cycle #312 started — 47 leads queued' },
-    { agent: 'social', text: 'Social: LinkedIn article "Case Study: Growth Hacking" scheduled' },
-    { agent: 'ads',    text: 'Ads: Google Ads budget adjusted — +$50/day to top campaign' },
-    { agent: 'ceo',    text: 'CEO: Client intake — Acme Corp onboarded, routing to sales' },
-    { agent: 'social', text: 'Social: Instagram story posted — 892 views in 30m' },
-    { agent: 'ads',    text: 'Ads: Retargeting campaign launched — 12K audience reached' },
-    { agent: 'ceo',    text: 'CEO: Token usage report generated — 8,432 tokens used today' },
-    { agent: 'social', text: 'Social: TikTok video uploaded — "Behind the Scenes" series' },
-    { agent: 'ads',    text: 'Ads: Cost-per-click dropped to $0.42 — 18% improvement' },
-  ]
-  for (let i = 0; i < 12; i++) {
-    activities.push({
-      id: uid(),
-      agent: events[i].agent,
-      text: events[i].text,
-      time: ago(i * 3 + Math.floor(Math.random() * 2)),
-    })
-  }
-  return activities
-}
-
+function generateRecentActivities() { return [] }
 const mockActivities = generateRecentActivities()
 
 const STATUS_STYLES = {

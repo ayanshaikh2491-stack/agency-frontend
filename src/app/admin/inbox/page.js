@@ -3,29 +3,7 @@ import { useRouter } from 'next/navigation'
 
 export default function InboxPage() {
   const router = useRouter()
-  const items = [
-    { id: 1, type: 'approval',
-      icon: '👤',
-      title: 'Hire New Agent',
-      desc: 'CEO recommends hiring a "Social Media Manager" agent',
-      cost: '$15/mo budget',
-      time: '2h ago'
-    },
-    { id: 2, type: 'approval',
-      icon: '📊',
-      title: 'Budget Increase',
-      desc: 'Content Creator requesting $20/mo additional budget',
-      cost: '',
-      time: '5h ago'
-    },
-    { id: 3, type: 'notice',
-      icon: '⚠️',
-      title: 'Agent Error',
-      desc: 'Client Success agent hit rate limit - retry queued',
-      cost: '',
-      time: '1h ago'
-    },
-  ]
+  const items = []
 
   return (
     <>

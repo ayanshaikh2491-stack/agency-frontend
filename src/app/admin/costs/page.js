@@ -28,11 +28,7 @@ const BUDGET_DATA = {
   ],
 }
 
-const PENDING_APPROVALS = [
-  { id: 'APP-001', agent: 'Ads Runner', type: 'budget_override', amount: '$500', requested: Date.now() - 10800000, status: 'pending' },
-  { id: 'APP-002', agent: 'SEO Engine', type: 'budget_increase', amount: '$1,200', requested: Date.now() - 28800000, status: 'pending' },
-  { id: 'APP-003', agent: 'Content Creator', type: 'new_tool', amount: '$200', requested: Date.now() - 43200000, status: 'pending' },
-]
+const PENDING_APPROVALS = []
 
 function formatCents(cents) {
   return '$' + (cents / 100).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })

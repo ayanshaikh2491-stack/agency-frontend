@@ -50,34 +50,15 @@ var SUGGESTIONS = [
   { label: '⚡ Top Performers', prompt: 'Which campaigns are winning and which need attention?' },
 ]
 
-// ─── MOCK DATA (real API will replace) ───
-var BUDGET = { total: 15000, spent: 9800, remaining: 5200, days_remaining: 12, daily_avg_spend: 817, recommended_daily: 833 }
-var SCENARIOS = [
-  { level: '✅ Good', desc: 'Keep current', budget: 15000, projected: 315, roas: 2.8, cpl: 44 },
-  { level: '⚡ Better', desc: '+$5K to Lookalike', budget: 20000, projected: 450, roas: 3.2, cpl: 38 },
-  { level: '🚀 Best', desc: 'Restructure +$10K', budget: 25000, projected: 600, roas: 3.8, cpl: 32 },
-]
+// ─── REAL DATA — loaded from backend; empty until agents work ───
+var BUDGET = { total: 0, spent: 0, remaining: 0, days_remaining: 0, daily_avg_spend: 0, recommended_daily: 0 }
+var SCENARIOS = []
 
-var CAMPAIGNS = [] // Real data from backend
-var _CAMPAIGNS_OLD = [
-  { id: 'c1', name: 'B2B SaaS Lead Gen', platform: 'Meta', status: 'active', impressions: 84700, clicks: 2150, spend: 4800, ctr: 2.54, cpc: 2.23, conversions: 128, cpl: 37.50, roas: 3.2, rating: '🔥', change: '+12%' },
-  { id: 'c2', name: 'Site Retargeting', platform: 'Meta', status: 'active', impressions: 32100, clicks: 980, spend: 1900, ctr: 3.05, cpc: 1.94, conversions: 45, cpl: 42.22, roas: 2.8, rating: '✅', change: '+8%' },
-  { id: 'c3', name: 'Brand — Dental SEO', platform: 'Google', status: 'active', impressions: 62300, clicks: 1420, spend: 3600, ctr: 2.28, cpc: 2.54, conversions: 72, cpl: 50.00, roas: 2.1, rating: '⚠️', change: '-3%' },
-  { id: 'c4', name: 'Lookalike 1%', platform: 'Meta', status: 'paused', impressions: 15000, clicks: 340, spend: 800, ctr: 2.27, cpc: 2.35, conversions: 12, cpl: 66.67, roas: 1.5, rating: '❌', change: '-18%' },
-  { id: 'c5', name: 'Search — AI Tools', platform: 'Google', status: 'active', impressions: 45600, clicks: 1150, spend: 2800, ctr: 2.52, cpc: 2.43, conversions: 58, cpl: 48.28, roas: 2.3, rating: '✅', change: '+5%' },
-]
+var CAMPAIGNS = []
 
-var COMPETITORS = [
-  { name: 'GrowthBox', platform: 'Meta', spend_est: 14000, share_of_voice: 22, trend: 'up' },
-  { name: 'ScaleAgency', platform: 'Google', spend_est: 11000, share_of_voice: 18, trend: 'down' },
-  { name: 'LeadMachine', platform: 'Both', spend_est: 18000, share_of_voice: 32, trend: 'up' },
-]
+var COMPETITORS = []
 
-var INSIGHTS = [
-  '🔥 B2B Lead Gen is your top campaign at 3.2x ROAS — consider increasing budget',
-  '⚠️ Lookalike 1% paused at 1.5x ROAS — needs creative refresh before restart',
-  '📈 Competitor "LeadMachine" increased spend 22% this month in your vertical',
-  '💡 Your Google Brand campaign CPC is up 11% — check competitor bidding activity',
+var INSIGHTS = []
 ]
 
 function formatNum(n) { if (!n) return '0'; if (n >= 1000000) return (n/1000000).toFixed(1) + 'M'; if (n >= 1000) return (n/1000).toFixed(1) + 'K'; return n.toLocaleString() }

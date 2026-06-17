@@ -47,34 +47,11 @@ function AgentBubbleHeader({ emoji, name }) {
   )
 }
 
-/* ─── MOCK ROUTINES DATA ─── */
+/* ─── REAL DATA — loaded from backend; empty until agents work ─── */
 
-const ROUTINES = [
-  { id: 'speed-to-lead', name: 'Speed-to-Lead', schedule: 'Every 5 min', lastRun: '2 min ago', nextRun: '3 min', enabled: true, emoji: '⚡' },
-  { id: 'social-auto-post', name: 'Social Auto-Post', schedule: 'Daily 9AM, 12PM, 6PM', lastRun: '1h ago', nextRun: 'Tomorrow 9AM', enabled: true, emoji: '📱' },
-  { id: 'ad-perf-check', name: 'Ad Perf Check', schedule: 'Every 30 min', lastRun: '12 min ago', nextRun: '18 min', enabled: true, emoji: '📊' },
-  { id: 'weekly-seo-audit', name: 'Weekly SEO Audit', schedule: 'Every Mon 8AM', lastRun: '2 days ago', nextRun: 'Mon 8AM', enabled: true, emoji: '🔍' },
-  { id: 'daily-lead-enrich', name: 'Daily Lead Enrichment', schedule: 'Daily 7AM', lastRun: '19h ago', nextRun: 'Tomorrow 7AM', enabled: true, emoji: '🧠' },
-  { id: 'content-publish', name: 'Content Publishing', schedule: 'Daily 10AM, 3PM', lastRun: '6h ago', nextRun: 'Tomorrow 10AM', enabled: false, emoji: '✍️' },
-]
+const ROUTINES = []
 
-const HISTORY_RUNS = [
-  { id: 'h1', routine: 'Speed-to-Lead', status: 'ok', ts: '2026-06-13 14:02:00', duration: '12s' },
-  { id: 'h2', routine: 'Ad Perf Check', status: 'ok', ts: '2026-06-13 13:58:00', duration: '8s' },
-  { id: 'h3', routine: 'Social Auto-Post', status: 'ok', ts: '2026-06-13 13:45:00', duration: '1m 23s' },
-  { id: 'h4', routine: 'Speed-to-Lead', status: 'fail', ts: '2026-06-13 13:40:00', duration: '30s' },
-  { id: 'h5', routine: 'Daily Lead Enrichment', status: 'ok', ts: '2026-06-13 13:30:00', duration: '2m 10s' },
-  { id: 'h6', routine: 'Ad Perf Check', status: 'ok', ts: '2026-06-13 13:28:00', duration: '9s' },
-  { id: 'h7', routine: 'Speed-to-Lead', status: 'ok', ts: '2026-06-13 13:22:00', duration: '11s' },
-  { id: 'h8', routine: 'Content Publishing', status: 'fail', ts: '2026-06-13 13:15:00', duration: '45s' },
-  { id: 'h9', routine: 'Social Auto-Post', status: 'ok', ts: '2026-06-13 13:00:00', duration: '1m 05s' },
-  { id: 'h10', routine: 'Ad Perf Check', status: 'ok', ts: '2026-06-13 12:58:00', duration: '7s' },
-  { id: 'h11', routine: 'Speed-to-Lead', status: 'ok', ts: '2026-06-13 12:52:00', duration: '13s' },
-  { id: 'h12', routine: 'Weekly SEO Audit', status: 'ok', ts: '2026-06-13 12:30:00', duration: '4m 20s' },
-  { id: 'h13', routine: 'Daily Lead Enrichment', status: 'ok', ts: '2026-06-13 12:25:00', duration: '1m 55s' },
-  { id: 'h14', routine: 'Speed-to-Lead', status: 'ok', ts: '2026-06-13 12:22:00', duration: '10s' },
-  { id: 'h15', routine: 'Ad Perf Check', status: 'fail', ts: '2026-06-13 12:20:00', duration: '15s' },
-]
+const HISTORY_RUNS = []
 
 const PERF_DATA = [
   { day: 'Mon', success: 94, duration: 2.1 },

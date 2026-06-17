@@ -12,38 +12,23 @@ var SUGGESTIONS = [
   { label: '⚡ Engagement Report', prompt: 'Give me the engagement report and best performing posts' },
 ]
 
-// ─── MOCK SOCIAL DATA ───
-var ACCOUNTS = [
-  { platform: 'Instagram', handle: '@ayanagency', connected: true, followers: 2840, growth: '+12%', posts: 124, engagement: 4.8, reach: 45200, status: 'active' },
-  { platform: 'Facebook', handle: 'AyanAgency', connected: true, followers: 5200, growth: '+5%', posts: 89, engagement: 2.3, reach: 38100, status: 'active' },
-  { platform: 'LinkedIn', handle: 'ayan-agency', connected: true, followers: 1850, growth: '+18%', posts: 42, engagement: 6.1, reach: 28100, status: 'active' },
-  { platform: 'Twitter/X', handle: '@ayanagency', connected: false, followers: 0, growth: '-', posts: 0, engagement: 0, reach: 0, status: 'disconnected' },
-  { platform: 'YouTube', handle: 'AyanAgency', connected: false, followers: 0, growth: '-', posts: 0, engagement: 0, reach: 0, status: 'disconnected' },
-]
+// ─── REAL DATA — loaded from backend; empty until agents work ───
+var ACCOUNTS = []
 
-var SCHEDULED_POSTS = [] // Real data from backend
+var SCHEDULED_POSTS = []
 
-var TOP_POSTS = [
-  { platform: 'Instagram', content: 'AI tools that saved us 20hrs/week ⚡', type: 'reel', engagement: 12.4, reach: 12800, date: '2026-06-08' },
-  { platform: 'LinkedIn', content: 'The real cost of ignoring SEO in 2026', type: 'article', engagement: 8.7, reach: 6500, date: '2026-06-05' },
-  { platform: 'Facebook', content: 'Client win! 3x ROAS in 2 weeks 🎯', type: 'image', engagement: 5.2, reach: 9200, date: '2026-06-03' },
-]
+var TOP_POSTS = []
 
 var ENGAGEMENT_TOTALS = {
-  total_reach: 111400,
-  total_followers: 9890,
-  total_engagement: 4.4,
-  total_posts_this_month: 38,
-  best_platform: 'LinkedIn',
-  best_platform_eng: 6.1,
+  total_reach: 0,
+  total_followers: 0,
+  total_engagement: 0,
+  total_posts_this_month: 0,
+  best_platform: null,
+  best_platform_eng: 0,
 }
 
-var CONTENT_TIPS = [
-  '🔥 Reels are your top performer — 12.4% engagement vs 4.8% avg',
-  '📈 LinkedIn growing 18% MoM — double down on thought leadership',
-  '📅 You have 5 posts scheduled this week across 3 platforms',
-  '💡 Best posting time: Weekdays 9-11AM IST for highest engagement',
-]
+var CONTENT_TIPS = []
 
 function formatNum(n) { if (!n) return '0'; if (n >= 1000000) return (n/1000000).toFixed(1) + 'M'; if (n >= 1000) return (n/1000).toFixed(1) + 'K'; return n.toLocaleString() }
 
