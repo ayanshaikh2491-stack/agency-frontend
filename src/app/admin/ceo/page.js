@@ -30,10 +30,12 @@ const AGENT_EMOJIS = {
 }
 
 const SUGGESTIONS = [
-  { label: '🔍 Find Leads', prompt: 'Find hot leads in Dubai real estate market' },
-  { label: '✍️ Create Content', prompt: 'Write a blog post about AI in marketing' },
-  { label: '📊 Check Status', prompt: 'Give me a quick status update on everything' },
-  { label: '📢 Run Ads', prompt: 'Set up Facebook ads campaign' },
+  { label: '🔍 Research', prompt: 'Research competitors for a roofing business in Texas' },
+  { label: '✍️ Content', prompt: 'Write a blog post about AI in marketing' },
+  { label: '📱 Social', prompt: 'Create a LinkedIn content strategy for a SaaS company' },
+  { label: '📢 Ads', prompt: 'Set up Facebook ads for a local service business' },
+  { label: '📈 SEO', prompt: 'Audit SEO for an e-commerce website' },
+  { label: '📊 Status', prompt: 'Give me a quick status update on everything' },
 ]
 
 const CEO_RESPONSES = {
@@ -128,6 +130,21 @@ export default function CEOPage() {
     setFiles(function(prev) { return prev.filter(function(f) { return f.id !== id }) })
   }
 
+  var [routingInfo, setRoutingInfo] = useState(null)
+
+  var detectIntent = useCallback(function(text) {
+    var l = text.toLowerCase()
+    if (l.includes('lead') || l.includes('find') || l.includes('research') || l.includes('prospect')) return { agent: 'intake-researcher', icon: '🔍', label: 'Intake Researcher' }
+    if (l.includes('content') || l.includes('blog') || l.includes('write') || l.includes('post') || l.includes('draft') || l.includes('caption')) return { agent: 'content-creator', icon: '✍️', label: 'Content Creator' }
+    if (l.includes('social') || l.includes('linkedin') || l.includes('instagram') || l.includes('facebook') || l.includes('twitter')) return { agent: 'social-manager', icon: '📱', label: 'Social Manager' }
+    if (l.includes('ads') || l.includes('campaign') || l.includes('facebook') || l.includes('google ad')) return { agent: 'ads-runner', icon: '📢', label: 'Ads Runner' }
+    if (l.includes('seo') || l.includes('keyword') || l.includes('ranking')) return { agent: 'seo-engine', icon: '📈', label: 'SEO Engine' }
+    if (l.includes('analytics') || l.includes('report') || l.includes('stats')) return { agent: 'analytics-bot', icon: '📊', label: 'Analytics Bot' }
+    if (l.includes('sales') || l.includes('proposal') || l.includes('close')) return { agent: 'sales-closer', icon: '💼', label: 'Sales Closer' }
+    if (l.includes('client') || l.includes('onboarding') || l.includes('welcome')) return { agent: 'client-success', icon: '🤝', label: 'Client Success' }
+    return null
+  }, [])
+
   var send = useCallback(async function(override) {
     var text = (override || input).trim()
     if (!text || sending) return
@@ -152,6 +169,7 @@ export default function CEOPage() {
     setSending(true)
     setWelcomeRevealed(true)
     setChipsRevealed(true)
+    setRoutingInfo(detectIntent(text))
 
     var l = text.toLowerCase()
     var ceoReply = ''
@@ -216,6 +234,7 @@ export default function CEOPage() {
     // Small natural delay like a real person
     await new Promise(function(r) { setTimeout(r, 300 + Math.random() * 600) })
     setSending(false)
+    setRoutingInfo(null)
     setMsgs(function(p) { return p.concat([{ id: uid(), role: 'assistant', content: ceoReply, time: ts() }]) })
   }, [input, sending, files, activeCompany])
 
@@ -309,6 +328,17 @@ export default function CEOPage() {
                     </div>
                   )
                 })}
+
+                {routingInfo && sending && (
+                  <div className="flex items-center gap-2 px-1 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <div className="flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-xs">
+                      <span>{routingInfo.icon}</span>
+                      <span className="text-[var(--muted-foreground)]">Routing to</span>
+                      <span className="font-medium text-[var(--foreground)]">{routingInfo.label}</span>
+                      <span className="flex h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+                    </div>
+                  </div>
+                )}
 
                 {sending && <TypingBubble />}
 

@@ -2,76 +2,16 @@
 
 import { useState, useCallback, useRef, useMemo } from 'react'
 import { api } from '@/lib/api'
-import { mockCEOAgentResponses, mockCEOCommands } from '@/lib/mockData'
 import { generateId } from '@/lib/utils'
-
-function getMockResponse(message) {
-  const lower = message.toLowerCase()
-  if (lower.includes('new client') || lower.includes('create client') || lower.includes('add client')) {
-    return mockCEOAgentResponses.newClient[Math.floor(Math.random() * mockCEOAgentResponses.newClient.length)]
-  }
-  if (lower.includes('workflow') || lower.includes('campaign')) {
-    return mockCEOAgentResponses.workflow[Math.floor(Math.random() * mockCEOAgentResponses.workflow.length)]
-  }
-  if (lower.includes('report')) {
-    return mockCEOAgentResponses.report[Math.floor(Math.random() * mockCEOAgentResponses.report.length)]
-  }
-  if (lower.includes('status') || lower.includes('dashboard')) {
-    return mockCEOAgentResponses.status[Math.floor(Math.random() * mockCEOAgentResponses.status.length)]
-  }
-  if (lower.includes('help') || lower.includes('what can you do') || lower.includes('command')) {
-    return mockCEOAgentResponses.help[Math.floor(Math.random() * mockCEOAgentResponses.help.length)]
-  }
-  if (lower.includes('hello') || lower.includes('hi') || lower.includes('hey') || lower.includes('good')) {
-    return mockCEOAgentResponses.greeting[Math.floor(Math.random() * mockCEOAgentResponses.greeting.length)]
-  }
-  return mockCEOAgentResponses.default[Math.floor(Math.random() * mockCEOAgentResponses.default.length)]
-}
 
 function parseCommand(message) {
   const lower = message.toLowerCase().trim()
-
-  for (const [key, command] of Object.entries(mockCEOCommands)) {
-    if (lower.includes(key)) {
-      return command
-    }
-  }
-
   return null
 }
 
 function extractEntities(message) {
-  const entities = {}
-
-  const clientMatch = mockClients.find((c) =>
-    message.toLowerCase().includes(c.company.toLowerCase())
-  )
-  if (clientMatch) {
-    entities.client = clientMatch
-    entities.clientName = clientMatch.company
-  }
-
-  const workflowMatch = message.toLowerCase().match(/(social media|blog|email|instagram|linkedin|content|workflow)/)
-  if (workflowMatch) {
-    entities.workflowType = workflowMatch[1]
-  }
-
-  const nameMatch = message.match(/(?:for|for client|called|named)\s+['"]?([A-Za-z0-9\s&]+?)['"]?(?:\s+in|\s+with|\s+for|\s*$)/i)
-  if (nameMatch && !entities.clientName) {
-    entities.extractedName = nameMatch[1].trim()
-  }
-
-  return entities
+  return {}
 }
-
-const mockClients = [
-  { company: 'FitZone Gym' },
-  { company: 'Urban Cafe' },
-  { company: 'TechFlow SaaS' },
-  { company: 'Bloom Beauty' },
-  { company: 'PeakPerformance' },
-  { company: 'GreenLeaf Organics' },
-]
 
 export function useCEOAgent() {
   const [messages, setMessages] = useState([])
@@ -113,16 +53,14 @@ export function useCEOAgent() {
       setMessages((prev) => [...prev, agentMessage])
       historyRef.current = [...historyRef.current, { role: 'agent', content: agentMessage.content }]
     } catch {
-      await new Promise((r) => setTimeout(r, 1000 + Math.random() * 1000))
-      const mockContent = getMockResponse(text)
       const agentMessage = {
         id: generateId(),
         role: 'agent',
-        content: mockContent,
+        content: '⚠️ Backend unavailable. CEO Agent is not connected.',
         timestamp: new Date(),
-        command,
-        entities,
-        structuredActions: command ? [{ action: command.action, entities }] : [],
+        command: null,
+        entities: {},
+        structuredActions: [],
       }
       setMessages((prev) => [...prev, agentMessage])
       historyRef.current = [...historyRef.current, { role: 'agent', content: agentMessage.content }]

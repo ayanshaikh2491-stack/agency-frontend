@@ -1,273 +1,322 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import Link from 'next/link'
+import { useCompany } from '@/lib/client-context'
+import { uid, ts, renderMD, PAPERCLIP_BUBBLE, AgentBubbleHeader, TypingBubble } from '@/lib/chat-utils'
 
-function uid() { return 'm' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6) }
-function ts() { return new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' }) }
+const ADS_SERVER_URL = process.env.NEXT_PUBLIC_ADS_SERVER_URL || 'http://localhost:8765'
 
-const PAPERCLIP_BUBBLE = 'min-w-0 max-w-[85%] break-words px-3 py-2 text-sm overflow-x-auto overflow-y-visible'
+const SUGGESTIONS = [
+  { label: '📊 Research', prompt: 'research ecommerce 30000' },
+  { label: '✍️ Ad Copy', prompt: 'adcopy for fitness brand targeting young professionals' },
+  { label: '📢 Quick Campaign', prompt: 'create campaign summer sale with 500 budget' },
+  { label: '🔧 Check Status', prompt: 'check health' },
+]
 
-function AgentBubbleHeader({ emoji, name }) {
+function StatusPill({ color, text }) {
   return (
-    <div className="mb-1 flex items-center gap-1.5 pl-1">
-      <div className="flex h-4 w-4 shrink-0 items-center justify-center text-[11px] leading-none">{emoji}</div>
-      <span className="text-sm font-medium text-[var(--foreground)]">{name}</span>
-    </div>
+    <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-medium"
+      style={{ background: `${color}15`, color }}>
+      <span className="inline-flex h-1.5 w-1.5 rounded-full" style={{ background: color }} />
+      {text}
+    </span>
   )
 }
 
-function TypingBubble() {
+function CampaignCard({ campaign, onActivate, onPause, onPerf }) {
   return (
-    <div className="flex justify-start">
-      <div className={PAPERCLIP_BUBBLE + ' bg-[var(--card)] border border-[var(--border)] text-[var(--foreground)] [border-radius:14px_14px_14px_4px]'}>
-        <span className="inline-flex gap-1">
-          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--muted-foreground)]" style={{ animationDelay: '0ms' }} />
-          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--muted-foreground)]" style={{ animationDelay: '150ms' }} />
-          <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--muted-foreground)]" style={{ animationDelay: '300ms' }} />
-        </span>
+    <div className="rounded-lg border border-border bg-card p-3 space-y-2 hover:border-foreground/20 transition-colors">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-medium text-foreground truncate">{campaign.name || 'Campaign'}</span>
+        <StatusPill color={campaign.status === 'ACTIVE' ? '#10b981' : campaign.status === 'PAUSED' ? '#f59e0b' : '#6b7280'}
+          text={campaign.status || 'UNKNOWN'} />
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="text-[11px] font-mono text-muted-foreground">ID: {campaign.id}</span>
+        <span className="text-[11px] text-muted-foreground">|</span>
+        <span className="text-[11px] text-muted-foreground">₹{campaign.budget || 0}/day</span>
+      </div>
+      <div className="flex items-center gap-2 pt-1">
+        {campaign.status !== 'ACTIVE' && (
+          <button onClick={() => onActivate?.(campaign.id)}
+            className="rounded-md bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 px-2.5 py-1 text-[11px] font-medium transition-colors">
+            ▶ Activate
+          </button>
+        )}
+        {campaign.status === 'ACTIVE' && (
+          <button onClick={() => onPause?.(campaign.id)}
+            className="rounded-md bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 px-2.5 py-1 text-[11px] font-medium transition-colors">
+            ⏸ Pause
+          </button>
+        )}
+        <button onClick={() => onPerf?.(campaign.id)}
+          className="rounded-md bg-blue-500/10 hover:bg-blue-500/20 text-blue-500 px-2.5 py-1 text-[11px] font-medium transition-colors">
+          📈 Performance
+        </button>
       </div>
     </div>
   )
 }
 
-function renderMD(text) {
-  var h = (text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  h = h.replace(/```(\w*)\n([\s\S]*?)```/g, function(_, lang, code) {
-    var esc = code.replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    return '<pre class="bg-[var(--background)] border border-[var(--border)]/50 rounded p-3 my-2 text-[12px] leading-relaxed text-emerald-400/90 font-mono overflow-x-auto">' + esc + '</pre>'
-  })
-  h = h.replace(/`([^`]+)`/g, '<code class="bg-[var(--background)]/80 text-[var(--muted-foreground)] px-1.5 py-0.5 rounded text-[12px] font-mono border border-[var(--border)]/40">$1</code>')
-  h = h.replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-white">$1</strong>')
-  h = h.replace(/\n/g, '<br>')
-  return h
-}
-
-var SUGGESTIONS = [
-  { label: '📊 Full Overview', prompt: 'Show me everything — campaigns, budget, competitors, recommendations' },
-  { label: '💰 Budget Analysis', prompt: 'How is my budget doing? Give me Good Better Best recommendations' },
-  { label: '🔍 Competitors', prompt: 'What are competitors doing? Share of voice and ad activity' },
-  { label: '⚡ Top Performers', prompt: 'Which campaigns are winning and which need attention?' },
-]
-
-// ─── REAL DATA — loaded from backend; empty until agents work ───
-var BUDGET = { total: 0, spent: 0, remaining: 0, days_remaining: 0, daily_avg_spend: 0, recommended_daily: 0 }
-var SCENARIOS = []
-
-var CAMPAIGNS = []
-
-var COMPETITORS = []
-
-var INSIGHTS = []
-
-function formatNum(n) { if (!n) return '0'; if (n >= 1000000) return (n/1000000).toFixed(1) + 'M'; if (n >= 1000) return (n/1000).toFixed(1) + 'K'; return n.toLocaleString() }
-
-export default function AdsPage() {
-  var [msgs, setMsgs] = useState([])
-  var [input, setInput] = useState('')
-  var [sending, setSending] = useState(false)
-  var [welcomeRevealed, setWelcomeRevealed] = useState(false)
-  var [chipsRevealed, setChipsRevealed] = useState(false)
-  var [selectedTab, setSelectedTab] = useState('intel')
-  var bottomRef = useRef(null)
-  var inputRef = useRef(null)
-  var scrollRef = useRef(null)
-  var keepScrolled = useRef(true)
-
-  var topCampaign = CAMPAIGNS.filter(function(c) { return c.status === 'active' }).sort(function(a, b) { return b.roas - a.roas })[0] || null
-  var worstCampaign = CAMPAIGNS.filter(function(c) { return c.status === 'active' }).sort(function(a, b) { return a.roas - b.roas })[0] || null
-  var activeImps = CAMPAIGNS.filter(function(c) { return c.status === 'active' }).reduce(function(s, c) { return s + c.impressions }, 0)
-  var activeSpend = CAMPAIGNS.filter(function(c) { return c.status === 'active' }).reduce(function(s, c) { return s + c.spend }, 0)
-  var activeConvs = CAMPAIGNS.filter(function(c) { return c.status === 'active' }).reduce(function(s, c) { return s + c.conversions }, 0)
-  var budgetPct = Math.round((BUDGET.spent / BUDGET.total) * 100)
-  var dailyRemaining = Math.round(BUDGET.remaining / BUDGET.days_remaining)
-
-  var safeScroll = useCallback(function() {
-    if (!keepScrolled.current || !bottomRef.current) return
-    bottomRef.current.scrollIntoView({ block: 'end' })
-  }, [])
-
-  useEffect(function() { safeScroll() }, [msgs.length])
-
-  useEffect(function() {
-    var el = scrollRef.current
-    if (!el) return
-    var onScroll = function() {
-      keepScrolled.current = el.scrollHeight - el.scrollTop - el.clientHeight <= 40
-    }
-    el.addEventListener('scroll', onScroll, { passive: true })
-    return function() { el.removeEventListener('scroll', onScroll) }
-  }, [])
-
-  useEffect(function() {
-    if (welcomeRevealed) return
-    var t1 = setTimeout(function() { setWelcomeRevealed(true) }, 1500)
-    return function() { clearTimeout(t1) }
-  }, [welcomeRevealed])
-
-  useEffect(function() {
-    if (!welcomeRevealed || chipsRevealed) return
-    var t2 = setTimeout(function() { setChipsRevealed(true) }, 500)
-    return function() { clearTimeout(t2) }
-  }, [welcomeRevealed, chipsRevealed])
-
-  async function callAgent(text) {
-    try {
-      var l = text.toLowerCase()
-      if (l.includes('budget') || l.includes('good') || l.includes('better') || l.includes('best')) {
-        return '**💰 Budget Command Center**\n\n' +
-          '• Total Budget: $' + formatNum(BUDGET.total) + '\n' +
-          '• Spent: $' + formatNum(BUDGET.spent) + ' (' + budgetPct + '%)\n' +
-          '• Remaining: $' + formatNum(BUDGET.remaining) + ' · ' + BUDGET.days_remaining + ' days left\n' +
-          '• Daily avg: $' + BUDGET.daily_avg_spend + ' · Recommended: $' + BUDGET.recommended_daily + '\n\n' +
-          '**Recommendations (Good → Better → Best)**\n\n' +
-          SCENARIOS.map(function(s) {
-            return s.level + ' **' + s.desc + '** — $' + formatNum(s.budget) + '\n  ↳ ' + s.projected + ' conversions · ROAS ' + s.roas + 'x · CPL $' + s.cpl
-          }).join('\n\n')
-      }
-      if (l.includes('competitor')) {
-        return '**🔍 Competitor Intelligence**\n\n' +
-          'Your **Share of Voice**: 28% (+5% from last month)\n\n' +
-          COMPETITORS.map(function(c) {
-            return '• **' + c.name + '** — ' + c.platform + '\n  Est. spend: $' + formatNum(c.spend_est) + ' · SOV: ' + c.share_of_voice + '% · Trend: ' + (c.trend === 'up' ? '⬆️' : '⬇️')
-          }).join('\n\n') +
-          '\n\n**Insights:**\n' + INSIGHTS.map(function(i) { return '• ' + i }).join('\n')
-      }
-      if (l.includes('top') || l.includes('perform') || l.includes('win')) {
-        var sorted = [...CAMPAIGNS].filter(function(c) { return c.status === 'active' }).sort(function(a, b) { return b.roas - a.roas })
-        return '**⚡ Campaign Performance — Ranked**\n\n' +
-          sorted.map(function(c, i) {
-            return (i + 1) + '. ' + c.rating + ' **' + c.name + '** (' + c.platform + ')\n  ROAS ' + c.roas + 'x · CPL $' + c.cpl + ' · ' + formatNum(c.impressions) + ' imp · $' + formatNum(c.spend) + ' spend\n  Change: ' + c.change
-          }).join('\n\n')
-      }
-      // Default: full overview
-      return '**📊 Ads Intelligence — Full Overview**\n\n' +
-        '**💰 Budget:** $' + formatNum(BUDGET.spent) + ' / $' + formatNum(BUDGET.total) + ' (' + budgetPct + '%) — $' + formatNum(BUDGET.remaining) + ' remaining\n' +
-        '**📈 Performance:** ' + formatNum(activeImps) + ' imp · ' + CAMPAIGNS.filter(function(c) { return c.status === 'active' }).length + ' active · $' + formatNum(activeSpend) + ' spend\n' +
-        '**🎯 Conversions:** ' + activeConvs + ' · Avg CPL $' + Math.round(activeSpend / activeConvs) + ' · Blended ROAS ' + (activeSpend > 0 ? (activeConvs * 50 / activeSpend).toFixed(1) : '0') + 'x\n\n' +
-        '**🔥 Top:** ' + topCampaign.name + ' (' + topCampaign.platform + ') — ROAS ' + topCampaign.roas + 'x\n' +
-        '**⚠️ Needs attention:** ' + worstCampaign.name + ' — ROAS ' + worstCampaign.roas + 'x\n\n' +
-        '**🔍 Competitors seen:** ' + COMPETITORS.length + ' active (' + COMPETITORS.filter(function(c) { return c.trend === 'up' }).length + ' trending up)\n' +
-        '**💡 Tip:** ' + INSIGHTS[0]
-    } catch(e) {
-      return 'Checking ad data for you... 📢'
-    }
-  }
-
-  var send = useCallback(async function(override) {
-    var text = (override || input).trim()
-    if (!text || sending) return
-    if (!override) setInput('')
-
-    var userMsg = { id: uid(), role: 'user', content: text, time: ts() }
-    setMsgs(function(p) { return p.concat([userMsg]) })
-    setSending(true)
-    setWelcomeRevealed(true)
-    setChipsRevealed(true)
-
-    var reply = await callAgent(text)
-
-    await new Promise(function(r) { setTimeout(r, 400 + Math.random() * 500) })
-    setSending(false)
-    setMsgs(function(p) { return p.concat([{ id: uid(), role: 'assistant', content: reply, time: ts() }]) })
-  }, [input, sending])
-
-  function handleKeyDown(e) {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() }
-  }
-
-  var welcomeBody = 'Hey! I\'m your **Ads Intelligence Manager** 📢\n\nI track **everything** — campaign performance, budget, competitors, and recommendations.\n\n**What do you want?**\n📊 Full intelligence report\n💰 Budget with Good → Better → Best\n🔍 Competitor activity & share of voice\n⚡ Top performers & weak spots'
+function ServerSetupWizard({ onClose }) {
+  const [step, setStep] = useState(1)
 
   return (
-    <div className="flex h-[calc(100%+2rem)] flex-col -m-4">
-      <div className="flex min-h-0 min-w-0 flex-1 flex-row">
-        {/* ─── LEFT: Chat ─── */}
-        <div className="relative flex min-h-0 min-w-0 w-full md:w-[45%] shrink-0 flex-col bg-[var(--card)]">
-          {/* Header */}
-          <div className="relative flex shrink-0 items-center justify-between gap-2 px-4 py-3 border-b border-[var(--border)]">
-            <div className="flex items-center gap-3 min-w-0 flex-1">
-              <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--primary)]/20">
-                <span className="text-sm">📢</span>
-                <span className="absolute -bottom-0.5 -right-0.5 flex h-2.5 w-2.5">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
-                </span>
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-semibold text-[var(--foreground)]">Ads Intelligence</h3>
-                  <span className="flex items-center gap-1 text-[10px] text-emerald-400">● Live</span>
-                </div>
-                <p className="truncate text-xs text-[var(--muted-foreground)]">{CAMPAIGNS.filter(function(c) { return c.status === 'active' }).length} active · ${
-                  formatNum(activeSpend)} spend · {formatNum(activeImps)} imp</p>
-              </div>
-            </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
+      <div className="w-full max-w-lg rounded-xl border border-border bg-card p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-semibold text-foreground">🚀 Ads Server Setup</h3>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-sm">✕</button>
+        </div>
+
+        <div className="space-y-4">
+          {/* Step indicators */}
+          <div className="flex items-center gap-2 mb-4">
+            {[1, 2, 3].map(s => (
+              <div key={s}
+                className={`flex-1 h-1 rounded-full transition-colors ${step >= s ? 'bg-primary' : 'bg-border'}`} />
+            ))}
           </div>
 
-          {/* Messages */}
-          <div className="relative min-h-0 min-w-0 flex-1">
-            <div ref={scrollRef} className="scrollbar-auto-hide absolute inset-0 overflow-y-auto overflow-x-hidden">
-              <div className="flex flex-col gap-3 px-6 pt-3 pb-32">
-                {!welcomeRevealed && <TypingBubble />}
+          {step === 1 && (
+            <div className="space-y-3">
+              <p className="text-sm text-foreground/80">Ads Server chalao — terminal mein ye command do:</p>
+              <div className="rounded-lg bg-[#1e1e1e] p-3 text-xs font-mono">
+                <div className="text-gray-400"># backend directory mein jakar:</div>
+                <div className="text-green-400">cd C:\Users\TAUSHEF\Downloads\int\backend</div>
+                <div className="text-green-400 mt-1">uv run --python 3.13 --with requests python ads_server.py</div>
+              </div>
+              <p className="text-xs text-muted-foreground">Server start hote hi health check pass ho jayega.</p>
+              <button onClick={() => setStep(2)}
+                className="w-full rounded-lg bg-primary py-2 text-sm font-medium text-white hover:opacity-90 transition-opacity mt-2">
+                👍 Done, Next →
+              </button>
+            </div>
+          )}
 
-                {welcomeRevealed && (
-                  <>
-                    <div className="flex flex-col items-start">
-                      <AgentBubbleHeader emoji="📢" name="Ads Intelligence" />
-                      <div className={PAPERCLIP_BUBBLE + ' bg-[var(--card)] border border-[var(--border)] text-[var(--foreground)] [border-radius:14px_14px_14px_4px]'}>
-                        <div className="max-w-full overflow-visible [&>*:first-child]:mt-0 [&>*:last-child]:mb-0" dangerouslySetInnerHTML={{ __html: renderMD(welcomeBody) }} />
-                      </div>
+          {step === 2 && (
+            <div className="space-y-3">
+              <p className="text-sm text-foreground/80">Ab client ke API keys store karo:</p>
+              <div className="rounded-lg bg-[#1e1e1e] p-3 text-xs font-mono">
+                <div className="text-cyan-400"># Terminal 2 mein:</div>
+                <div className="text-green-400">cd backend && uv run --python 3.13 --with requests python ads_cli.py store-keys client_abc act_123456789 ACCESS_TOKEN PAGE_ID</div>
+              </div>
+              <p className="text-xs text-muted-foreground">⚠️ Pehle client ka Meta ad account ID, access token aur page ID ready rakho.</p>
+              <div className="flex gap-2 mt-2">
+                <button onClick={() => setStep(1)}
+                  className="flex-1 rounded-lg border border-border py-2 text-sm font-medium text-foreground/80 hover:bg-accent transition-colors">
+                  ← Back
+                </button>
+                <button onClick={() => setStep(3)}
+                  className="flex-1 rounded-lg bg-primary py-2 text-sm font-medium text-white hover:opacity-90 transition-opacity">
+                  Keys Ready → 
+                </button>
+              </div>
+            </div>
+          )}
+
+          {step === 3 && (
+            <div className="space-y-4">
+              <div className="rounded-lg bg-emerald-500/10 p-4 text-center">
+                <div className="text-2xl mb-2">🚀</div>
+                <p className="text-sm font-medium text-emerald-500">Sab ready hai!</p>
+                <p className="text-xs text-muted-foreground mt-1">Ab Ads Manager se campaign banao.</p>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-xs text-foreground/80">
+                  <span className="text-emerald-400">✅</span>
+                  <span>Ads Server chal raha hai</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-foreground/80">
+                  <span className="text-emerald-400">✅</span>
+                  <span>Client API keys stored</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-foreground/80">
+                  <span className="text-amber-400">⏸</span>
+                  <span>Campaign PAUSED create hogi — phir activate karna</span>
+                </div>
+              </div>
+              <button onClick={onClose}
+                className="w-full rounded-lg bg-primary py-2 text-sm font-medium text-white hover:opacity-90 transition-opacity mt-2">
+                🎯 Start Campaigning
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default function AdsPage() {
+  const { selectedCompany } = useCompany()
+  const clientName = selectedCompany?.name || ''
+  const clientId = selectedCompany?.id || clientName.toLowerCase().replace(/\s+/g, '_')
+
+  const [msgs, setMsgs] = useState([])
+  const [input, setInput] = useState('')
+  const [sending, setSending] = useState(false)
+  const [serverOnline, setServerOnline] = useState(false)
+  const [checkingServer, setCheckingServer] = useState(true)
+  const [showSetup, setShowSetup] = useState(false)
+  const [tab, setTab] = useState('chat') // chat | campaigns | settings
+  const bottomRef = useRef(null)
+  const inputRef = useRef(null)
+
+  // Check server health
+  useEffect(() => {
+    const check = async () => {
+      try {
+        const res = await fetch(`${ADS_SERVER_URL}/health`, { signal: AbortSignal.timeout(3000) })
+        setServerOnline(res.ok)
+      } catch {
+        setServerOnline(false)
+      }
+      setCheckingServer(false)
+    }
+    check()
+    const iv = setInterval(check, 15000)
+    return () => clearInterval(iv)
+  }, [])
+
+  const send = useCallback(async (overrideText) => {
+    const text = (overrideText || input).trim()
+    if (!text || sending) return
+    if (!overrideText) setInput('')
+
+    const userMsg = { id: uid(), role: 'user', content: text, time: ts() }
+    setMsgs(prev => [...prev, userMsg])
+    setSending(true)
+
+    try {
+      const res = await fetch('/api/agents/ads-runner/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text, client_name: clientName, client_id: clientId }),
+      })
+      const data = await res.json()
+      const reply = data?.data?.response || data?.response || data?.data?.content || JSON.stringify(data)
+      setMsgs(prev => [...prev, { id: uid(), role: 'assistant', content: reply, time: ts() }])
+    } catch (e) {
+      setMsgs(prev => [...prev, { id: uid(), role: 'assistant', content: `❌ Error: ${e.message}`, time: ts() }])
+    }
+
+    setSending(false)
+  }, [input, sending, clientName, clientId])
+
+  const handleKeyDown = useCallback((e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() }
+  }, [send])
+
+  // Activate campaign
+  const activateCampaign = useCallback(async (campaignId) => {
+    setInput(`activate ${campaignId}`)
+    send(`activate ${campaignId}`)
+  }, [send])
+
+  const pauseCampaign = useCallback(async (campaignId) => {
+    setInput(`pause ${campaignId}`)
+    send(`pause ${campaignId}`)
+  }, [send])
+
+  const checkPerf = useCallback(async (campaignId) => {
+    setInput(`performance ${campaignId}`)
+    send(`performance ${campaignId}`)
+  }, [send])
+
+  return (
+    <div className="flex h-full min-h-0 gap-4">
+      {/* LEFT: Main Content Area */}
+      <div className={`flex flex-col min-h-0 min-w-0 ${tab === 'campaigns' || tab === 'settings' ? 'w-2/3' : 'w-full'}`}>
+        {/* Top Bar */}
+        <div className="flex items-center justify-between mb-3 shrink-0">
+          <div className="flex items-center gap-3">
+            <h2 className="text-sm font-semibold text-foreground">📢 Ads Manager</h2>
+            {checkingServer ? (
+              <StatusPill color="#6b7280" text="Checking..." />
+            ) : serverOnline ? (
+              <StatusPill color="#10b981" text="Online" />
+            ) : (
+              <button onClick={() => setShowSetup(true)}
+                className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-[10px] font-medium text-amber-500 hover:bg-amber-500/20 transition-colors">
+                <span className="inline-flex h-1.5 w-1.5 rounded-full bg-amber-500" />
+                Offline — Setup
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-[11px] text-muted-foreground">{clientName || 'No client'}</span>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex items-center gap-1 mb-3 shrink-0">
+          {[
+            { id: 'chat', label: '💬 Chat' },
+            { id: 'campaigns', label: '📋 Campaigns' },
+            { id: 'settings', label: '⚙️ Settings' },
+          ].map(t => (
+            <button key={t.id} onClick={() => setTab(t.id)}
+              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                tab === t.id ? 'bg-primary text-white' : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+              }`}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Tab Content */}
+        {tab === 'chat' && (
+          <>
+            {/* Messages */}
+            <div className="flex-1 min-h-0 overflow-y-auto scrollbar-auto-hide mb-3">
+              <div className="flex flex-col gap-3">
+                {msgs.length === 0 && (
+                  <div className="text-center py-12">
+                    <div className="text-4xl mb-3">📢</div>
+                    <h3 className="text-sm font-medium text-foreground mb-1">Ads Runner</h3>
+                    <p className="text-xs text-muted-foreground max-w-md mx-auto mb-4">
+                      Facebook Ads campaigns create karo, ad copy generate karo, 
+                      performance track karo — sab client ke ad account mein.
+                    </p>
+                    <div className="flex flex-wrap gap-2 justify-center">
+                      {SUGGESTIONS.map(s => (
+                        <button key={s.label} onClick={() => { setInput(s.prompt); inputRef.current?.focus() }}
+                          className="rounded-full border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground transition-colors">
+                          {s.label}
+                        </button>
+                      ))}
                     </div>
-                    {chipsRevealed && (
-                      <div className="flex flex-wrap gap-2 pl-1">
-                        {SUGGESTIONS.map(function(chip) {
-                          return (
-                            <button key={chip.label} type="button" onClick={function() { setInput(chip.prompt); if (inputRef.current) inputRef.current.focus() }}
-                              className="rounded-full border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-xs text-[var(--muted-foreground)] transition-colors duration-150 hover:bg-[var(--border)]/50 hover:text-[var(--foreground)]">
-                              {chip.label}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </>
+                  </div>
                 )}
-
-                {msgs.map(function(m) {
-                  if (m.role === 'user') {
-                    return (
-                      <div key={m.id} className="flex flex-col items-end gap-1">
-                        <div className={PAPERCLIP_BUBBLE + ' bg-primary text-white [border-radius:14px_14px_4px_14px]'}>{m.content}</div>
-                      </div>
-                    )
-                  }
-                  return (
-                    <div key={m.id} className="flex flex-col items-start">
-                      <AgentBubbleHeader emoji="📢" name="Ads Intelligence" />
-                      <div className={PAPERCLIP_BUBBLE + ' bg-[var(--card)] border border-[var(--border)] text-[var(--foreground)] [border-radius:14px_14px_14px_4px]'}>
-                        <div className="max-w-full overflow-visible [&>*:first-child]:mt-0 [&>*:last-child]:mb-0" dangerouslySetInnerHTML={{ __html: renderMD(m.content) }} />
-                      </div>
+                {msgs.map((m) => (
+                  <div key={m.id} className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
+                    {m.role === 'assistant' && <AgentBubbleHeader emoji="📢" name="Ads Runner" />}
+                    <div className={`${PAPERCLIP_BUBBLE} ${
+                      m.role === 'user'
+                        ? 'bg-primary text-white [border-radius:14px_14px_4px_14px]'
+                        : 'bg-card border border-border text-foreground [border-radius:14px_14px_14px_4px]'
+                    }`}>
+                      <div className="max-w-full overflow-visible [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 text-sm [&_code]:bg-[#1e1e1e] [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[11px] [&_pre]:bg-[#1e1e1e] [&_pre]:p-3 [&_pre]:rounded-lg [&_pre]:text-xs [&_pre]:my-2"
+                        dangerouslySetInnerHTML={{ __html: renderMD(m.content) }} />
                     </div>
-                  )
-                })}
-
+                  </div>
+                ))}
                 {sending && <TypingBubble />}
-
                 <div ref={bottomRef} />
               </div>
             </div>
-          </div>
 
-          {/* Composer */}
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-[var(--card)] via-[var(--card)]/95 to-[var(--card)]/0 px-6 pt-6 pb-5">
-            <div className="pointer-events-auto relative rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 pb-2 pt-3 shadow-lg transition-colors focus-within:border-[var(--muted-foreground)]/60">
-              <div className="flex items-end gap-2">
-                <textarea ref={inputRef} value={input} onChange={function(e) { setInput(e.target.value) }} onKeyDown={handleKeyDown}
-                  placeholder="Ask your Ads Intelligence..." rows={1}
-                  className="min-h-[24px] max-h-[120px] flex-1 resize-none bg-transparent text-sm text-[var(--foreground)] placeholder-[var(--muted-foreground)] outline-none scrollbar-none" disabled={sending} />
-                <div className="flex shrink-0 items-center gap-1 pb-0.5">
-                  <button type="button" onClick={function() { send() }} disabled={!input.trim() || sending}
-                    className="rounded-lg bg-primary p-1.5 text-white transition-all hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed">
+            {/* Input */}
+            <div className="shrink-0">
+              <div className="relative rounded-xl border border-border bg-card px-4 pb-2 pt-3 shadow-lg transition-colors focus-within:border-foreground/30">
+                <div className="flex items-end gap-2">
+                  <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKeyDown}
+                    placeholder="Campaign banao, research karo, ya kuch bhi bolo..." rows={1}
+                    className="min-h-[24px] max-h-[120px] flex-1 resize-none bg-transparent text-sm text-foreground placeholder-muted-foreground outline-none scrollbar-none"
+                    disabled={sending} />
+                  <button onClick={() => send()} disabled={!input.trim() || sending}
+                    className="rounded-lg bg-primary p-1.5 text-white transition-all hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed shrink-0">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M22 2 11 13" /><path d="m22 2-7 20-4-9-9-4 20-7z" />
                     </svg>
@@ -275,299 +324,74 @@ export default function AdsPage() {
                 </div>
               </div>
             </div>
-          </div>
-        </div>
+          </>
+        )}
 
-        {/* Resizer */}
-        <div role="separator" aria-orientation="vertical"
-          className="group relative hidden w-3 shrink-0 cursor-col-resize bg-[var(--card)] md:flex">
-          <div className="pointer-events-none absolute top-0 bottom-0 left-0 w-px bg-[var(--border)] transition-colors group-hover:bg-[var(--muted-foreground)]/30" aria-hidden />
-        </div>
-
-        {/* ─── RIGHT: Intelligence Dashboard ─── */}
-        <div className="hidden md:flex md:min-h-0 md:min-w-0 md:flex-1 flex-col bg-[var(--card)]">
-          {/* Header */}
-          <div className="shrink-0 px-4 py-3 border-b border-[var(--border)]">
-            <div className="flex items-center justify-between">
-              <h4 className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Ads Intelligence</h4>
-              <span className="flex items-center gap-1.5">
-                <span className="flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                <span className="text-[10px] text-emerald-400 font-medium">Live</span>
-              </span>
+        {tab === 'campaigns' && (
+          <div className="flex-1 min-h-0 overflow-y-auto scrollbar-auto-hide">
+            <div className="text-center py-12">
+              <div className="text-3xl mb-3">📋</div>
+              <p className="text-sm text-muted-foreground">Campaigns tab ayega jab server se real data aayega.</p>
+              <p className="text-xs text-muted-foreground mt-1">Abhi Chat mein "campaign banao" bol ke test kar sakte ho.</p>
             </div>
           </div>
+        )}
 
-          {/* Tab bar */}
-          <div className="shrink-0 px-4 py-2 flex gap-1.5 border-b border-[var(--border)]">
-            {[
-              { id: 'intel', label: '🕵️ Intelligence' },
-              { id: 'campaigns', label: '📊 Campaigns' },
-              { id: 'competitors', label: '🔍 Competitors' },
-              { id: 'budget', label: '💰 Budget' },
-            ].map(function(tab) {
-              return (
-                <button key={tab.id} type="button" onClick={function() { setSelectedTab(tab.id) }}
-                  className={'rounded-full px-2.5 py-1 text-[10px] font-medium transition-colors ' + (selectedTab === tab.id
-                    ? 'bg-[var(--primary)]/20 text-[var(--primary)] border border-[var(--primary)]/30'
-                    : 'text-[var(--muted-foreground)] border border-transparent hover:text-[var(--foreground)]')}>
-                  {tab.label}
-                </button>
-              )
-            })}
+        {tab === 'settings' && (
+          <div className="flex-1 min-h-0 overflow-y-auto scrollbar-auto-hide">
+            <div className="space-y-4 max-w-md">
+              <div className="rounded-lg border border-border bg-card p-4">
+                <h4 className="text-sm font-medium text-foreground mb-2">🔌 Server Status</h4>
+                <div className="flex items-center gap-2">
+                  {serverOnline ? (
+                    <span className="text-xs text-emerald-500">✅ Ads Server online hai — port {ADS_SERVER_URL}</span>
+                  ) : (
+                    <span className="text-xs text-amber-500">⚠️ Offline — setup guide ke liye top bar ka button click karo</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-border bg-card p-4">
+                <h4 className="text-sm font-medium text-foreground mb-2">🔑 API Keys</h4>
+                <p className="text-xs text-muted-foreground mb-3">Client ke Meta Ads keys store karne ke liye terminal:</p>
+                <div className="rounded-lg bg-[#1e1e1e] p-3 text-xs font-mono">
+                  <div className="text-gray-400">cd backend</div>
+                  <div className="text-green-400">uv run --python 3.13 --with requests python ads_cli.py store-keys {clientId || 'client_id'} act_123 AD_TOKEN PAGE_ID</div>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-border bg-card p-4">
+                <h4 className="text-sm font-medium text-foreground mb-2">📖 Commands</h4>
+                <div className="text-xs text-muted-foreground space-y-1.5">
+                  <p><span className="text-foreground font-mono">campaign banao</span> — new campaign create</p>
+                  <p><span className="text-foreground font-mono">activate [id]</span> — campaign live karo</p>
+                  <p><span className="text-foreground font-mono">pause [id]</span> — campaign rok do</p>
+                  <p><span className="text-foreground font-mono">performance [id]</span> — stats dekho</p>
+                  <p><span className="text-foreground font-mono">research ecommerce 30000</span> — research karo</p>
+                  <p><span className="text-foreground font-mono">adcopy fitness brand</span> — ad copy banao</p>
+                </div>
+              </div>
+            </div>
           </div>
-
-          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2.5 scrollbar-auto-hide">
-
-            {/* ─── TAB: Intelligence ─── */}
-            {selectedTab === 'intel' && (
-              <>
-                {/* Top KPI cards */}
-                <div className="grid grid-cols-4 gap-1.5">
-                  {[
-                    { label: 'Active Campaigns', value: CAMPAIGNS.filter(function(c) { return c.status === 'active' }).length + '/' + CAMPAIGNS.length, color: 'text-[var(--foreground)]' },
-                    { label: 'Total Spend', value: '$' + formatNum(activeSpend), color: 'text-[oklch(0.75 0.18 40)]' },
-                    { label: 'Tot. Conversions', value: activeConvs, color: 'text-emerald-400' },
-                    { label: 'Blended ROAS', value: (activeSpend > 0 ? (activeConvs * 50 / activeSpend).toFixed(1) : '0') + 'x', color: 'text-[var(--primary)]' },
-                  ].map(function(m) {
-                    return (
-                      <div key={m.label} className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-2">
-                        <p className="text-[9px] text-[var(--muted-foreground)] uppercase tracking-wider">{m.label}</p>
-                        <p className={'text-sm font-bold mt-0.5 ' + m.color}>{m.value}</p>
-                      </div>
-                    )
-                  })}
-                </div>
-
-                {/* Budget Progress */}
-                <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-3">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[10px] font-medium uppercase tracking-wider text-[oklch(0.75 0.18 40)]">💰 Budget Tracker</span>
-                    <span className="text-[10px] text-[var(--muted-foreground)]">{budgetPct}% used · ${formatNum(BUDGET.remaining)} left</span>
-                  </div>
-                  <div className="h-2 rounded-full bg-[var(--border)] overflow-hidden">
-                    <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-[oklch(0.75 0.18 40)] to-red-500" style={{ width: budgetPct + '%' }} />
-                  </div>
-                  <div className="flex justify-between mt-1 text-[9px] text-[var(--muted-foreground)]">
-                    <span>${formatNum(BUDGET.spent)} spent</span>
-                    <span>{BUDGET.days_remaining}d remaining</span>
-                    <span>${dailyRemaining}/d rec.</span>
-                  </div>
-                </div>
-
-                {/* Top vs Worst */}
-                <div className="grid grid-cols-2 gap-1.5">
-                  <div className="rounded-lg border border-emerald-500/20 bg-[var(--card)] p-3">
-                    <span className="text-[10px] text-emerald-400 font-medium">🔥 Top Performer</span>
-                    <p className="text-xs text-[var(--foreground)] font-medium mt-1 truncate">{topCampaign ? topCampaign.name : 'No data'}</p>
-                    <p className="text-[10px] text-[var(--muted-foreground)]">ROAS {topCampaign ? topCampaign.roas : 0}x · ${topCampaign ? formatNum(topCampaign.spend) : 0} spend</p>
-                  </div>
-                  <div className="rounded-lg border border-red-500/20 bg-[var(--card)] p-3">
-                    <span className="text-[10px] text-red-400 font-medium">⚠️ Needs Attention</span>
-                    <p className="text-xs text-[var(--foreground)] font-medium mt-1 truncate">{worstCampaign ? worstCampaign.name : 'No data'}</p>
-                    <p className="text-[10px] text-[var(--muted-foreground)]">ROAS {worstCampaign ? worstCampaign.roas : 0}x · {worstCampaign ? worstCampaign.change : '-'}</p>
-                  </div>
-                </div>
-
-                {/* Good Better Best */}
-                <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-3">
-                  <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--primary)]">🎯 Budget Scenarios</span>
-                  <div className="mt-2 space-y-1.5">
-                    {SCENARIOS.map(function(s) {
-                      var borderColor = s.level.includes('Good') ? 'border-emerald-500/30' : s.level.includes('Better') ? 'border-[oklch(0.75 0.18 40)]/30' : 'border-[var(--primary)]/30'
-                      return (
-                        <div key={s.level} className={'flex items-center justify-between rounded-lg border ' + borderColor + ' bg-[var(--card)] px-2.5 py-1.5'}>
-                          <div>
-                            <span className="text-[11px] text-[var(--foreground)] font-medium">{s.level}</span>
-                            <p className="text-[9px] text-[var(--muted-foreground)]">{s.desc}</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-[11px] text-[var(--foreground)] font-mono">${formatNum(s.budget)}</p>
-                            <p className="text-[9px] text-[var(--muted-foreground)]">{s.projected} conv · {s.roas}x</p>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-
-                {/* Live Insights */}
-                <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-3">
-                  <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--muted-foreground)]">💡 Live Intelligence</span>
-                  <div className="mt-1.5 space-y-1">
-                    {INSIGHTS.map(function(i, idx) {
-                      return <p key={idx} className="text-[10px] text-[var(--muted-foreground)] leading-relaxed">{i}</p>
-                    })}
-                  </div>
-                </div>
-              </>
-            )}
-
-            {/* ─── TAB: Campaigns ─── */}
-            {selectedTab === 'campaigns' && (
-              <>
-                <div className="space-y-1.5">
-                  {CAMPAIGNS.map(function(c) {
-                    return (
-                      <div key={c.id} className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2 min-w-0 flex-1">
-                            <span className="text-xs">{c.rating}</span>
-                            <span className="text-xs text-[var(--foreground)] font-medium truncate">{c.name}</span>
-                            <span className={'text-[9px] px-1.5 py-0.5 rounded-full font-medium ' + (c.status === 'active' ? 'bg-emerald-400/10 text-emerald-400' : 'bg-[var(--muted-foreground)]/10 text-[var(--muted-foreground)]')}>{c.status}</span>
-                          </div>
-                          <span className="text-[10px] text-[var(--muted-foreground)] shrink-0 ml-2">{c.platform === 'Meta' ? '📸' : '🔍'}</span>
-                        </div>
-                        <div className="flex items-center gap-3 mt-1.5 text-[10px] text-[var(--muted-foreground)] flex-wrap">
-                          <span>👁 {formatNum(c.impressions)}</span>
-                          <span>🖱 {formatNum(c.clicks)}</span>
-                          <span>💰 ${formatNum(c.spend)}</span>
-                          <span>CTR {c.ctr}%</span>
-                          <span>CPC ${c.cpc}</span>
-                          <span>CPL ${c.cpl}</span>
-                          <span>ROAS {c.roas}x</span>
-                          <span className={'text-[9px] ' + (c.change.startsWith('+') ? 'text-emerald-400' : 'text-red-400')}>{c.change}</span>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </>
-            )}
-
-            {/* ─── TAB: Competitors ─── */}
-            {selectedTab === 'competitors' && (
-              <>
-                <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--muted-foreground)]">🔍 Active Competitors</span>
-                    <span className="text-[10px] text-[var(--muted-foreground)]">Your SOV: 28%</span>
-                  </div>
-                  <div className="space-y-1.5">
-                    {COMPETITORS.map(function(c) {
-                      return (
-                        <div key={c.name} className="flex items-center justify-between rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2">
-                          <div>
-                            <span className="text-[11px] text-[var(--foreground)] font-medium">{c.name}</span>
-                            <p className="text-[9px] text-[var(--muted-foreground)]">{c.platform} · Est. ${formatNum(c.spend_est)}/mo</p>
-                          </div>
-                          <div className="text-right">
-                            <span className="text-[11px] text-[var(--foreground)] font-mono">{c.share_of_voice}% SOV</span>
-                            <p className="text-[9px] text-[var(--muted-foreground)]">{c.trend === 'up' ? '⬆️ Rising' : '⬇️ Declining'}</p>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-
-                {/* Share of Voice Bar */}
-                <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-3">
-                  <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--muted-foreground)]">📊 Share of Voice</span>
-                  <div className="mt-2 space-y-1.5">
-                    {[{ name: 'You', pct: 28, color: 'bg-[var(--primary)]' }, ...COMPETITORS].sort(function(a, b) { return b.pct - a.pct }).map(function(c) {
-                      var nm = c.name || 'You'
-                      return (
-                        <div key={nm} className="flex items-center gap-2">
-                          <span className="text-[10px] text-[var(--muted-foreground)] w-20 truncate">{nm}</span>
-                          <div className="flex-1 h-3 rounded-full bg-[var(--border)] overflow-hidden">
-                            <div className={'h-full rounded-full ' + c.color} style={{ width: c.pct + '%' }} />
-                          </div>
-                          <span className="text-[10px] text-[var(--foreground)] font-mono w-8 text-right">{c.pct}%</span>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-
-                {/* Insights */}
-                <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-3">
-                  <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--muted-foreground)]">💡 Competitive Insights</span>
-                  <div className="mt-1.5 space-y-1">
-                    {INSIGHTS.map(function(i, idx) {
-                      return <p key={idx} className="text-[10px] text-[var(--muted-foreground)] leading-relaxed">{i}</p>
-                    })}
-                  </div>
-                </div>
-              </>
-            )}
-
-            {/* ─── TAB: Budget ─── */}
-            {selectedTab === 'budget' && (
-              <>
-                {/* Large budget circle */}
-                <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4 flex flex-col items-center">
-                  <div className="relative h-24 w-24">
-                    <svg className="h-24 w-24 -rotate-90" viewBox="0 0 100 100">
-                      <circle cx="50" cy="50" r="42" fill="none" stroke="var(--border)" strokeWidth="8" />
-                      <circle cx="50" cy="50" r="42" fill="none" stroke="var(--primary)" strokeWidth="8" strokeDasharray={264} strokeDashoffset={264 * (1 - budgetPct / 100)} strokeLinecap="round" />
-                    </svg>
-                    <div className="absolute inset-0 flex flex-col items-center justify-center">
-                      <span className="text-lg font-bold text-[var(--foreground)]">${formatNum(BUDGET.remaining)}</span>
-                      <span className="text-[9px] text-[var(--muted-foreground)]">remaining</span>
-                    </div>
-                  </div>
-                  <div className="text-center mt-2">
-                    <p className="text-xs text-[var(--foreground)] font-medium">${formatNum(BUDGET.spent)} / ${formatNum(BUDGET.total)}</p>
-                    <p className="text-[10px] text-[var(--muted-foreground)]">{BUDGET.days_remaining} days left · ${dailyRemaining}/day recommended</p>
-                  </div>
-                </div>
-
-                {/* Good Better Best */}
-                <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-3">
-                  <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--primary)]">🎯 Good → Better → Best</span>
-                  <div className="mt-2">
-                    {/* Your current */}
-                    <div className="flex items-center justify-between px-2.5 py-1.5 border-l-2 border-[var(--primary)] bg-[var(--card)] mb-1.5 rounded-r-lg">
-                      <div>
-                        <span className="text-[11px] text-[var(--foreground)] font-medium">Current Plan</span>
-                        <p className="text-[9px] text-[var(--muted-foreground)]">${formatNum(BUDGET.spent)} of ${formatNum(BUDGET.total)} spent</p>
-                      </div>
-                      <span className="text-[10px] text-[var(--muted-foreground)]">{budgetPct}%</span>
-                    </div>
-                    {SCENARIOS.map(function(s) {
-                      var borderC = s.level.includes('Good') ? 'border-emerald-500' : s.level.includes('Better') ? 'border-[oklch(0.75 0.18 40)]' : 'border-[var(--primary)]'
-                      return (
-                        <div key={s.level} className={'flex items-center justify-between px-2.5 py-1.5 border-l-2 ' + borderC + ' bg-[var(--card)] mb-1 rounded-r-lg'}>
-                          <div>
-                            <span className="text-[11px] text-[var(--foreground)] font-medium">{s.level}</span>
-                            <p className="text-[9px] text-[var(--muted-foreground)]">{s.desc} · ${formatNum(s.budget)}</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-[11px] text-emerald-400 font-mono">{s.projected} conv</p>
-                            <p className="text-[9px] text-[var(--muted-foreground)]">ROAS {s.roas}x · CPL ${s.cpl}</p>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-
-                {/* Daily budget */}
-                <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-3">
-                  <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--muted-foreground)]">📅 Daily Budget Pace</span>
-                  <div className="mt-2 flex items-center gap-3">
-                    <div className="flex-1">
-                      <p className="text-[10px] text-[var(--muted-foreground)]">Current daily spend</p>
-                      <p className="text-xs text-[var(--foreground)] font-bold">${BUDGET.daily_avg_spend}</p>
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-[10px] text-[var(--muted-foreground)]">Recommended daily</p>
-                      <p className="text-xs text-[oklch(0.75 0.18 40)] font-bold">${BUDGET.recommended_daily}</p>
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-[10px] text-[var(--muted-foreground)]">Pace status</p>
-                      <p className={'text-xs font-bold ' + (budgetPct > 75 ? 'text-red-400' : budgetPct > 50 ? 'text-[oklch(0.75 0.18 40)]' : 'text-emerald-400')}>{budgetPct > 75 ? '⚠️ Over' : budgetPct > 50 ? '📊 On track' : '✅ Under'}</p>
-                    </div>
-                  </div>
-                </div>
-              </>
-            )}
-
-            {/* Bottom spacer */}
-            <div className="h-2" />
-          </div>
-        </div>
+        )}
       </div>
+
+      {/* RIGHT: Campaign List (only visible in campaign tab) */}
+      {(tab === 'campaigns' || tab === 'settings') && (
+        <div className="hidden md:flex md:flex-1 md:min-h-0 md:flex-col">
+          {tab === 'campaigns' && (
+            <>
+              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 shrink-0">Active Campaigns</h4>
+              <div className="flex-1 overflow-y-auto scrollbar-auto-hide space-y-2">
+                <p className="text-xs text-muted-foreground text-center pt-8">No campaigns yet. Chat mein campain banao.</p>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Setup wizard modal */}
+      {showSetup && <ServerSetupWizard onClose={() => setShowSetup(false)} />}
     </div>
   )
 }

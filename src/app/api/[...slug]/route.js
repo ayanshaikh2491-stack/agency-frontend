@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 
 const BACKEND_URL = process.env.BACKEND_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://18.213.66.136:8000'
+const N8N_PIPELINE_URL = process.env.N8N_PIPELINE_URL || 'https://nexus-n8n-x17d.onrender.com/webhook/n8n-pipeline-status'
 
 async function proxy(request, { params }) {
   const slug = params?.slug
@@ -9,6 +10,12 @@ async function proxy(request, { params }) {
   }
 
   const path = `/api/${slug.join('/')}`
+
+  // Route pipeline/* calls to n8n webhook instead of EC2
+  if (slug[0] === 'pipeline') {
+    return proxyToN8nPipeline(request, path, slug)
+  }
+
   const url = new URL(request.url)
   const targetUrl = `${BACKEND_URL}${path}${url.search}`
   const method = request.method
@@ -57,6 +64,36 @@ async function proxy(request, { params }) {
   } catch (error) {
     return NextResponse.json(
       { success: false, error: error.message, offline: true },
+      { status: 503 }
+    )
+  }
+}
+
+/**
+ * Route pipeline/* API calls to n8n webhook instead of EC2
+ */
+async function proxyToN8nPipeline(request, path, slug) {
+  const targetUrl = N8N_PIPELINE_URL
+
+  try {
+    const response = await fetch(targetUrl, {
+      method: 'GET',
+      signal: AbortSignal.timeout(15000),
+    })
+    const data = await response.json()
+    return NextResponse.json(data, { status: response.status })
+  } catch (error) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: error.message,
+        offline: true,
+        pipeline: {
+          pipeline_active: false,
+          errors: ['Pipeline backend unreachable'],
+          queue: { total: 0, new: 0 }
+        }
+      },
       { status: 503 }
     )
   }
