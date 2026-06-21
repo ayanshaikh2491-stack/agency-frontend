@@ -174,62 +174,26 @@ export default function CEOPage() {
     var l = text.toLowerCase()
     var ceoReply = ''
 
-    if (l.includes('hi') || l.includes('hello') || l.includes('hey') || l.includes('good morning') || l.includes('good evening') || l.includes('yo') || l.includes('sup')) {
-      ceoReply = CEO_RESPONSES.greeting(activeCompany ? activeCompany.name : '')
-    } else if (l.includes('thank') || l.includes('thanks') || l.includes('good') || l.includes('nice') || l.includes('perfect')) {
-      ceoReply = "Glad you like it! 👍 What's next on your mind?"
-    } else {
-      // Route to worker behind the scenes
-      var targetWorker = detectWorker(text)
-      var backendResponse = null
-
-      if (targetWorker) {
-        try {
-          var res = await fetch('/api/agents/' + targetWorker.id + '/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: text, client_name: activeCompany?.name || '' }),
-          })
-          backendResponse = res.ok ? (await res.json()) : null
-        } catch (e) {}
-
-        // Use backend response if available, otherwise fall back to static
-        var backendText = backendResponse
-          ? (backendResponse.response || backendResponse.reply || backendResponse.content || backendResponse.message || backendResponse.output || (backendResponse.data && (backendResponse.data.response || backendResponse.data.content || backendResponse.data.output)) || null)
-          : null
-        if (backendText && backendText.length > 3) {
-          ceoReply = backendText
-        } else if (l.includes('lead') || l.includes('find') || l.includes('research')) {
-          ceoReply = CEO_RESPONSES.lead()
-        } else if (l.includes('content') || l.includes('blog') || l.includes('write') || l.includes('post') || l.includes('draft')) {
-          ceoReply = CEO_RESPONSES.content()
-        } else if (l.includes('ads') || l.includes('facebook') || l.includes('linkedin') || l.includes('campaign')) {
-          ceoReply = CEO_RESPONSES.ads()
-        } else if (l.includes('status') || l.includes('health') || l.includes('update') || l.includes('how is') || l.includes('check')) {
-          ceoReply = CEO_RESPONSES.status()
-        } else {
-          ceoReply = "On it. Let me put the right people on this and get you a solid answer. 💪"
-        }
-      } else {
-        // No worker match -> try backend intake-researcher for conversational response
-        try {
-          var res2 = await fetch('/api/agents/intake-researcher/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: 'Respond as a helpful CEO assistant to this message. Be brief and natural. Message: ' + text, client_name: activeCompany?.name || '' }),
-          })
-          var data2 = res2.ok ? (await res2.json()) : null
-          var backendText2 = data2
-            ? (data2.response || data2.reply || data2.content || data2.message || data2.output || (data2.data && (data2.data.response || data2.data.content || data2.data.output)) || null)
-            : null
-          ceoReply = backendText2 && backendText2.length > 3
-            ? backendText2
-            : "Got it. Let me check on this and get back to you. 👍"
-        } catch (e) {
-          ceoReply = "Got it. Let me check on this and get back to you. 👍"
-        }
-      }
+    // Real conversational CEO - like Letta Code
+    try {
+      var res = await fetch('/api/ceo/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text }),
+      })
+      var data = res.ok ? (await res.json()) : null
+      ceoReply = data
+        ? (data.response || data.reply || data.content || data.message || data.output 
+           || (data.data && (data.data.response || data.data.content || data.data.output)) 
+           || null)
+        : null
+      ceoReply = ceoReply && ceoReply.length > 3 
+        ? ceoReply 
+        : "Haan bhai! Kya karna hai? 👊"
+    } catch (e) {
+      ceoReply = "Haan bhai! Kya karna hai? 👊"
     }
+    setRoutingInfo(null)
 
     // Small natural delay like a real person
     await new Promise(function(r) { setTimeout(r, 300 + Math.random() * 600) })
