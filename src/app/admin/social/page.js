@@ -39,6 +39,7 @@ export default function SocialPage() {
   var [welcomeRevealed, setWelcomeRevealed] = useState(false)
   var [chipsRevealed, setChipsRevealed] = useState(false)
   var [selectedTab, setSelectedTab] = useState('overview')
+  var [successMsg, setSuccessMsg] = useState('')
   var bottomRef = useRef(null)
   var inputRef = useRef(null)
   var scrollRef = useRef(null)
@@ -75,6 +76,23 @@ export default function SocialPage() {
     var t2 = setTimeout(function() { setChipsRevealed(true) }, 500)
     return function() { clearTimeout(t2) }
   }, [welcomeRevealed, chipsRevealed])
+
+  // Handle OAuth callback success
+  useEffect(function() {
+    var params = new URLSearchParams(window.location.search)
+    if (params.get('success') === 'facebook_connected') {
+      var page = params.get('page_name') || 'Facebook'
+      setSuccessMsg('✅ ' + page + ' connected successfully!')
+      // Clean URL
+      window.history.replaceState({}, '', '/admin/social')
+      setTimeout(function() { setSuccessMsg('') }, 5000)
+    }
+    if (params.get('error')) {
+      setSuccessMsg('⚠️ Connection failed: ' + decodeURIComponent(params.get('error')).slice(0, 50))
+      window.history.replaceState({}, '', '/admin/social')
+      setTimeout(function() { setSuccessMsg('') }, 8000)
+    }
+  }, [])
 
   async function callAgent(text) {
     try {
@@ -153,15 +171,21 @@ export default function SocialPage() {
         {/* ─── LEFT: Chat ─── */}
         <div className="relative flex min-h-0 min-w-0 w-full md:w-[45%] shrink-0 flex-col bg-[var(--card)]">
           {/* Header */}
-          <div className="relative flex shrink-0 items-center justify-between gap-2 px-4 py-3 border-b border-[var(--border)]">
-            <div className="flex items-center gap-3 min-w-0 flex-1">
+          <div className="relative flex shrink-0 flex-col">
+            <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-[var(--border)]">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
               <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-pink-500/20">
                 <span className="text-sm">📱</span>
                 <span className="absolute -bottom-0.5 -right-0.5 flex h-2.5 w-2.5">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
                   <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
                 </span>
+                {successMsg ? (
+              <div className="flex items-center justify-center px-4 py-2 bg-emerald-500/10 border-b border-emerald-500/20 text-sm text-emerald-400">
+                {successMsg}
               </div>
+            ) : null}
+          </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm font-semibold text-[var(--foreground)]">Social Media</h3>
