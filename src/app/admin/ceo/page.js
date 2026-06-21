@@ -195,7 +195,7 @@ export default function CEOPage() {
 
         // Use backend response if available, otherwise fall back to static
         var backendText = backendResponse
-          ? (backendResponse.response || backendResponse.reply || backendResponse.content || backendResponse.message || backendResponse.output || (backendResponse.data && (backendResponse.data.response || backendResponse.data.output)) || null)
+          ? (backendResponse.response || backendResponse.reply || backendResponse.content || backendResponse.message || backendResponse.output || (backendResponse.data && (backendResponse.data.response || backendResponse.data.content || backendResponse.data.output)) || null)
           : null
         if (backendText && backendText.length > 3) {
           ceoReply = backendText
@@ -220,7 +220,7 @@ export default function CEOPage() {
           })
           var data2 = res2.ok ? (await res2.json()) : null
           var backendText2 = data2
-            ? (data2.response || data2.reply || data2.content || data2.message || data2.output || (data2.data && (data2.data.response || data2.data.output)) || null)
+            ? (data2.response || data2.reply || data2.content || data2.message || data2.output || (data2.data && (data2.data.response || data2.data.content || data2.data.output)) || null)
             : null
           ceoReply = backendText2 && backendText2.length > 3
             ? backendText2
