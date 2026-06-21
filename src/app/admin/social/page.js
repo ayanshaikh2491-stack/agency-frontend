@@ -112,12 +112,18 @@ export default function SocialPage() {
       setTimeout(function() { setSuccessMsg('') }, 5000)
     }
     if (params.get('error')) {
-      setSuccessMsg('⚠️ Connection failed: ' + decodeURIComponent(params.get('error')).slice(0, 50))
+      try {
+        setSuccessMsg('⚠️ Connection failed: ' + String(params.get('error')).slice(0, 50))
+      } catch(e) {
+        setSuccessMsg('⚠️ Connection failed')
+      }
       window.history.replaceState({}, '', '/admin/social')
       setTimeout(function() { setSuccessMsg('') }, 8000)
     }
     // Refresh accounts
-    loadAccounts().then(function() { setAccountsLoaded(true) })
+    try {
+      loadAccounts().then(function() { try { setAccountsLoaded(true) } catch(e) {} })
+    } catch(e) {}
   }, [])
 
   // Force re-render when accounts change
