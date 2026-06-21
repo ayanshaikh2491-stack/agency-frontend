@@ -12,8 +12,31 @@ var SUGGESTIONS = [
   { label: '⚡ Engagement Report', prompt: 'Give me the engagement report and best performing posts' },
 ]
 
-// ─── REAL DATA — loaded from backend; empty until agents work ───
+// ─── REAL DATA — loaded from backend ───
 var ACCOUNTS = []
+
+// Load connected accounts from backend
+async function loadAccounts() {
+  try {
+    var r = await fetch('/api/social-manager/accounts')
+    var d = await r.json()
+    if (d.success && d.data) {
+      ACCOUNTS = d.data.map(function(a) {
+        return {
+          platform: a.platform === 'facebook' ? 'Facebook' : a.platform === 'instagram' ? 'Instagram' : a.platform,
+          connected: true,
+          name: a.account_name || (a.meta ? a.meta.page_name : '') || a.account_id,
+          id: a.account_id,
+          followers: 0,
+          engagement: 0,
+          lastPost: null
+        }
+      })
+    }
+  } catch(e) { }
+}
+
+var SCHEDULED_POSTS = []
 
 var SCHEDULED_POSTS = []
 
@@ -40,6 +63,7 @@ export default function SocialPage() {
   var [chipsRevealed, setChipsRevealed] = useState(false)
   var [selectedTab, setSelectedTab] = useState('overview')
   var [successMsg, setSuccessMsg] = useState('')
+  var [accountsLoaded, setAccountsLoaded] = useState(false)
   var bottomRef = useRef(null)
   var inputRef = useRef(null)
   var scrollRef = useRef(null)
@@ -92,6 +116,14 @@ export default function SocialPage() {
       window.history.replaceState({}, '', '/admin/social')
       setTimeout(function() { setSuccessMsg('') }, 8000)
     }
+    // Refresh accounts
+    loadAccounts().then(function() { setAccountsLoaded(true) })
+  }, [])
+
+  // Force re-render when accounts change
+  useEffect(function() {
+    window.__forceRender = function() { setAccountsLoaded(function(v) { return !v }) }
+    return function() { delete window.__forceRender }
   }, [])
 
   async function callAgent(text) {
