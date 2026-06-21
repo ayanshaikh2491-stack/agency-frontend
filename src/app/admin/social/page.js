@@ -174,27 +174,22 @@ export default function SocialPage() {
           <div className="relative flex shrink-0 flex-col">
             <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-[var(--border)]">
               <div className="flex items-center gap-3 min-w-0 flex-1">
-              <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-pink-500/20">
-                <span className="text-sm">📱</span>
-                <span className="absolute -bottom-0.5 -right-0.5 flex h-2.5 w-2.5">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
-                </span>
-                {successMsg ? (
-              <div className="flex items-center justify-center px-4 py-2 bg-emerald-500/10 border-b border-emerald-500/20 text-sm text-emerald-400">
-                {successMsg}
-              </div>
-            ) : null}
-          </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-semibold text-[var(--foreground)]">Social Media</h3>
-                  <span className="flex items-center gap-1 text-[10px] text-emerald-400">● Live</span>
+                <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-pink-500/20">
+                  <span className="text-sm">📱</span>
+                  <span className="absolute -bottom-0.5 -right-0.5 flex h-2.5 w-2.5">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                  </span>
                 </div>
-                <p className="truncate text-xs text-[var(--muted-foreground)]">{connectedAccounts.length} connected · {formatNum(ENGAGEMENT_TOTALS.total_followers)} followers · {pendingPosts.length} scheduled</p>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-semibold text-[var(--foreground)]">Social Media</h3>
+                    <span className="flex items-center gap-1 text-[10px] text-emerald-400">● Live</span>
+                  </div>
+                  <p className="truncate text-xs text-[var(--muted-foreground)]">{connectedAccounts.length} connected · {formatNum(ENGAGEMENT_TOTALS.total_followers)} followers · {pendingPosts.length} scheduled</p>
+                </div>
               </div>
-            </div>
-            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2">
               <button onClick={function() {
                 window.location.href = 'https://www.facebook.com/v18.0/dialog/oauth?client_id=1900581880622376&redirect_uri=https%3A%2F%2Fagency-frontend-seven.vercel.app%2Fapi%2Fsocial%2Foauth%2Ffacebook%2Fcallback&scope=pages_show_list,pages_read_engagement,pages_manage_posts,instagram_basic,instagram_content_publish,public_profile&state=default:facebook&response_type=code';
               }}
@@ -210,6 +205,12 @@ export default function SocialPage() {
                 Connect LinkedIn
               </button>
             </div>
+            {successMsg ? (
+              <div className="flex items-center justify-center px-4 py-2 bg-emerald-500/10 border-b border-emerald-500/20 text-sm text-emerald-400">
+                {successMsg}
+              </div>
+            ) : null}
+          </div>
           </div>
 
           {/* Messages */}
