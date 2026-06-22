@@ -12,13 +12,8 @@ var SUGGESTIONS = [
   { label: '⚡ Engagement Report', prompt: 'Give me the engagement report and best performing posts' },
 ]
 
-// ─── REAL DATA — loaded from backend ───
-var ACCOUNTS = []
-
+// ─── REAL DATA — comes from backend ───
 var SCHEDULED_POSTS = []
-
-var SCHEDULED_POSTS = []
-
 var TOP_POSTS = []
 
 var ENGAGEMENT_TOTALS = {
@@ -42,12 +37,14 @@ export default function SocialPage() {
   var [chipsRevealed, setChipsRevealed] = useState(false)
   var [selectedTab, setSelectedTab] = useState('overview')
   var [successMsg, setSuccessMsg] = useState('')
+  var [accounts, setAccounts] = useState([])
+  var [forceRefresh, setForceRefresh] = useState(0)
   var bottomRef = useRef(null)
   var inputRef = useRef(null)
   var scrollRef = useRef(null)
   var keepScrolled = useRef(true)
 
-  var connectedAccounts = ACCOUNTS.filter(function(a) { return a.connected })
+  var connectedAccounts = accounts.filter(function(a) { return a.connected })
   var pendingPosts = SCHEDULED_POSTS.filter(function(p) { return p.status === 'scheduled' })
 
   var safeScroll = useCallback(function() {
@@ -85,9 +82,9 @@ export default function SocialPage() {
     if (params.get('success') === 'facebook_connected') {
       var page = params.get('page_name') || 'Facebook'
       setSuccessMsg('✅ ' + page + ' connected successfully!')
-      // Clean URL
       window.history.replaceState({}, '', '/admin/social')
       setTimeout(function() { setSuccessMsg('') }, 5000)
+      setForceRefresh(function(v) { return v + 1 })
     }
     if (params.get('error')) {
       setSuccessMsg('Connection failed')
@@ -96,18 +93,37 @@ export default function SocialPage() {
     }
   }, [])
 
+  // Fetch connected accounts from backend
+  useEffect(function() {
+    fetch('/api/social-manager/accounts').then(function(r) { return r.json() }).then(function(d) {
+      if (d.success && d.data) {
+        setAccounts(d.data.map(function(a) {
+          return {
+            id: a.account_id,
+            platform: a.platform === 'facebook' ? 'Facebook' : a.platform === 'instagram' ? 'Instagram' : a.platform,
+            connected: true,
+            name: a.account_name || (a.meta && a.meta.page_name) || a.account_id,
+            followers: 0,
+            engagement: 0,
+            lastPost: null
+          }
+        }))
+      }
+    }).catch(function() {})
+  }, [forceRefresh])
+
   async function callAgent(text) {
     try {
       var l = text.toLowerCase()
       if (l.includes('overview') || l.includes('all') || l.includes('performance')) {
         return '**📊 Social Media Overview**\n\n' +
-          '**Connected:** ' + connectedAccounts.length + '/' + ACCOUNTS.length + ' platforms\n' +
+          '**Connected:** ' + connectedAccounts.length + '/' + accounts.length + ' platforms\n' +
           '**Total Reach:** ' + formatNum(ENGAGEMENT_TOTALS.total_reach) + '\n' +
           '**Total Followers:** ' + formatNum(ENGAGEMENT_TOTALS.total_followers) + '\n' +
           '**Avg Engagement:** ' + ENGAGEMENT_TOTALS.total_engagement + '% (best: ' + ENGAGEMENT_TOTALS.best_platform + ' @ ' + ENGAGEMENT_TOTALS.best_platform_eng + '%)\n' +
           '**Posts this month:** ' + ENGAGEMENT_TOTALS.total_posts_this_month + '\n' +
           '**Scheduled this week:** ' + pendingPosts.length + ' posts\n\n' +
-          ACCOUNTS.filter(function(a) { return a.connected }).map(function(a) {
+          accounts.filter(function(a) { return a.connected }).map(function(a) {
             return '• **' + a.platform + '** — ' + formatNum(a.followers) + ' followers · ' + a.growth + ' growth · ' + a.engagement + '% eng\n  👁 ' + formatNum(a.reach) + ' reach · ' + a.posts + ' posts'
           }).join('\n\n')
       }
@@ -119,7 +135,7 @@ export default function SocialPage() {
           '\n\n**Total:** ' + pendingPosts.length + ' scheduled · 1 draft'
       }
       if (l.includes('instagram') || l.includes('ig')) {
-        var ig = ACCOUNTS.find(function(a) { return a.platform === 'Instagram' })
+        var ig = accounts.find(function(a) { return a.platform === 'Instagram' })
         if (!ig || !ig.connected) return 'Instagram not connected yet. Want to connect it?'
         return '**📸 Instagram Analytics**\n\n' +
           '• Followers: ' + formatNum(ig.followers) + ' (' + ig.growth + ' growth)\n' +
@@ -353,10 +369,10 @@ export default function SocialPage() {
                 <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-3">
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="text-[10px] font-medium uppercase tracking-wider text-pink-400">🔗 Connected Platforms</span>
-                    <span className="text-[10px] text-[var(--muted-foreground)]">{connectedAccounts.length}/{ACCOUNTS.length}</span>
+                    <span className="text-[10px] text-[var(--muted-foreground)]">{connectedAccounts.length}/{accounts.length}</span>
                   </div>
                   <div className="space-y-1.5">
-                    {ACCOUNTS.map(function(a) {
+                    {accounts.map(function(a) {
                       return (
                         <div key={a.platform} className={'flex items-center justify-between rounded-lg border ' + (a.connected ? 'border-[var(--border)]' : 'border-[var(--border)]/50 opacity-50') + ' bg-[var(--card)] px-3 py-2'}>
                           <div className="flex items-center gap-2">
@@ -388,7 +404,7 @@ export default function SocialPage() {
                 <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-3">
                   <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--muted-foreground)]">📊 Followers Growth by Platform</span>
                   <div className="mt-2 space-y-1.5">
-                    {ACCOUNTS.filter(function(a) { return a.connected }).map(function(a) {
+                    {accounts.filter(function(a) { return a.connected }).map(function(a) {
                       var pct = Math.round((a.followers / ENGAGEMENT_TOTALS.total_followers) * 100)
                       return (
                         <div key={a.platform} className="flex items-center gap-2">
@@ -420,7 +436,7 @@ export default function SocialPage() {
             {selectedTab === 'accounts' && (
               <>
                 <div className="space-y-1.5">
-                  {ACCOUNTS.map(function(a) {
+                  {accounts.map(function(a) {
                     var emoji = a.platform === 'Instagram' ? '📸' : a.platform === 'Facebook' ? '📘' : a.platform === 'LinkedIn' ? '💼' : a.platform === 'Twitter/X' ? '🐦' : '▶️'
                     return (
                       <div key={a.platform} className={'rounded-lg border ' + (a.connected ? 'border-[var(--border)]' : 'border-[var(--border)]/50') + ' bg-[var(--card)] p-3 ' + (!a.connected ? 'opacity-60' : '')}>
@@ -541,8 +557,8 @@ export default function SocialPage() {
                 <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-3">
                   <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--muted-foreground)]">📊 Platform Engagement</span>
                   <div className="mt-2 space-y-1.5">
-                    {ACCOUNTS.filter(function(a) { return a.connected }).sort(function(a, b) { return b.engagement - a.engagement }).map(function(a) {
-                      var maxEng = Math.max(...ACCOUNTS.filter(function(x) { return x.connected }).map(function(x) { return x.engagement }))
+                    {accounts.filter(function(a) { return a.connected }).sort(function(a, b) { return b.engagement - a.engagement }).map(function(a) {
+                      var maxEng = Math.max(...accounts.filter(function(x) { return x.connected }).map(function(x) { return x.engagement }))
                       var pct = Math.round((a.engagement / maxEng) * 100)
                       return (
                         <div key={a.platform} className="flex items-center gap-2">
