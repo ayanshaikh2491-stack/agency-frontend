@@ -40,6 +40,7 @@ export default function SocialPage() {
   var [chipsRevealed, setChipsRevealed] = useState(false)
   var [selectedTab, setSelectedTab] = useState('overview')
   var [successMsg, setSuccessMsg] = useState('')
+  var [refreshKey, setRefreshKey] = useState(0)
   var bottomRef = useRef(null)
   var inputRef = useRef(null)
   var scrollRef = useRef(null)
@@ -91,6 +92,29 @@ export default function SocialPage() {
       window.history.replaceState({}, '', '/admin/social')
       setTimeout(function() { setSuccessMsg('') }, 8000)
     }
+  }, [])
+
+  // Fetch connected accounts from backend
+  useEffect(function() {
+    fetch('/api/social-manager/accounts').then(function(r) { return r.json() }).then(function(d) {
+      if (d.success && d.data) {
+        ACCOUNTS.length = 0
+        d.data.forEach(function(a) {
+          ACCOUNTS.push({
+            platform: a.platform === 'facebook' ? 'Facebook' : a.platform === 'instagram' ? 'Instagram' : a.platform,
+            connected: true,
+            name: a.account_name || (a.meta && a.meta.page_name) || a.account_id,
+            followers: 0,
+            engagement: 0,
+            reach: 0,
+            posts: 0,
+            growth: '+0%',
+            id: a.account_id
+          })
+        })
+        setRefreshKey(function(v) { return v + 1 })
+      }
+    }).catch(function() {})
   }, [])
 
   async function callAgent(text) {
