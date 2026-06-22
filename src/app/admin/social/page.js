@@ -12,8 +12,11 @@ var SUGGESTIONS = [
   { label: '⚡ Engagement Report', prompt: 'Give me the engagement report and best performing posts' },
 ]
 
-// ─── REAL DATA — comes from backend ───
+// ─── REAL DATA — loaded from backend ───
+var ACCOUNTS = []
+
 var SCHEDULED_POSTS = []
+
 var TOP_POSTS = []
 
 var ENGAGEMENT_TOTALS = {
@@ -37,14 +40,12 @@ export default function SocialPage() {
   var [chipsRevealed, setChipsRevealed] = useState(false)
   var [selectedTab, setSelectedTab] = useState('overview')
   var [successMsg, setSuccessMsg] = useState('')
-  var [accounts, setAccounts] = useState([])
-  var [forceRefresh, setForceRefresh] = useState(0)
   var bottomRef = useRef(null)
   var inputRef = useRef(null)
   var scrollRef = useRef(null)
   var keepScrolled = useRef(true)
 
-  var connectedAccounts = accounts.filter(function(a) { return a.connected })
+  var connectedAccounts = ACCOUNTS.filter(function(a) { return a.connected })
   var pendingPosts = SCHEDULED_POSTS.filter(function(p) { return p.status === 'scheduled' })
 
   var safeScroll = useCallback(function() {
@@ -84,7 +85,6 @@ export default function SocialPage() {
       setSuccessMsg('✅ ' + page + ' connected successfully!')
       window.history.replaceState({}, '', '/admin/social')
       setTimeout(function() { setSuccessMsg('') }, 5000)
-      setForceRefresh(function(v) { return v + 1 })
     }
     if (params.get('error')) {
       setSuccessMsg('Connection failed')
@@ -93,37 +93,18 @@ export default function SocialPage() {
     }
   }, [])
 
-  // Fetch connected accounts from backend
-  useEffect(function() {
-    fetch('/api/social-manager/accounts').then(function(r) { return r.json() }).then(function(d) {
-      if (d.success && d.data) {
-        setAccounts(d.data.map(function(a) {
-          return {
-            id: a.account_id,
-            platform: a.platform === 'facebook' ? 'Facebook' : a.platform === 'instagram' ? 'Instagram' : a.platform,
-            connected: true,
-            name: a.account_name || (a.meta && a.meta.page_name) || a.account_id,
-            followers: 0,
-            engagement: 0,
-            lastPost: null
-          }
-        }))
-      }
-    }).catch(function() {})
-  }, [forceRefresh])
-
   async function callAgent(text) {
     try {
       var l = text.toLowerCase()
       if (l.includes('overview') || l.includes('all') || l.includes('performance')) {
         return '**📊 Social Media Overview**\n\n' +
-          '**Connected:** ' + connectedAccounts.length + '/' + accounts.length + ' platforms\n' +
+          '**Connected:** ' + connectedAccounts.length + '/' + ACCOUNTS.length + ' platforms\n' +
           '**Total Reach:** ' + formatNum(ENGAGEMENT_TOTALS.total_reach) + '\n' +
           '**Total Followers:** ' + formatNum(ENGAGEMENT_TOTALS.total_followers) + '\n' +
           '**Avg Engagement:** ' + ENGAGEMENT_TOTALS.total_engagement + '% (best: ' + ENGAGEMENT_TOTALS.best_platform + ' @ ' + ENGAGEMENT_TOTALS.best_platform_eng + '%)\n' +
           '**Posts this month:** ' + ENGAGEMENT_TOTALS.total_posts_this_month + '\n' +
           '**Scheduled this week:** ' + pendingPosts.length + ' posts\n\n' +
-          accounts.filter(function(a) { return a.connected }).map(function(a) {
+          ACCOUNTS.filter(function(a) { return a.connected }).map(function(a) {
             return '• **' + a.platform + '** — ' + formatNum(a.followers) + ' followers · ' + a.growth + ' growth · ' + a.engagement + '% eng\n  👁 ' + formatNum(a.reach) + ' reach · ' + a.posts + ' posts'
           }).join('\n\n')
       }
@@ -135,7 +116,7 @@ export default function SocialPage() {
           '\n\n**Total:** ' + pendingPosts.length + ' scheduled · 1 draft'
       }
       if (l.includes('instagram') || l.includes('ig')) {
-        var ig = accounts.find(function(a) { return a.platform === 'Instagram' })
+        var ig = ACCOUNTS.find(function(a) { return a.platform === 'Instagram' })
         if (!ig || !ig.connected) return 'Instagram not connected yet. Want to connect it?'
         return '**📸 Instagram Analytics**\n\n' +
           '• Followers: ' + formatNum(ig.followers) + ' (' + ig.growth + ' growth)\n' +
@@ -245,87 +226,67 @@ export default function SocialPage() {
                         <div className="max-w-full overflow-visible [&>*:first-child]:mt-0 [&>*:last-child]:mb-0" dangerouslySetInnerHTML={{ __html: renderMD(welcomeBody) }} />
                       </div>
                     </div>
+
                     {chipsRevealed && (
                       <div className="flex flex-wrap gap-2 pl-1">
-                        {SUGGESTIONS.map(function(chip) {
+                        {SUGGESTIONS.map(function(s) {
                           return (
-                            <button key={chip.label} type="button" onClick={function() { setInput(chip.prompt); if (inputRef.current) inputRef.current.focus() }}
-                              className="rounded-full border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-xs text-[var(--muted-foreground)] transition-colors duration-150 hover:bg-[var(--border)]/50 hover:text-[var(--foreground)]">
-                              {chip.label}
+                            <button key={s.label} onClick={function() { send(s.prompt) }} className="rounded-full border border-[var(--border)] px-2.5 py-1 text-[11px] text-[var(--muted-foreground)] hover:border-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors">
+                              {s.label}
                             </button>
                           )
                         })}
                       </div>
                     )}
+
+                    {msgs.map(function(m) {
+                      if (m.role === 'user') {
+                        return (
+                          <div key={m.id} className="flex flex-col items-end gap-1">
+                            <div className={PAPERCLIP_BUBBLE + ' bg-[var(--primary)] text-white [border-radius:14px_14px_4px_14px]'}>
+                              {m.content}
+                            </div>
+                          </div>
+                        )
+                      }
+                      return (
+                        <div key={m.id} className="flex flex-col items-start">
+                          <AgentBubbleHeader emoji="📱" name="Social Media Manager" />
+                          <div className={PAPERCLIP_BUBBLE + ' bg-[var(--card)] border border-[var(--border)] text-[var(--foreground)] [border-radius:14px_14px_14px_4px]'}>
+                            <div className="max-w-full overflow-visible [&>*:first-child]:mt-0 [&>*:last-child]:mb-0" dangerouslySetInnerHTML={{ __html: renderMD(m.content) }} />
+                          </div>
+                        </div>
+                      )
+                    })}
                   </>
                 )}
-
-                {msgs.map(function(m) {
-                  if (m.role === 'user') {
-                    return (
-                      <div key={m.id} className="flex flex-col items-end gap-1">
-                        <div className={PAPERCLIP_BUBBLE + ' bg-primary text-white [border-radius:14px_14px_4px_14px]'}>{m.content}</div>
-                      </div>
-                    )
-                  }
-                  return (
-                    <div key={m.id} className="flex flex-col items-start">
-                      <AgentBubbleHeader emoji="📱" name="Social Media Manager" />
-                      <div className={PAPERCLIP_BUBBLE + ' bg-[var(--card)] border border-[var(--border)] text-[var(--foreground)] [border-radius:14px_14px_14px_4px]'}>
-                        <div className="max-w-full overflow-visible [&>*:first-child]:mt-0 [&>*:last-child]:mb-0" dangerouslySetInnerHTML={{ __html: renderMD(m.content) }} />
-                      </div>
-                    </div>
-                  )
-                })}
-
-                {sending && <TypingBubble />}
-
-                <div ref={bottomRef} />
               </div>
             </div>
           </div>
 
-          {/* Composer */}
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-[var(--card)] via-[var(--card)]/95 to-[var(--card)]/0 px-6 pt-6 pb-5">
-            <div className="pointer-events-auto relative rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 pb-2 pt-3 shadow-lg transition-colors focus-within:border-[var(--muted-foreground)]/60">
-              <div className="flex items-end gap-2">
-                <textarea ref={inputRef} value={input} onChange={function(e) { setInput(e.target.value) }} onKeyDown={handleKeyDown}
-                  placeholder="Ask your Social Media Manager..." rows={1}
-                  className="min-h-[24px] max-h-[120px] flex-1 resize-none bg-transparent text-sm text-[var(--foreground)] placeholder-[var(--muted-foreground)] outline-none scrollbar-none" disabled={sending} />
-                <div className="flex shrink-0 items-center gap-1 pb-0.5">
-                  <button type="button" onClick={function() { send() }} disabled={!input.trim() || sending}
-                    className="rounded-lg bg-primary p-1.5 text-white transition-all hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M22 2 11 13" /><path d="m22 2-7 20-4-9-9-4 20-7z" />
-                    </svg>
-                  </button>
-                </div>
+          {/* Input */}
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-[var(--card)] via-[var(--card)] to-transparent pt-6">
+            <div className="pointer-events-auto relative rounded-xl border border-[var(--border)] bg-[var(--background)] mx-4 mb-3">
+              <textarea ref={inputRef} value={input} onChange={function(e) { setInput(e.target.value) }} onKeyDown={handleKeyDown} placeholder="Ask your Social Media Manager..." rows={1} className="scrollbar-auto-hide block w-full resize-none bg-transparent px-3 py-2.5 pr-11 text-sm text-[var(--foreground)] placeholder-[var(--muted-foreground)] outline-none" style={{ maxHeight: '120px' }} />
+              <div className="flex shrink-0 items-center gap-1 pb-0.5">
+                <button disabled={!input.trim() || sending} onClick={function() { send() }} className="absolute bottom-1.5 right-1.5 flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--primary)] text-white disabled:opacity-30 transition-opacity">
+                  <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 2L11 13" /><path d="M22 2l-7 20-4-9-9-4 20-7z" /></svg>
+                </button>
               </div>
             </div>
           </div>
         </div>
-
-        {/* Resizer */}
         <div role="separator" aria-orientation="vertical"
-          className="group relative hidden w-3 shrink-0 cursor-col-resize bg-[var(--card)] md:flex">
-          <div className="pointer-events-none absolute top-0 bottom-0 left-0 w-px bg-[var(--border)] transition-colors group-hover:bg-[var(--muted-foreground)]/30" aria-hidden />
-        </div>
-
-        {/* ─── RIGHT: Social Intelligence Dashboard ─── */}
-        <div className="hidden md:flex md:min-h-0 md:min-w-0 md:flex-1 flex-col bg-[var(--card)]">
-          {/* Header */}
+          className="hidden md:block w-px shrink-0 bg-[var(--border)]" />
+        {/* ─── RIGHT: Dashboard ─── */}
+        <div className="hidden md:flex md:min-h-0 md:min-w-0 md:flex-1 flex-col bg-[var(--card)] min-w-0">
+          {/* Tabs */}
           <div className="shrink-0 px-4 py-3 border-b border-[var(--border)]">
             <div className="flex items-center justify-between">
-              <h4 className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wider">Social Intelligence</h4>
-              <span className="flex items-center gap-1.5">
-                <span className="flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                <span className="text-[10px] text-emerald-400 font-medium">Live</span>
-              </span>
+              <h3 className="text-sm font-semibold text-[var(--foreground)]">SOCIAL INTELLIGENCE</h3>
             </div>
           </div>
-
-          {/* Tab bar */}
-          <div className="shrink-0 px-4 py-2 flex gap-1.5 border-b border-[var(--border)]">
+          <div className="shrink-0 px-4 py-2 flex gap-1.5 border-b border-[var(--border)] overflow-x-auto">
             {[
               { id: 'overview', label: '🕵️ Overview' },
               { id: 'accounts', label: '📸 Accounts' },
@@ -333,283 +294,247 @@ export default function SocialPage() {
               { id: 'analytics', label: '📈 Analytics' },
             ].map(function(tab) {
               return (
-                <button key={tab.id} type="button" onClick={function() { setSelectedTab(tab.id) }}
-                  className={'rounded-full px-2.5 py-1 text-[10px] font-medium transition-colors ' + (selectedTab === tab.id
-                    ? 'bg-pink-500/20 text-pink-400 border border-pink-500/30'
-                    : 'text-[var(--muted-foreground)] border border-transparent hover:text-[var(--foreground)]')}>
+                <button key={tab.id} onClick={function() { setSelectedTab(tab.id) }}
+                  className={'shrink-0 rounded-lg px-2.5 py-1 text-[11px] font-medium transition-all ' + (selectedTab === tab.id ? 'bg-[var(--primary)]/10 text-[var(--primary)]' : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]')}>
                   {tab.label}
                 </button>
               )
             })}
           </div>
 
-          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2.5 scrollbar-auto-hide">
+          {/* ─── TAB: Overview ─── */}
+          {selectedTab === 'overview' && (
+            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2.5 scrollbar-auto-hide">
+              {/* Quick Stats */}
+              <div className="grid grid-cols-4 gap-1.5">
+                {[
+                  { label: 'Connected Accounts', value: connectedAccounts.length + '/' + ACCOUNTS.length, color: 'text-[var(--foreground)]' },
+                  { label: 'Total Followers', value: formatNum(ENGAGEMENT_TOTALS.total_followers), color: 'text-[var(--foreground)]' },
+                  { label: 'Total Reach', value: formatNum(ENGAGEMENT_TOTALS.total_reach), color: 'text-pink-400' },
+                  { label: 'Avg Engagement', value: ENGAGEMENT_TOTALS.total_engagement + '%', color: 'text-emerald-400' },
+                ].map(function(m) {
+                  return (
+                    <div key={m.label} className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-2.5 py-2">
+                      <div className="text-[10px] text-[var(--muted-foreground)] mb-0.5">{m.label}</div>
+                      <div className={'text-lg font-bold tracking-tight ' + m.color}>{m.value}</div>
+                    </div>
+                  )
+                })}
+              </div>
 
-            {/* ─── TAB: Overview ─── */}
-            {selectedTab === 'overview' && (
-              <>
-                {/* KPI cards */}
-                <div className="grid grid-cols-4 gap-1.5">
-                  {[
-                    { label: 'Total Followers', value: formatNum(ENGAGEMENT_TOTALS.total_followers), color: 'text-[var(--foreground)]' },
-                    { label: 'Total Reach', value: formatNum(ENGAGEMENT_TOTALS.total_reach), color: 'text-pink-400' },
-                    { label: 'Avg Engagement', value: ENGAGEMENT_TOTALS.total_engagement + '%', color: 'text-emerald-400' },
-                    { label: 'Best Platform', value: ENGAGEMENT_TOTALS.best_platform, color: 'text-[var(--primary)]' },
-                  ].map(function(m) {
-                    return (
-                      <div key={m.label} className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-2">
-                        <p className="text-[9px] text-[var(--muted-foreground)] uppercase tracking-wider">{m.label}</p>
-                        <p className={'text-sm font-bold mt-0.5 ' + m.color}>{m.value}</p>
-                      </div>
-                    )
-                  })}
+              {/* Connected Platforms */}
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2.5">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[11px] font-medium text-[var(--foreground)]">Connected Platforms</span>
+                  <span className="text-[10px] text-[var(--muted-foreground)]">{connectedAccounts.length}/{ACCOUNTS.length}</span>
                 </div>
-
-                {/* Connect Status */}
-                <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-3">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[10px] font-medium uppercase tracking-wider text-pink-400">🔗 Connected Platforms</span>
-                    <span className="text-[10px] text-[var(--muted-foreground)]">{connectedAccounts.length}/{accounts.length}</span>
-                  </div>
-                  <div className="space-y-1.5">
-                    {accounts.map(function(a) {
-                      return (
-                        <div key={a.platform} className={'flex items-center justify-between rounded-lg border ' + (a.connected ? 'border-[var(--border)]' : 'border-[var(--border)]/50 opacity-50') + ' bg-[var(--card)] px-3 py-2'}>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs">
-                              {a.platform === 'Instagram' ? '📸' : a.platform === 'Facebook' ? '📘' : a.platform === 'LinkedIn' ? '💼' : a.platform === 'Twitter/X' ? '🐦' : '▶️'}
-                            </span>
-                            <div>
-                              <span className="text-[11px] text-[var(--foreground)] font-medium">{a.platform}</span>
-                              <p className="text-[9px] text-[var(--muted-foreground)]">{a.handle}</p>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            {a.connected ? (
-                              <>
-                                <span className="text-[10px] text-emerald-400">● Connected</span>
-                                <p className="text-[9px] text-[var(--muted-foreground)]">{formatNum(a.followers)} followers</p>
-                              </>
-                            ) : (
-                              <Link href="/admin/connect" className="text-[10px] text-pink-400 hover:underline">+ Connect</Link>
-                            )}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-
-                {/* Growth Bar */}
-                <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-3">
-                  <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--muted-foreground)]">📊 Followers Growth by Platform</span>
-                  <div className="mt-2 space-y-1.5">
-                    {accounts.filter(function(a) { return a.connected }).map(function(a) {
-                      var pct = Math.round((a.followers / ENGAGEMENT_TOTALS.total_followers) * 100)
-                      return (
-                        <div key={a.platform} className="flex items-center gap-2">
-                          <span className="text-[10px] text-[var(--muted-foreground)] w-20 truncate">{a.platform}</span>
-                          <div className="flex-1 h-2.5 rounded-full bg-[var(--border)] overflow-hidden">
-                            <div className="h-full rounded-full bg-gradient-to-r from-pink-500 to-purple-500" style={{ width: pct + '%' }} />
-                          </div>
-                          <span className="text-[10px] text-[var(--foreground)] font-mono w-14 text-right">{formatNum(a.followers)}</span>
-                          <span className={'text-[9px] font-medium w-8 text-right ' + (a.growth.startsWith('+') ? 'text-emerald-400' : 'text-red-400')}>{a.growth}</span>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-
-                {/* Content Tips */}
-                <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-3">
-                  <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--muted-foreground)]">💡 Intelligence</span>
-                  <div className="mt-1.5 space-y-1">
-                    {CONTENT_TIPS.map(function(t, idx) {
-                      return <p key={idx} className="text-[10px] text-[var(--muted-foreground)] leading-relaxed">{t}</p>
-                    })}
-                  </div>
-                </div>
-              </>
-            )}
-
-            {/* ─── TAB: Accounts ─── */}
-            {selectedTab === 'accounts' && (
-              <>
                 <div className="space-y-1.5">
-                  {accounts.map(function(a) {
-                    var emoji = a.platform === 'Instagram' ? '📸' : a.platform === 'Facebook' ? '📘' : a.platform === 'LinkedIn' ? '💼' : a.platform === 'Twitter/X' ? '🐦' : '▶️'
+                  {ACCOUNTS.map(function(a) {
                     return (
-                      <div key={a.platform} className={'rounded-lg border ' + (a.connected ? 'border-[var(--border)]' : 'border-[var(--border)]/50') + ' bg-[var(--card)] p-3 ' + (!a.connected ? 'opacity-60' : '')}>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm">{emoji}</span>
-                            <div>
-                              <span className="text-xs text-[var(--foreground)] font-medium">{a.platform}</span>
-                              <p className="text-[9px] text-[var(--muted-foreground)]">{a.handle}</p>
+                      <div key={a.platform} className={'flex items-center justify-between rounded-lg px-2 py-1.5 ' + (a.connected ? 'bg-emerald-500/5' : 'bg-[var(--background)]')}>
+                        <div className="flex items-center gap-2">
+                          <div className={'h-1.5 w-1.5 rounded-full ' + (a.connected ? 'bg-emerald-400' : 'bg-[var(--border)]')} />
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-medium text-[var(--foreground)]">{a.platform}</span>
+                              {a.connected && <span className="text-[9px] text-emerald-400">Connected</span>}
                             </div>
+                            {a.name && <div className="text-[10px] text-[var(--muted-foreground)]">{a.name}</div>}
                           </div>
-                          <span className={'text-[10px] px-2 py-0.5 rounded-full font-medium ' + (a.connected ? 'bg-emerald-400/10 text-emerald-400' : 'bg-[var(--muted-foreground)]/10 text-[var(--muted-foreground)]')}>
-                            {a.connected ? 'Connected' : 'Disconnected'}
-                          </span>
                         </div>
-                        {a.connected && (
-                          <div className="grid grid-cols-3 gap-2 mt-2">
-                            <div>
-                              <p className="text-[9px] text-[var(--muted-foreground)]">Followers</p>
-                              <p className="text-[11px] text-[var(--foreground)] font-medium">{formatNum(a.followers)}</p>
-                            </div>
-                            <div>
-                              <p className="text-[9px] text-[var(--muted-foreground)]">Engagement</p>
-                              <p className="text-[11px] text-[var(--foreground)] font-medium">{a.engagement}%</p>
-                            </div>
-                            <div>
-                              <p className="text-[9px] text-[var(--muted-foreground)]">Reach</p>
-                              <p className="text-[11px] text-[var(--foreground)] font-medium">{formatNum(a.reach)}</p>
-                            </div>
-                          </div>
-                        )}
+                        <div className="text-right">
+                          <div className="text-[11px] text-[var(--foreground)]">{formatNum(a.followers)}</div>
+                          <div className="text-[9px] text-[var(--muted-foreground)]">followers</div>
+                        </div>
                       </div>
                     )
                   })}
                 </div>
-              </>
-            )}
+              </div>
 
-            {/* ─── TAB: Content ─── */}
-            {selectedTab === 'content' && (
-              <>
-                <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[10px] font-medium uppercase tracking-wider text-pink-400">📅 This Week</span>
-                    <span className="text-[10px] text-[var(--muted-foreground)]">{pendingPosts.length} scheduled</span>
-                  </div>
-                  <div className="space-y-1.5">
-                    {SCHEDULED_POSTS.map(function(p) {
-                      var dayName = new Date(p.date).toLocaleDateString('en', { weekday: 'short' })
-                      return (
-                        <div key={p.id} className="flex items-start gap-2 rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2">
-                          <span className="text-xs mt-0.5">{p.media}</span>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-[10px] text-[var(--muted-foreground)]">{dayName} {p.date}</span>
-                              <span className="text-[10px] text-[var(--muted-foreground)]">·</span>
-                              <span className="text-[10px] text-[var(--muted-foreground)]">{p.time}</span>
-                              <span className={'text-[9px] px-1.5 py-0.5 rounded-full font-medium ' + (p.status === 'scheduled' ? 'bg-[var(--primary)]/10 text-[var(--primary)]' : 'bg-[var(--muted-foreground)]/10 text-[var(--muted-foreground)]')}>{p.status}</span>
-                            </div>
-                            <p className="text-[11px] text-[var(--foreground)] truncate mt-0.5">{p.content}</p>
-                          </div>
-                          <span className="text-[10px] text-[var(--muted-foreground)] shrink-0">{p.platform === 'Instagram' ? '📸' : p.platform === 'LinkedIn' ? '💼' : '📘'}</span>
-                        </div>
-                      )
-                    })}
-                  </div>
+              {/* Content Tips */}
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2.5">
+                <span className="text-[11px] font-medium text-[var(--foreground)]">📝 Content Tips</span>
+                <div className="mt-1.5 space-y-1">
+                  {CONTENT_TIPS.map(function(t, idx) {
+                    return <div key={idx} className="text-[11px] text-[var(--muted-foreground)]">💡 {t}</div>
+                  })}
                 </div>
+              </div>
+            </div>
+          )}
 
-                {/* Top Posts */}
-                <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-3">
-                  <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--muted-foreground)]">🏆 Top Performing Posts</span>
-                  <div className="mt-2 space-y-1.5">
-                    {TOP_POSTS.map(function(p, i) {
-                      var emoji = p.platform === 'Instagram' ? '📸' : p.platform === 'LinkedIn' ? '💼' : '📘'
-                      return (
-                        <div key={i} className="border border-[var(--border)] rounded-lg bg-[var(--card)] px-3 py-2">
+          {/* ─── TAB: Accounts ─── */}
+          {selectedTab === 'accounts' && (
+            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-1.5 scrollbar-auto-hide">
+              {ACCOUNTS.map(function(a) {
+                var pct = Math.round((a.followers / ENGAGEMENT_TOTALS.total_followers) * 100)
+                return (
+                  <div key={a.platform} className={'rounded-lg border ' + (a.connected ? 'border-emerald-500/20 bg-emerald-500/[.02]' : 'border-[var(--border)]')}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className={'h-2 w-2 rounded-full ' + (a.connected ? 'bg-emerald-400' : 'bg-[var(--border)]')} />
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-medium text-[var(--foreground)]">{a.platform}</span>
+                            {a.connected
+                              ? <span className="text-[9px] text-emerald-400">● Connected</span>
+                              : <span className="text-[9px] text-[var(--muted-foreground)]">Disconnected</span>}
+                          </div>
+                          {a.name && <div className="text-[10px] text-[var(--muted-foreground)]">{a.name}</div>}
+                        </div>
+                      </div>
+                    </div>
+                    {a.connected && (
+                      <div className="grid grid-cols-3 gap-2 mt-2">
+                        <div>
+                          <div className="text-[9px] text-[var(--muted-foreground)]">Followers</div>
+                          <div className="text-[11px] font-medium text-[var(--foreground)]">{formatNum(a.followers)}</div>
+                        </div>
+                        <div>
+                          <div className="text-[9px] text-[var(--muted-foreground)]">Engagement</div>
+                          <div className="text-[11px] font-medium text-[var(--foreground)]">{a.engagement}%</div>
+                        </div>
+                        <div>
+                          <div className="text-[9px] text-[var(--muted-foreground)]">Posts/Month</div>
+                          <div className="text-[11px] font-medium text-[var(--foreground)]">{a.posts}</div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* ─── TAB: Content ─── */}
+          {selectedTab === 'content' && (
+            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2.5 scrollbar-auto-hide">
+              {/* Scheduled Posts */}
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2.5">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] font-medium text-[var(--foreground)]">📅 Scheduled This Week</span>
+                  <span className="text-[10px] text-[var(--muted-foreground)]">{pendingPosts.length} posts</span>
+                </div>
+                <div className="space-y-1.5">
+                  {pendingPosts.length === 0 && <div className="text-[11px] text-[var(--muted-foreground)] py-1">No posts scheduled yet.</div>}
+                  {pendingPosts.map(function(p) {
+                    return (
+                      <div key={p.id} className="flex items-start gap-2 rounded-lg border border-[var(--border)]/50 px-2 py-1.5 bg-[var(--card)]">
+                        <div className="text-sm">{p.media}</div>
+                        <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-1.5">
-                            <span className="text-[10px]">{emoji}</span>
-                            <span className="text-[10px] text-[var(--muted-foreground)]">{p.platform}</span>
-                            <span className="text-[10px] text-[var(--muted-foreground)]">·</span>
-                            <span className="text-[10px] text-[var(--muted-foreground)]">{p.date}</span>
+                            <span className="text-[11px] font-medium text-[var(--foreground)]">{p.platform}</span>
+                            <span className="text-[9px] text-[var(--muted-foreground)]">{p.date} @ {p.time}</span>
                           </div>
-                          <p className="text-[11px] text-[var(--foreground)] mt-0.5">"{p.content}"</p>
-                          <div className="flex items-center gap-2 mt-1 text-[9px] text-[var(--muted-foreground)]">
-                            <span>❤️ {p.engagement}% eng</span>
-                            <span>👁 {formatNum(p.reach)} reach</span>
-                          </div>
+                          <div className="text-[10px] text-[var(--muted-foreground)] truncate mt-0.5">{p.content}</div>
                         </div>
-                      )
-                    })}
-                  </div>
+                      </div>
+                    )
+                  })}
                 </div>
-              </>
-            )}
+              </div>
 
-            {/* ─── TAB: Analytics ─── */}
-            {selectedTab === 'analytics' && (
-              <>
-                {/* Summary */}
-                <div className="grid grid-cols-2 gap-1.5">
+              {/* Top Posts */}
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2.5">
+                <span className="text-[11px] font-medium text-[var(--foreground)]">🏆 Top Performing Posts</span>
+                <div className="mt-2 space-y-1.5">
+                  {TOP_POSTS.map(function(p, i) {
+                    return (
+                      <div key={i} className="border border-[var(--border)] rounded-lg px-2 py-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] font-medium text-[var(--muted-foreground)]">#{i + 1}</span>
+                          <span className="text-[10px] text-[var(--muted-foreground)]">{p.platform}</span>
+                        </div>
+                        <div className="text-[10px] text-[var(--foreground)] mt-0.5">{p.content}</div>
+                        <div className="flex items-center gap-2 mt-1 text-[9px] text-[var(--muted-foreground)]">
+                          <span>❤️ {p.engagement}% eng</span>
+                          <span>👁 {formatNum(p.reach)} reach</span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ─── TAB: Analytics ─── */}
+          {selectedTab === 'analytics' && (
+            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2.5 scrollbar-auto-hide">
+              {/* Overview stats */}
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2.5">
+                <span className="text-[11px] font-medium text-[var(--foreground)]">📊 Engagement Overview</span>
+                <div className="mt-2 grid grid-cols-2 gap-1.5">
                   {[
                     { label: 'Total Posts', value: ENGAGEMENT_TOTALS.total_posts_this_month + ' this month', sub: '+8 vs last month' },
                     { label: 'Best Engagement', value: ENGAGEMENT_TOTALS.best_platform_eng + '%', sub: ENGAGEMENT_TOTALS.best_platform },
                     { label: 'Avg Reach/Post', value: formatNum(Math.round(ENGAGEMENT_TOTALS.total_reach / ENGAGEMENT_TOTALS.total_posts_this_month)), sub: 'across all platforms' },
-                    { label: 'Growth Rate', value: '+11.7%', sub: 'MoM avg' },
                   ].map(function(m) {
                     return (
-                      <div key={m.label} className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-3">
-                        <p className="text-[10px] text-[var(--muted-foreground)] uppercase tracking-wider">{m.label}</p>
-                        <p className="text-sm font-bold text-[var(--foreground)] mt-0.5">{m.value}</p>
-                        <p className="text-[9px] text-[var(--muted-foreground)] mt-0.5">{m.sub}</p>
+                      <div key={m.label} className="rounded-lg border border-[var(--border)] bg-[var(--card)] px-2.5 py-2">
+                        <div className="text-[10px] text-[var(--muted-foreground)]">{m.label}</div>
+                        <div className="text-sm font-semibold text-[var(--foreground)]">{m.value}</div>
+                        <div className="text-[9px] text-[var(--muted-foreground)]">{m.sub}</div>
+                      </div>
+                    )
+                  })}
+                  <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] px-2.5 py-2 flex items-center justify-center">
+                    <span className="text-[11px] text-[var(--muted-foreground)]">More data coming...</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Per-platform engagement bars */}
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2.5">
+                <span className="text-[11px] font-medium text-[var(--foreground)]">📈 Per-Platform Engagement</span>
+                <div className="mt-2 space-y-1.5">
+                  {ACCOUNTS.filter(function(a) { return a.connected }).sort(function(a, b) { return b.engagement - a.engagement }).map(function(a) {
+                    var maxEng = Math.max(...ACCOUNTS.filter(function(x) { return x.connected }).map(function(x) { return x.engagement }))
+                    return (
+                      <div key={a.platform} className="flex items-center gap-2">
+                        <span className="w-20 text-[10px] text-[var(--muted-foreground)]">{a.platform}</span>
+                        <div className="flex-1 h-3 rounded-full bg-[var(--border)]/30">
+                          <div className={'h-full rounded-full ' + (a.engagement === maxEng ? 'bg-emerald-400' : 'bg-pink-400/60')} style={{ width: Math.max(2, a.engagement) + '%' }} />
+                        </div>
+                        <span className="w-8 text-right text-[10px] text-[var(--foreground)]">{a.engagement}%</span>
                       </div>
                     )
                   })}
                 </div>
+              </div>
 
-                {/* Platform Breakdown */}
-                <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-3">
-                  <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--muted-foreground)]">📊 Platform Engagement</span>
-                  <div className="mt-2 space-y-1.5">
-                    {accounts.filter(function(a) { return a.connected }).sort(function(a, b) { return b.engagement - a.engagement }).map(function(a) {
-                      var maxEng = Math.max(...accounts.filter(function(x) { return x.connected }).map(function(x) { return x.engagement }))
-                      var pct = Math.round((a.engagement / maxEng) * 100)
-                      return (
-                        <div key={a.platform} className="flex items-center gap-2">
-                          <span className="text-[10px] text-[var(--muted-foreground)] w-20 truncate">{a.platform}</span>
-                          <div className="flex-1 h-3 rounded-full bg-[var(--border)] overflow-hidden">
-                            <div className={'h-full rounded-full ' + (a.engagement >= 5 ? 'bg-emerald-500' : a.engagement >= 3 ? 'bg-[oklch(0.75 0.18 40)]' : 'bg-[var(--muted-foreground)]')} style={{ width: pct + '%' }} />
-                          </div>
-                          <span className="text-[10px] text-[var(--foreground)] font-mono w-12 text-right">{a.engagement}%</span>
-                        </div>
-                      )
-                    })}
-                  </div>
+              {/* Post types breakdown */}
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2.5">
+                <span className="text-[11px] font-medium text-[var(--foreground)]">🎯 Content Type Performance</span>
+                <div className="mt-2 grid grid-cols-3 gap-1.5">
+                  {[
+                    { type: '📸 Image', eng: '4.2%', reach: '12.5K' },
+                    { type: '🎬 Video', eng: '3.8%', reach: '18.2K' },
+                    { type: '📝 Carousel', eng: '5.1%', reach: '9.8K' },
+                  ].map(function(p) {
+                    return (
+                      <div key={p.type} className="rounded-lg border border-[var(--border)] bg-[var(--card)] px-2 py-1.5 text-center">
+                        <div className="text-[10px] text-[var(--muted-foreground)]">{p.type}</div>
+                        <div className="text-[11px] font-medium text-[var(--foreground)]">{p.eng}</div>
+                        <div className="text-[9px] text-[var(--muted-foreground)]">{p.reach}</div>
+                      </div>
+                    )
+                  })}
                 </div>
+              </div>
 
-                {/* Post Type Performance */}
-                <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-3">
-                  <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--muted-foreground)]">🎬 Post Type Performance</span>
-                  <div className="mt-2 grid grid-cols-3 gap-1.5">
-                    {[
-                      { type: '📹 Reels', eng: 12.4, label: 'Best' },
-                      { type: '📸 Carousel', eng: 6.8, label: 'Great' },
-                      { type: '📄 Article', eng: 8.7, label: 'Good' },
-                      { type: '🖼 Image', eng: 5.2, label: 'Avg' },
-                      { type: '📝 Text', eng: 2.1, label: 'Low' },
-                      { type: '🎥 Video', eng: 7.3, label: 'Good' },
-                    ].map(function(p) {
-                      return (
-                        <div key={p.type} className="rounded-lg border border-[var(--border)] bg-[var(--card)] px-2.5 py-2 text-center">
-                          <p className="text-sm">{p.type}</p>
-                          <p className="text-[11px] text-[var(--foreground)] font-medium">{p.eng}%</p>
-                          <p className="text-[9px] text-[var(--muted-foreground)]">{p.label}</p>
-                        </div>
-                      )
-                    })}
-                  </div>
+              {/* Content Tips */}
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2.5">
+                <span className="text-[11px] font-medium text-[var(--foreground)]">📝 Tips</span>
+                <div className="mt-1.5 space-y-1">
+                  {CONTENT_TIPS.map(function(t, idx) {
+                    return <div key={idx} className="text-[11px] text-[var(--muted-foreground)]">💡 {t}</div>
+                  })}
                 </div>
-
-                {/* Intelligence */}
-                <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-3">
-                  <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--muted-foreground)]">💡 Growth Tips</span>
-                  <div className="mt-1.5 space-y-1">
-                    {CONTENT_TIPS.map(function(t, idx) {
-                      return <p key={idx} className="text-[10px] text-[var(--muted-foreground)] leading-relaxed">{t}</p>
-                    })}
-                  </div>
-                </div>
-              </>
-            )}
-
-            <div className="h-2" />
-          </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </PageShell>
