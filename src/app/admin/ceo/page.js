@@ -5,6 +5,7 @@ import { useCompany } from '@/lib/client-context'
 import { createBrowserClient } from '@supabase/ssr'
 import Link from 'next/link'
 import { uid, ts, PAPERCLIP_BUBBLE, AgentBubbleHeader, TypingBubble, renderMD, detectWorker } from '@/lib/chat-utils'
+import AiAssistantCard from '@/components/ui/ai-assistant-card'
 import PageShell from '@/components/PageShell'
 
 const supabase = createBrowserClient(
@@ -243,7 +244,16 @@ export default function CEOPage() {
               <div className="flex flex-col gap-3 px-6 pt-3 pb-32">
                 {!welcomeRevealed && <TypingBubble />}
 
-                {welcomeRevealed && activeCompany && (
+                {welcomeRevealed && msgs.length === 0 && (
+                  <div className="flex justify-center py-8">
+                    <AiAssistantCard onSend={function(label) {
+                      var chip = SUGGESTIONS.find(function(s) { return s.label.includes(label) }) || SUGGESTIONS.find(function(s) { return s.label.includes(label.split(' ')[0]) })
+                      if (chip) send(chip.prompt)
+                    }} />
+                  </div>
+                )}
+
+                {welcomeRevealed && activeCompany && msgs.length > 0 && (
                   <>
                     <div className="flex flex-col items-start">
                       <AgentBubbleHeader emoji="👑" name="CEO" />
