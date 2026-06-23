@@ -242,38 +242,17 @@ export default function CEOPage() {
           <div className="relative min-h-0 min-w-0 flex-1">
             <div ref={scrollRef} className="scrollbar-auto-hide absolute inset-0 overflow-y-auto overflow-x-hidden">
               <div className="flex flex-col gap-3 px-6 pt-3 pb-32">
-                {!welcomeRevealed && <TypingBubble />}
-
-                {welcomeRevealed && msgs.length === 0 && (
-                  <div className="flex justify-center py-8">
+                {msgs.length === 0 && (
+                  <div className="flex flex-col items-center justify-center min-h-[500px] py-4">
                     <AiAssistantCard onSend={function(label) {
                       var chip = SUGGESTIONS.find(function(s) { return s.label.includes(label) }) || SUGGESTIONS.find(function(s) { return s.label.includes(label.split(' ')[0]) })
-                      if (chip) send(chip.prompt)
-                    }} />
+                      if (chip) { setInput(chip.prompt); setTimeout(function() { send(chip.prompt) }, 100) }
+                    }} suggestions={[
+                      { icon: function D() { return null }, label: '🔍 Research', color: 'text-blue-500' },
+                      { icon: function D() { return null }, label: '📊 Analytics', color: 'text-orange-500' },
+                      { icon: function D() { return null }, label: '📈 Overview', color: 'text-green-500' },
+                    ]} />
                   </div>
-                )}
-
-                {welcomeRevealed && activeCompany && msgs.length > 0 && (
-                  <>
-                    <div className="flex flex-col items-start">
-                      <AgentBubbleHeader emoji="👑" name="CEO" />
-                      <div className={[PAPERCLIP_BUBBLE, 'bg-[var(--card)] border border-[var(--border)] text-[var(--foreground)] [border-radius:14px_14px_14px_4px]'].join(' ')}>
-                        <div className="max-w-full overflow-visible [&>*:first-child]:mt-0 [&>*:last-child]:mb-0" dangerouslySetInnerHTML={{ __html: renderMD(welcomeBody) }} />
-                      </div>
-                    </div>
-                    {chipsRevealed && (
-                      <div className="flex flex-wrap gap-2 pl-1">
-                        {SUGGESTIONS.map(function(chip) {
-                          return (
-                            <button key={chip.label} type="button" onClick={function() { setInput(chip.prompt); if (inputRef.current) inputRef.current.focus() }}
-                              className="rounded-full border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-xs text-[var(--muted-foreground)] transition-colors duration-150 hover:bg-[var(--border)]/50 hover:text-[var(--foreground)]">
-                              {chip.label}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </>
                 )}
 
                 {msgs.map(function(m) {
@@ -322,7 +301,7 @@ export default function CEOPage() {
           </div>
 
           {/* ChatGPT-style Composer */}
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-[var(--card)] via-[var(--card)]/95 to-[var(--card)]/0 px-6 pt-6 pb-5">
+          <div className={'pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-[var(--card)] via-[var(--card)]/95 to-[var(--card)]/0 px-6 pt-6 pb-5' + (msgs.length === 0 ? ' hidden' : '')}>
             <div className="pointer-events-auto relative rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 pb-2 pt-3 shadow-lg transition-colors focus-within:border-[var(--muted-foreground)]/60">
               {/* File previews */}
               {files.length > 0 && (

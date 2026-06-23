@@ -1,6 +1,21 @@
 'use client'
 import { useState } from 'react'
 import Link from 'next/link'
+import {
+  Settings,
+  ChevronDown,
+  Bot,
+  Send,
+  Check,
+  X,
+  Loader2,
+  Copy,
+  ExternalLink,
+  Link2,
+} from 'lucide-react'
+import { Card, CardContent } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 
 const PLATFORMS = [
   {
@@ -63,9 +78,10 @@ const N8N_WEBHOOKS = {
   youtube: '/api/connect/youtube',
 }
 
-const N8N_BASE_URL = typeof window !== 'undefined'
-  ? (localStorage.getItem('n8n_url') || 'http://localhost:5678')
-  : 'http://localhost:5678'
+const N8N_BASE_URL =
+  typeof window !== 'undefined'
+    ? localStorage.getItem('n8n_url') || 'http://localhost:5678'
+    : 'http://localhost:5678'
 
 export default function ConnectPage() {
   const [webhookUrl, setWebhookUrl] = useState(N8N_BASE_URL)
@@ -85,7 +101,10 @@ export default function ConnectPage() {
 
   async function connectPlatform(platform) {
     setConnecting(platform)
-    setLogs(l => [...l, { time: new Date().toLocaleTimeString(), msg: `🔄 Connecting ${platform}...`, ok: true }])
+    setLogs((l) => [
+      ...l,
+      { time: new Date().toLocaleTimeString(), msg: `🔄 Connecting ${platform}...`, ok: true },
+    ])
 
     const webhook = N8N_WEBHOOKS[platform]
     try {
@@ -103,32 +122,74 @@ export default function ConnectPage() {
       })
 
       if (res.ok) {
-        setLogs(l => [...l, { time: new Date().toLocaleTimeString(), msg: `✅ ${platform} connected via n8n!`, ok: true }])
-        setConnectedAccounts(c => [...c, platform])
+        setLogs((l) => [
+          ...l,
+          {
+            time: new Date().toLocaleTimeString(),
+            msg: `✅ ${platform} connected via n8n!`,
+            ok: true,
+          },
+        ])
+        setConnectedAccounts((c) => [...c, platform])
       } else {
         // Fallback: try direct OAuth
-        setLogs(l => [...l, { time: new Date().toLocaleTimeString(), msg: `⚠️ n8n at ${n8nUrl} not responding, trying direct OAuth...`, ok: true }])
+        setLogs((l) => [
+          ...l,
+          {
+            time: new Date().toLocaleTimeString(),
+            msg: `⚠️ n8n at ${n8nUrl} not responding, trying direct OAuth...`,
+            ok: true,
+          },
+        ])
         const oauthRes = await fetch(`/api/social/oauth/${platform}/url`)
         const oauthData = await oauthRes.json()
         const url = oauthData?.oauth_url || oauthData?.url
         if (url) {
           window.open(url, '_blank', 'width=600,height=700')
-          setLogs(l => [...l, { time: new Date().toLocaleTimeString(), msg: `🔗 Opened OAuth for ${platform}`, ok: true }])
+          setLogs((l) => [
+            ...l,
+            {
+              time: new Date().toLocaleTimeString(),
+              msg: `🔗 Opened OAuth for ${platform}`,
+              ok: true,
+            },
+          ])
         }
       }
     } catch (e) {
       // Fallback: direct OAuth
-      setLogs(l => [...l, { time: new Date().toLocaleTimeString(), msg: `⚠️ n8n error, trying direct OAuth...`, ok: true }])
+      setLogs((l) => [
+        ...l,
+        {
+          time: new Date().toLocaleTimeString(),
+          msg: `⚠️ n8n error, trying direct OAuth...`,
+          ok: true,
+        },
+      ])
       try {
         const oauthRes = await fetch(`/api/social/oauth/${platform}/url`)
         const oauthData = await oauthRes.json()
         const url = oauthData?.oauth_url || oauthData?.url
         if (url) {
           window.open(url, '_blank', 'width=600,height=700')
-          setLogs(l => [...l, { time: new Date().toLocaleTimeString(), msg: `🔗 OAuth opened for ${platform}`, ok: true }])
+          setLogs((l) => [
+            ...l,
+            {
+              time: new Date().toLocaleTimeString(),
+              msg: `🔗 OAuth opened for ${platform}`,
+              ok: true,
+            },
+          ])
         }
       } catch (e2) {
-        setLogs(l => [...l, { time: new Date().toLocaleTimeString(), msg: `❌ Error: ${e2.message}`, ok: false }])
+        setLogs((l) => [
+          ...l,
+          {
+            time: new Date().toLocaleTimeString(),
+            msg: `❌ Error: ${e2.message}`,
+            ok: false,
+          },
+        ])
       }
     }
     setConnecting(null)
@@ -138,7 +199,7 @@ export default function ConnectPage() {
     if (!sbaInput.trim() || sbaSending) return
     const msg = sbaInput.trim()
     setSbaInput('')
-    setSbaChat(c => [...c, { role: 'user', content: msg }])
+    setSbaChat((c) => [...c, { role: 'user', content: msg }])
     setSbaSending(true)
     try {
       // Try n8n webhook for SBA
@@ -146,11 +207,14 @@ export default function ConnectPage() {
       const res = await fetch(n8nUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: msg, platform: 'sba' })
+        body: JSON.stringify({ message: msg, platform: 'sba' }),
       })
       if (res.ok) {
         const data = await res.json()
-        setSbaChat(c => [...c, { role: 'assistant', content: data?.output || data?.response || 'Done ✅' }])
+        setSbaChat((c) => [
+          ...c,
+          { role: 'assistant', content: data?.output || data?.response || 'Done ✅' },
+        ])
       } else {
         throw new Error('n8n unavailable')
       }
@@ -160,12 +224,18 @@ export default function ConnectPage() {
         const res = await fetch('/api/social-manager/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: msg })
+          body: JSON.stringify({ message: msg }),
         })
         const d = await res.json()
-        setSbaChat(c => [...c, { role: 'assistant', content: d?.data?.response || d?.response || JSON.stringify(d) }])
+        setSbaChat((c) => [
+          ...c,
+          {
+            role: 'assistant',
+            content: d?.data?.response || d?.response || JSON.stringify(d),
+          },
+        ])
       } catch (e2) {
-        setSbaChat(c => [...c, { role: 'assistant', content: `Error: ${e2.message}` }])
+        setSbaChat((c) => [...c, { role: 'assistant', content: `Error: ${e2.message}` }])
       }
     }
     setSbaSending(false)
@@ -173,166 +243,278 @@ export default function ConnectPage() {
 
   return (
     <>
+      {/* Topbar */}
       <div className="topbar">
-        <div style={{display:'flex',alignItems:'center',gap:12}}>
+        <div className="flex items-center gap-3">
           <h2>Connect Platforms</h2>
-          <span className="badge badge-purple">
-            <span className="badge-dot" /> n8n ready
-          </span>
+          <Badge variant="secondary" className="gap-1.5">
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-purple-500" />
+            n8n ready
+          </Badge>
         </div>
         <div className="topbar-actions">
-          <button className="btn btn-secondary" onClick={() => setShowWebhookConfig(!showWebhookConfig)}
-            style={{fontSize:12,padding:'5px 10px'}}>
-            ⚙️ n8n Config
-          </button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowWebhookConfig(!showWebhookConfig)}
+          >
+            <Settings className="mr-1.5 h-3.5 w-3.5" />
+            n8n Config
+          </Button>
         </div>
       </div>
 
-      <div className="page-content" style={{padding:'12px 24px'}}>
+      {/* Page content */}
+      <div className="page-content">
         {/* n8n config panel */}
         {showWebhookConfig && (
-          <div className="card" style={{marginBottom:16}}>
-            <div className="card-header" style={{margin:0,padding:0,marginBottom:12}}>
-              <span className="card-title">n8n Webhook Configuration</span>
-            </div>
-            <div className="form-group">
-              <label>n8n Server URL</label>
-              <div style={{display:'flex',gap:8}}>
-                <input
-                  value={webhookUrl}
-                  onChange={e => {
-                    setWebhookUrl(e.target.value)
-                    if (typeof window !== 'undefined') localStorage.setItem('n8n_url', e.target.value)
-                  }}
-                  placeholder="http://localhost:5678"
-                  style={{fontSize:12,fontFamily:'monospace'}}
-                />
-                <button className="btn btn-secondary" style={{fontSize:11,padding:'6px 12px'}}
-                  onClick={() => { navigator.clipboard?.writeText(webhookUrl); }}>
-                  Copy
-                </button>
+          <Card className="mb-4">
+            <CardContent className="p-4">
+              <h3 className="mb-3 text-sm font-semibold text-foreground">
+                n8n Webhook Configuration
+              </h3>
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-muted-foreground">
+                  n8n Server URL
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    value={webhookUrl}
+                    onChange={(e) => {
+                      setWebhookUrl(e.target.value)
+                      if (typeof window !== 'undefined')
+                        localStorage.setItem('n8n_url', e.target.value)
+                    }}
+                    placeholder="http://localhost:5678"
+                    className="flex-1 rounded-md border border-input bg-background px-2.5 py-1.5 font-mono text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      navigator.clipboard?.writeText(webhookUrl)
+                    }}
+                  >
+                    <Copy className="mr-1 h-3 w-3" />
+                    Copy
+                  </Button>
+                </div>
               </div>
-            </div>
-            <div style={{fontSize:11,color:'var(--text-muted)',lineHeight:1.6,marginTop:8}}>
-              <strong>How to setup n8n:</strong><br/>
-              1. Install n8n: <code style={{background:'var(--bg-hover)',padding:'1px 4px',borderRadius:3}}>npx n8n</code><br/>
-              2. Create a webhook workflow for each platform<br/>
-              3. Set the webhook URL to: <code style={{background:'var(--bg-hover)',padding:'1px 4px',borderRadius:3}}>{webhookUrl}/webhook/[platform]</code><br/>  
-              4. The webhook receives: <code style={{background:'var(--bg-hover)',padding:'1px 4px',borderRadius:3}}>{'{ "platform": "...", "action": "connect" }'}</code><br/>
-              5. Your n8n workflow handles the Facebook/Instagram API connection
-            </div>
-          </div>
+              <div className="mt-3 text-xs leading-relaxed text-muted-foreground">
+                <strong className="text-foreground">How to setup n8n:</strong>
+                <br />
+                1. Install n8n:{' '}
+                <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">npx n8n</code>
+                <br />
+                2. Create a webhook workflow for each platform
+                <br />
+                3. Set the webhook URL to:{' '}
+                <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
+                  {webhookUrl}/webhook/[platform]
+                </code>
+                <br />
+                4. The webhook receives:{' '}
+                <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
+                  {'{ "platform": "...", "action": "connect" }'}
+                </code>
+                <br />
+                5. Your n8n workflow handles the Facebook/Instagram API connection
+              </div>
+            </CardContent>
+          </Card>
         )}
 
         {/* Platform Cards */}
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12,marginBottom:20}}>
-          {PLATFORMS.map(p => (
-            <div key={p.id} className="card" style={{padding:'16px',cursor:'pointer',
-              borderColor: connectedAccounts.includes(p.id) ? 'var(--green)' : 'var(--border)'}}
-              onClick={() => connectPlatform(p.id)}>
-              <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:10}}>
-                <div style={{
-                  width:36,height:36,borderRadius:8,background:p.bg + '20',
-                  display:'flex',alignItems:'center',justifyContent:'center',fontSize:18
-                }}>{p.emoji}</div>
-                <div style={{flex:1}}>
-                  <div style={{fontSize:13,fontWeight:500}}>{p.name}</div>
-                  {connectedAccounts.includes(p.id) && (
-                    <span className="badge badge-green" style={{marginTop:2,fontSize:10}}>
-                      <span className="badge-dot" /> Connected
+        <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+          {PLATFORMS.map((p) => (
+            <Card
+              key={p.id}
+              className="cursor-pointer border-l-[3px] transition-colors hover:bg-accent/5"
+              style={{ borderLeftColor: p.bg }}
+              onClick={() => connectPlatform(p.id)}
+            >
+              <CardContent className="p-4">
+                <div className="mb-2.5 flex items-center gap-2.5">
+                  <div
+                    className="flex h-9 w-9 items-center justify-center rounded-lg text-lg"
+                    style={{ backgroundColor: p.bg + '20' }}
+                  >
+                    {p.emoji}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium text-foreground">{p.name}</div>
+                    {connectedAccounts.includes(p.id) && (
+                      <Badge
+                        variant="outline"
+                        className="mt-0.5 border-green-500/20 bg-green-500/10 px-1.5 py-0 text-[10px] text-green-600 dark:text-green-400"
+                      >
+                        <Check className="mr-0.5 h-2.5 w-2.5" />
+                        Connected
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+                <p className="mb-0 text-xs leading-relaxed text-muted-foreground">{p.desc}</p>
+                <div className="mt-2.5">
+                  {connecting === p.id ? (
+                    <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Connecting via n8n...
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-xs text-accent">
+                      {connectedAccounts.includes(p.id) ? (
+                        <>
+                          <Check className="h-3 w-3" /> Connected
+                        </>
+                      ) : (
+                        <>
+                          <Link2 className="h-3 w-3" /> Click to connect via n8n + OAuth
+                        </>
+                      )}
                     </span>
                   )}
                 </div>
-              </div>
-              <p style={{fontSize:11,color:'var(--text-muted)',lineHeight:1.5,marginBottom:0}}>{p.desc}</p>
-              <div style={{marginTop:10}}>
-                {connecting === p.id ? (
-                  <span style={{fontSize:11,color:'var(--text-muted)'}}>
-                    <span className="spinner" style={{display:'inline-block',width:12,height:12,marginRight:6}} />
-                    Connecting via n8n...
-                  </span>
-                ) : (
-                  <span style={{fontSize:11,color:'var(--accent)'}}>
-                    {connectedAccounts.includes(p.id) ? '✓ Connected' : 'Click to connect via n8n + OAuth'}
-                  </span>
-                )}
-              </div>
-            </div>
+              </CardContent>
+            </Card>
           ))}
         </div>
 
         {/* Activity Log */}
         {logs.length > 0 && (
-          <div className="card" style={{padding:0,overflow:'hidden',marginBottom:16}}>
-            <div className="card-header" style={{padding:'10px 14px',margin:0,borderBottom:'1px solid var(--border)'}}>
-              <span className="card-title">Connection Log</span>
-              <button className="btn-icon" onClick={() => setLogs([])} style={{width:22,height:22,fontSize:10}}>✕</button>
+          <Card className="mb-4 overflow-hidden">
+            <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+              <span className="text-sm font-medium text-foreground">Connection Log</span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                onClick={() => setLogs([])}
+              >
+                <X className="h-3 w-3" />
+              </Button>
             </div>
-            <div style={{padding:'8px 14px',maxHeight:150,overflow:'auto'}}>
+            <div className="max-h-36 overflow-y-auto px-4 py-2">
               {logs.map((l, i) => (
-                <div key={i} style={{fontSize:11,color: l.ok ? 'var(--text-secondary)' : 'var(--red)',padding:'2px 0',fontFamily:'monospace'}}>
+                <div
+                  key={i}
+                  className={`py-0.5 font-mono text-xs ${
+                    l.ok ? 'text-muted-foreground' : 'text-destructive'
+                  }`}
+                >
                   [{l.time}] {l.msg}
                 </div>
               ))}
             </div>
-          </div>
+          </Card>
         )}
 
         {/* SBA: Social Business Agent */}
-        <div className="card" style={{overflow:'hidden',padding:0}}>
-          <div className="card-header" style={{padding:'12px 16px',margin:0,borderBottom:'1px solid var(--border)',cursor:'pointer'}}
-            onClick={() => setShowSba(!showSba)}>
-            <div style={{display:'flex',alignItems:'center',gap:8}}>
-              <span style={{fontSize:16}}>🤖</span>
-              <span className="card-title" style={{fontSize:13,textTransform:'none',letterSpacing:0}}>SBA — Social Business Agent</span>
-              <span className="badge badge-blue" style={{fontSize:10}}>
-                <span className="badge-dot" /> n8n + AI
+        <Card className="overflow-hidden">
+          {/* SBA Header */}
+          <div
+            className="flex cursor-pointer items-center justify-between border-b border-border px-4 py-3"
+            onClick={() => setShowSba(!showSba)}
+          >
+            <div className="flex items-center gap-2">
+              <Bot className="h-4 w-4 text-foreground" />
+              <span className="text-sm font-medium text-foreground">
+                SBA — Social Business Agent
               </span>
+              <Badge variant="secondary" className="gap-1 px-1.5 py-0 text-[10px]">
+                <span className="inline-block h-1 w-1 rounded-full bg-blue-500" />
+                n8n + AI
+              </Badge>
             </div>
-            <span style={{fontSize:11,color:'var(--text-muted)',transform: showSba ? 'rotate(180deg)' : 'none',transition:'transform 0.12s'}}>▼</span>
+            <ChevronDown
+              className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${
+                showSba ? 'rotate-180' : ''
+              }`}
+            />
           </div>
+
+          {/* SBA Chat Body */}
           {showSba && (
-            <div style={{display:'flex',flexDirection:'column',minHeight:0,height:400}}>
+            <div className="flex h-[400px] flex-col">
               {/* Chat messages */}
-              <div style={{flex:1,overflow:'auto',padding:'12px 16px',display:'flex',flexDirection:'column',gap:8}}>
+              <div className="flex-1 space-y-2 overflow-y-auto p-4">
                 {sbaChat.length === 0 && (
-                  <div style={{textAlign:'center',padding:'20px',fontSize:12,color:'var(--text-muted)',lineHeight:1.8}}>
-                    🤖 <strong style={{color:'var(--text-primary)'}}>SBA (Social Business Agent)</strong><br/>
-                    I manage all your social media via n8n!<br/>
-                    <br/>
-                    Try asking:<br/>
-                    📸 "Post to Instagram: New product launch!"<br/>
-                    👍 "Share on Facebook: Blog update"<br/>
-                    📊 "Get last 7 days analytics"<br/>
-                    🔄 "Schedule daily posts at 10am"<br/>
-                    📋 "Show all scheduled content"
+                  <div className="py-6 text-center text-xs leading-relaxed text-muted-foreground">
+                    <Bot className="mx-auto mb-2 h-8 w-8 text-muted-foreground/50" />
+                    <strong className="text-foreground">SBA (Social Business Agent)</strong>
+                    <br />
+                    I manage all your social media via n8n!
+                    <br />
+                    <br />
+                    Try asking:
+                    <br />
+                    📸 &quot;Post to Instagram: New product launch!&quot;
+                    <br />
+                    👍 &quot;Share on Facebook: Blog update&quot;
+                    <br />
+                    📊 &quot;Get last 7 days analytics&quot;
+                    <br />
+                    🔄 &quot;Schedule daily posts at 10am&quot;
+                    <br />
+                    📋 &quot;Show all scheduled content&quot;
                   </div>
                 )}
                 {sbaChat.map((c, i) => (
-                  <div key={i} style={{display:'flex',gap:8,flexDirection: c.role === 'user' ? 'row-reverse' : 'row'}}>
-                    <div className={`chat-msg ${c.role === 'user' ? 'user' : 'assistant'}`}
-                      style={{maxWidth:'85%',whiteSpace:'pre-wrap',fontSize:12}}>
+                  <div
+                    key={i}
+                    className={`flex gap-2.5 ${c.role === 'user' ? 'flex-row-reverse' : ''}`}
+                  >
+                    {c.role === 'assistant' && (
+                      <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent/10">
+                        <Bot className="h-3.5 w-3.5 text-accent" />
+                      </div>
+                    )}
+                    <div
+                      className={
+                        c.role === 'user'
+                          ? 'max-w-[85%] whitespace-pre-wrap rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground'
+                          : 'max-w-[85%] whitespace-pre-wrap rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground'
+                      }
+                    >
                       {c.content}
                     </div>
                   </div>
                 ))}
-                {sbaSending && <div style={{fontSize:11,color:'var(--text-muted)',display:'flex',alignItems:'center',gap:6}}>
-                  <div className="spinner" style={{width:12,height:12}} /> Processing...
-                </div>}
+                {sbaSending && (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Processing...
+                  </div>
+                )}
               </div>
+
               {/* Input */}
-              <div className="chat-input" style={{borderTop:'1px solid var(--border)',padding:'10px 16px'}}>
-                <input value={sbaInput} onChange={e => setSbaInput(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && sendSbaChat()}
-                  placeholder="Tell SBA what to post..." style={{fontSize:12}} />
-                <button onClick={sendSbaChat} disabled={sbaSending || !sbaInput.trim()}
-                  className="btn btn-primary" style={{padding:'7px 14px',fontSize:12}}>
-                  {sbaSending ? '...' : 'Send'}
-                </button>
+              <div className="border-t border-border p-3">
+                <div className="flex items-center gap-2">
+                  <input
+                    value={sbaInput}
+                    onChange={(e) => setSbaInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && sendSbaChat()}
+                    placeholder="Tell SBA what to post..."
+                    className="flex-1 rounded-md border border-input bg-background px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
+                  <Button
+                    onClick={sendSbaChat}
+                    disabled={sbaSending || !sbaInput.trim()}
+                    size="sm"
+                  >
+                    {sbaSending ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Send className="h-3.5 w-3.5" />
+                    )}
+                    <span className="ml-1.5">{sbaSending ? '' : 'Send'}</span>
+                  </Button>
+                </div>
               </div>
             </div>
           )}
-        </div>
+        </Card>
       </div>
     </>
   )

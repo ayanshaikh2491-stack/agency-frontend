@@ -1,5 +1,11 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { toast } from 'sonner'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Plus, Trash2, X, Building2, Globe, Mail, Phone, ExternalLink, Search } from 'lucide-react'
+import { Card, CardContent } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 
 export default function WorkspacesPage() {
   const [workspaces, setWorkspaces] = useState([])
@@ -10,15 +16,9 @@ export default function WorkspacesPage() {
   const [newEmail, setNewEmail] = useState('')
   const [newContact, setNewContact] = useState('')
   const [newWebsite, setNewWebsite] = useState('')
-  const [notification, setNotification] = useState(null)
   const [selectedWs, setSelectedWs] = useState(null)
 
   useEffect(() => { loadWorkspaces() }, [])
-
-  function notify(msg, type = 'success') {
-    setNotification({ msg, type })
-    setTimeout(() => setNotification(null), 3000)
-  }
 
   async function loadWorkspaces() {
     try {
@@ -44,12 +44,12 @@ export default function WorkspacesPage() {
         }),
       })
       if (!res.ok) throw new Error('Failed to create')
-      notify(`✅ Workspace "${newName}" created!`)
+      toast.success(`Workspace "${newName}" created!`)
       setNewName(''); setNewIndustry(''); setNewEmail(''); setNewContact(''); setNewWebsite('')
       setShowCreate(false)
       loadWorkspaces()
     } catch (e) {
-      notify(`❌ ${e.message}`, 'error')
+      toast.error(e.message)
     }
   }
 
@@ -58,162 +58,267 @@ export default function WorkspacesPage() {
     try {
       const res = await fetch(`/api/clients/${id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error('Failed to delete')
-      notify(`🗑 Workspace "${name}" deleted`)
+      toast.success(`Workspace "${name}" deleted`)
       loadWorkspaces()
       if (selectedWs?.id === id) setSelectedWs(null)
     } catch (e) {
-      notify(`❌ ${e.message}`, 'error')
+      toast.error(e.message)
     }
   }
 
-  const pageStyle = {
-    display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden',
-    position: 'relative',
-  }
-
-  const notifStyle = {
-    position: 'fixed', top: 16, right: 16, zIndex: 1000,
-    padding: '10px 20px', borderRadius: 8,
-    background: notification?.type === 'error' ? '#7f1d1d' : '#14532d',
-    border: `1px solid ${notification?.type === 'error' ? '#ef4444' : '#22c55e'}`,
-    color: '#e5e7eb', fontSize: 13,
-    animation: 'slideIn 0.3s ease-out',
-  }
-
   return (
-    <div style={pageStyle}>
-      <style>{`
-        @keyframes slideIn { from { transform: translateX(100%); opacity: 0 } to { transform: translateX(0); opacity: 1 } }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px) } to { opacity: 1; transform: translateY(0) } }
-      `}</style>
-
-      {notification && <div style={notifStyle}>{notification.msg}</div>}
-
+    <div className="flex flex-col h-full overflow-hidden relative">
       <div className="topbar">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div className="flex items-center gap-3">
           <h2>Workspaces</h2>
-          <span className="badge badge-accent">{workspaces.length} Client(s)</span>
+          <Badge variant="secondary">{workspaces.length} Client(s)</Badge>
         </div>
         <div className="topbar-actions">
-          <button className="btn btn-primary" onClick={() => setShowCreate(!showCreate)}>
-            {showCreate ? '✕ Cancel' : '+ New Workspace'}
-          </button>
+          <Button
+            variant={showCreate ? 'ghost' : 'default'}
+            size="sm"
+            onClick={() => setShowCreate(!showCreate)}
+          >
+            {showCreate ? (
+              <><X className="h-4 w-4 mr-1" /> Cancel</>
+            ) : (
+              <><Plus className="h-4 w-4 mr-1" /> New Workspace</>
+            )}
+          </Button>
         </div>
       </div>
 
-      <div style={{ flex: 1, overflow: 'auto', padding: '16px 24px' }}>
+      <div className="flex-1 overflow-auto p-4 px-6">
         {/* Create Form */}
-        {showCreate && (
-          <div style={{
-            background: '#1a1a2e', border: '1px solid #2d2d4e', borderRadius: 12,
-            padding: 20, marginBottom: 20, animation: 'fadeIn 0.2s ease-out',
-          }}>
-            <h3 style={{ margin: '0 0 16px', fontSize: 15, color: '#e5e7eb' }}>New Client Workspace</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
-              <div>
-                <label style={{ fontSize: 11, color: '#6b7280', marginBottom: 4, display: 'block' }}>Company Name *</label>
-                <input className="form-input" placeholder="e.g. Texas Roofing Co" value={newName} onChange={e => setNewName(e.target.value)} />
-              </div>
-              <div>
-                <label style={{ fontSize: 11, color: '#6b7280', marginBottom: 4, display: 'block' }}>Industry</label>
-                <input className="form-input" placeholder="e.g. Roofing" value={newIndustry} onChange={e => setNewIndustry(e.target.value)} />
-              </div>
-              <div>
-                <label style={{ fontSize: 11, color: '#6b7280', marginBottom: 4, display: 'block' }}>Contact Email</label>
-                <input className="form-input" placeholder="client@email.com" value={newEmail} onChange={e => setNewEmail(e.target.value)} />
-              </div>
-              <div>
-                <label style={{ fontSize: 11, color: '#6b7280', marginBottom: 4, display: 'block' }}>Contact Name</label>
-                <input className="form-input" placeholder="John Doe" value={newContact} onChange={e => setNewContact(e.target.value)} />
-              </div>
-              <div>
-                <label style={{ fontSize: 11, color: '#6b7280', marginBottom: 4, display: 'block' }}>Website</label>
-                <input className="form-input" placeholder="https://example.com" value={newWebsite} onChange={e => setNewWebsite(e.target.value)} />
-              </div>
-            </div>
-            <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
-              <button className="btn btn-primary" onClick={createWorkspace} disabled={!newName.trim()}>
-                ✨ Create Workspace
-              </button>
-              <button className="btn btn-ghost" onClick={() => setShowCreate(false)}>Cancel</button>
-            </div>
-          </div>
-        )}
+        <AnimatePresence>
+          {showCreate && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2 }}
+              className="mb-5"
+            >
+              <Card className="border-border">
+                <CardContent className="p-5">
+                  <h3 className="text-sm font-semibold text-foreground mb-4">
+                    New Client Workspace
+                  </h3>
+                  <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-3">
+                    <div>
+                      <label className="text-[11px] text-muted-foreground block mb-1">
+                        Company Name *
+                      </label>
+                      <input
+                        className="form-input"
+                        placeholder="e.g. Texas Roofing Co"
+                        value={newName}
+                        onChange={e => setNewName(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-muted-foreground block mb-1">
+                        Industry
+                      </label>
+                      <input
+                        className="form-input"
+                        placeholder="e.g. Roofing"
+                        value={newIndustry}
+                        onChange={e => setNewIndustry(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-muted-foreground block mb-1">
+                        Contact Email
+                      </label>
+                      <input
+                        className="form-input"
+                        placeholder="client@email.com"
+                        value={newEmail}
+                        onChange={e => setNewEmail(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-muted-foreground block mb-1">
+                        Contact Name
+                      </label>
+                      <input
+                        className="form-input"
+                        placeholder="John Doe"
+                        value={newContact}
+                        onChange={e => setNewContact(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-muted-foreground block mb-1">
+                        Website
+                      </label>
+                      <input
+                        className="form-input"
+                        placeholder="https://example.com"
+                        value={newWebsite}
+                        onChange={e => setNewWebsite(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="mt-4 flex gap-2">
+                    <Button onClick={createWorkspace} disabled={!newName.trim()}>
+                      Create Workspace
+                    </Button>
+                    <Button variant="ghost" onClick={() => setShowCreate(false)}>
+                      Cancel
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-        {/* Loading */}
+        {/* Loading skeleton */}
         {loading && (
-          <div style={{ textAlign: 'center', padding: 40, color: '#6b7280' }}>
-            <div style={{ width: 24, height: 24, border: '2px solid #374151', borderTopColor: '#6366f1', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' }} />
-            Loading workspaces...
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
+            {[1, 2, 3].map(i => (
+              <Card key={i} className="border-border">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2.5 mb-3">
+                    <div className="w-9 h-9 rounded-[10px] bg-muted animate-pulse shrink-0" />
+                    <div className="flex-1 space-y-1.5">
+                      <div className="h-3.5 bg-muted rounded animate-pulse w-3/4" />
+                      <div className="h-2.5 bg-muted rounded animate-pulse w-1/2" />
+                    </div>
+                    <div className="w-2 h-2 rounded-full bg-muted animate-pulse shrink-0" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="h-2.5 bg-muted rounded animate-pulse w-full" />
+                    <div className="h-2.5 bg-muted rounded animate-pulse w-2/3" />
+                    <div className="h-2.5 bg-muted rounded animate-pulse w-1/2" />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
           </div>
         )}
 
-        {/* Empty */}
+        {/* Empty state */}
         {!loading && workspaces.length === 0 && (
-          <div style={{ textAlign: 'center', padding: 60, color: '#6b7280' }}>
-            <div style={{ fontSize: 40, marginBottom: 12 }}>🏢</div>
-            <div style={{ fontSize: 15, marginBottom: 8 }}>No workspaces yet</div>
-            <div style={{ fontSize: 12, marginBottom: 20 }}>Click "New Workspace" to add your first client.</div>
-            <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
-              + Create Workspace
-            </button>
+          <div className="flex flex-col items-center justify-center py-24 text-center">
+            <div className="mb-4 rounded-full bg-muted p-6">
+              <Building2 className="h-12 w-12 text-muted-foreground" />
+            </div>
+            <h3 className="text-lg font-semibold text-foreground mb-1">
+              No workspaces yet
+            </h3>
+            <p className="text-sm text-muted-foreground mb-5 max-w-sm">
+              Click &quot;New Workspace&quot; to add your first client.
+            </p>
+            <Button onClick={() => setShowCreate(true)}>
+              <Plus className="h-4 w-4 mr-1.5" />
+              Create Workspace
+            </Button>
           </div>
         )}
 
         {/* Workspace Grid */}
         {!loading && workspaces.length > 0 && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
             {workspaces.map(ws => (
-              <div
+              <motion.div
                 key={ws.id}
-                style={{
-                  background: selectedWs?.id === ws.id ? '#1e1a3a' : '#1a1a2e',
-                  border: `1px solid ${selectedWs?.id === ws.id ? '#6366f1' : '#2d2d4e'}`,
-                  borderRadius: 12, padding: 16, cursor: 'pointer',
-                  transition: 'all 0.2s',
-                }}
-                onClick={() => setSelectedWs(selectedWs?.id === ws.id ? null : ws)}
-                onMouseEnter={e => { if (selectedWs?.id !== ws.id) e.currentTarget.style.borderColor = '#4b5563' }}
-                onMouseLeave={e => { if (selectedWs?.id !== ws.id) e.currentTarget.style.borderColor = '#2d2d4e' }}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                  <div style={{
-                    width: 36, height: 36, borderRadius: 10,
-                    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 16, fontWeight: 700, color: '#fff',
-                  }}>
-                    {(ws.name || ws.company || '?')[0].toUpperCase()}
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: '#e5e7eb' }}>
-                      {ws.name || ws.company || 'Unnamed'}
+                <Card
+                  className={`cursor-pointer transition-colors ${
+                    selectedWs?.id === ws.id
+                      ? 'ring-1 ring-primary border-primary'
+                      : 'border-border hover:border-muted-foreground/30'
+                  }`}
+                  onClick={() => setSelectedWs(selectedWs?.id === ws.id ? null : ws)}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-2.5 mb-2">
+                      <div className="w-9 h-9 rounded-[10px] bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-sm font-bold text-white shrink-0">
+                        {(ws.name || ws.company || '?')[0].toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-semibold text-foreground truncate">
+                          {ws.name || ws.company || 'Unnamed'}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground">
+                          {ws.industry || 'General'} · {ws.status || 'active'}
+                        </div>
+                      </div>
+                      <div
+                        className={`w-2 h-2 rounded-full shrink-0 ${
+                          ws.status === 'active' ? 'bg-green-500' : 'bg-muted-foreground/50'
+                        }`}
+                      />
                     </div>
-                    <div style={{ fontSize: 11, color: '#6b7280' }}>
-                      {ws.industry || 'General'} · {ws.status || 'active'}
-                    </div>
-                  </div>
-                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: ws.status === 'active' ? '#22c55e' : '#6b7280' }} />
-                </div>
 
-                {selectedWs?.id === ws.id && (
-                  <div style={{ borderTop: '1px solid #2d2d4e', marginTop: 12, paddingTop: 12, animation: 'fadeIn 0.2s' }}>
-                    {ws.email && <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 4 }}>✉️ {ws.email}</div>}
-                    {ws.contact && <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 4 }}>👤 {ws.contact}</div>}
-                    {ws.website && <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 8 }}>🌐 {ws.website}</div>}
-                    <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                      <button className="btn btn-sm" style={{ background: '#1e3a1e', color: '#22c55e', border: '1px solid #22c55e' }}
-                        onClick={e => { e.stopPropagation(); notify('🤝 CEO notified about this client') }}>
-                        🔔 Notify CEO
-                      </button>
-                      <button className="btn btn-sm" style={{ background: '#3a1e1e', color: '#ef4444', border: '1px solid #ef4444' }}
-                        onClick={e => { e.stopPropagation(); deleteWorkspace(ws.id, ws.name || ws.company) }}>
-                        🗑 Delete
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
+                    {/* Detail expand */}
+                    <AnimatePresence initial={false}>
+                      {selectedWs?.id === ws.id && (
+                        <motion.div
+                          key="detail"
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{ duration: 0.2 }}
+                          className="overflow-hidden"
+                        >
+                          <div className="border-t border-border mt-3 pt-3 space-y-1.5">
+                            {ws.email && (
+                              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                <Mail className="h-3 w-3 shrink-0" />
+                                <span className="truncate">{ws.email}</span>
+                              </div>
+                            )}
+                            {ws.contact && (
+                              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                <Phone className="h-3 w-3 shrink-0" />
+                                <span className="truncate">{ws.contact}</span>
+                              </div>
+                            )}
+                            {ws.website && (
+                              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                <Globe className="h-3 w-3 shrink-0" />
+                                <span className="truncate">{ws.website}</span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex gap-2 mt-3">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-green-600 border-green-600/40 hover:bg-green-600/10 hover:text-green-500"
+                              onClick={e => {
+                                e.stopPropagation()
+                                toast.success('CEO notified about this client')
+                              }}
+                            >
+                              Notify CEO
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-destructive border-destructive/40 hover:bg-destructive/10"
+                              onClick={e => {
+                                e.stopPropagation()
+                                deleteWorkspace(ws.id, ws.name || ws.company)
+                              }}
+                            >
+                              <Trash2 className="h-3.5 w-3.5 mr-1" />
+                              Delete
+                            </Button>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </CardContent>
+                </Card>
+              </motion.div>
             ))}
           </div>
         )}
