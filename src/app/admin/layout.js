@@ -24,7 +24,7 @@ import {
   DollarSign,
 } from 'lucide-react'
 
-/* ─── NavItem ─── */
+/* ─── NavItem (sidebar variant) ─── */
 function NavItem({ href, icon: Icon, label, badge }) {
   const pathname = usePathname()
   const isActive = pathname === href || pathname.startsWith(href + '/')
@@ -32,16 +32,16 @@ function NavItem({ href, icon: Icon, label, badge }) {
   return (
     <Link
       href={href}
-      className={`flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium transition-colors ${
+      className={`flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium rounded-md transition-colors ${
         isActive
-          ? 'bg-accent text-foreground'
-          : 'text-foreground/80 hover:bg-accent/50 hover:text-foreground'
+          ? 'bg-sidebar-accent text-sidebar-primary'
+          : 'text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-primary'
       }`}
     >
       <Icon className="h-4 w-4 shrink-0" />
       <span className="flex-1 truncate">{label}</span>
       {badge != null && (
-        <span className="ml-auto rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground leading-none">
+        <span className="ml-auto rounded-full bg-sidebar-accent px-1.5 py-0.5 text-[10px] font-medium text-sidebar-foreground leading-none">
           {badge}
         </span>
       )}
@@ -49,13 +49,13 @@ function NavItem({ href, icon: Icon, label, badge }) {
   )
 }
 
-/* ─── Section Header ─── */
+/* ─── Section Header (sidebar) ─── */
 function SidebarSection({ label, children }) {
   return (
     <div>
       <div className="px-3 py-1.5">
         <div className="inline-flex min-w-0 max-w-full items-center px-1 py-0.5">
-          <span className="text-[10px] font-medium uppercase tracking-widest font-mono text-muted-foreground/60">
+          <span className="text-[10px] font-medium uppercase tracking-widest font-mono text-sidebar-foreground/50">
             {label}
           </span>
         </div>
@@ -65,19 +65,19 @@ function SidebarSection({ label, children }) {
   )
 }
 
-/* ─── Agent Row ─── */
+/* ─── Agent Row (sidebar) ─── */
 function AgentRow({ name, emoji, status, href }) {
   const statusColors = {
     running: '#10b981',
     active: '#4ade80',
-    idle: 'var(--muted-foreground)',
-    paused: 'var(--error)',
-    error: 'var(--error)',
+    idle: 'var(--sidebar-foreground)',
+    paused: '#ef4444',
+    error: '#ef4444',
   }
-  const dotColor = statusColors[status] || 'var(--muted-foreground)'
+  const dotColor = statusColors[status] || 'var(--sidebar-foreground)'
 
   const row = (
-    <div className="flex items-center gap-2.5 text-[13px] font-medium transition-colors cursor-pointer px-3 py-1.5 text-foreground/80 hover:bg-accent/50 hover:text-foreground">
+    <div className="flex items-center gap-2.5 text-[13px] font-medium transition-colors cursor-pointer px-3 py-1.5 rounded-md text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-primary">
       {emoji && <span className="shrink-0 text-xs">{emoji}</span>}
       <span className="flex-1 truncate">{name}</span>
       <span className="relative flex h-2 w-2 shrink-0">
@@ -104,17 +104,17 @@ function AccountMenu() {
   const [open, setOpen] = useState(false)
 
   return (
-    <div className="border-t border-border shrink-0">
+    <div className="border-t border-sidebar-border shrink-0">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2.5 w-full text-left transition-colors hover:bg-accent/50 rounded-md p-2.5"
+        className="flex items-center gap-2.5 w-full text-left transition-colors hover:bg-sidebar-accent/50 rounded-md p-2.5"
       >
-        <div className="size-7 rounded-full bg-accent flex items-center justify-center text-xs font-semibold text-muted-foreground shrink-0">
+        <div className="size-7 rounded-full bg-sidebar-accent flex items-center justify-center text-xs font-semibold text-sidebar-foreground shrink-0">
           A
         </div>
         <div className="flex-1 min-w-0">
-          <div className="text-[13px] font-medium text-foreground leading-tight">Ayan</div>
-          <div className="text-[11px] text-muted-foreground truncate leading-tight">ayan@agenxy.com</div>
+          <div className="text-[13px] font-medium text-sidebar-primary leading-tight">Ayan</div>
+          <div className="text-[11px] text-sidebar-foreground truncate leading-tight">ayan@agenxy.com</div>
         </div>
       </button>
       {open && (
@@ -168,7 +168,7 @@ function SidebarNav() {
         <div className="flex flex-col gap-0.5">
           <Link
             href="/admin/inbox"
-            className="flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium text-foreground/80 hover:bg-accent/50 hover:text-foreground transition-colors"
+            className="flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-primary transition-colors rounded-md"
           >
             <SquarePen className="h-4 w-4 shrink-0" />
             <span className="truncate">New Task</span>
@@ -200,7 +200,7 @@ function SidebarNav() {
 
         {/* Company */}
         <SidebarSection label="Company">
-          <NavItem href="/admin/dashboard/org" icon={Network} label="Org" />
+          <NavItem href="/admin/org" icon={Network} label="Org" />
           <NavItem href="/admin/settings" icon={Settings} label="Settings" />
         </SidebarSection>
       </nav>
