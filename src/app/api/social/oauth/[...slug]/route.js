@@ -19,14 +19,54 @@ export async function GET(request, { params }) {
     const resp = await fetch(targetUrl, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
-      // Follow redirects so we get the final response
-      redirect: 'follow',
+      // Don't follow redirects so we can handle them ourselves
+      redirect: 'manual',
       signal: AbortSignal.timeout(30000),
     })
 
-    // If backend returned a redirect, forward it to the browser
-    if (resp.redirected) {
-      return NextResponse.redirect(resp.url, { status: 302 })
+    // ── Handle OAuth callback (popup flow) ──
+    // After user authorizes on FB, the popup hits this URL.
+    // Backend returns a 302 redirect. Instead of following it,
+    // we return an HTML page that sends a postMessage to the
+    // parent window and closes itself.
+    if (path.includes('callback') && (resp.status >= 300 && resp.status < 400)) {
+      const location = resp.headers.get('location') || ''
+      const success = location.includes('success=') ? location.match(/success=(\w+)/)?.[1] : null
+      const error = location.includes('error=') ? location.match(/error=([^&]+)/)?.[1] : null
+      const platform = path.split('/')[0] || 'facebook'
+
+      const html = `<!DOCTYPE html>
+<html><head><title>OAuth Complete</title></head>
+<body>
+<script>
+  (function() {
+    const msg = {
+      type: 'oauth-result',
+      platform: '${platform}',
+      success: ${success ? 'true' : 'false'},
+      ${success ? `platform: '${success}'` : `error: '${error || 'unknown'}'`}
+    };
+    if (window.opener) {
+      window.opener.postMessage(msg, '*');
+    }
+    window.close();
+  })();
+</script>
+<p>OAuth complete — closing this window...</p>
+</body></html>`
+
+      return new NextResponse(html, {
+        status: 200,
+        headers: { 'Content-Type': 'text/html; charset=utf-8' },
+      })
+    }
+
+    // ── Handle backend redirect (non-callback) ──
+    if (resp.status >= 300 && resp.status < 400) {
+      const location = resp.headers.get('location')
+      if (location) {
+        return NextResponse.redirect(location, { status: 302 })
+      }
     }
 
     const contentType = resp.headers.get('content-type') || ''
@@ -38,8 +78,17 @@ export async function GET(request, { params }) {
       })
     }
 
-    const data = await resp.json()
-    return NextResponse.json(data, { status: resp.status })
+    // Try JSON
+    try {
+      const data = await resp.json()
+      return NextResponse.json(data, { status: resp.status })
+    } catch {
+      const text = await resp.text()
+      return new NextResponse(text, {
+        status: resp.status,
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      })
+    }
   } catch (error) {
     return NextResponse.json(
       { success: false, error: `OAuth proxy error: ${error.message}` },
