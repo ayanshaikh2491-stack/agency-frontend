@@ -93,6 +93,9 @@ export default function ConnectPage() {
   const [sbaInput, setSbaInput] = useState('')
   const [sbaSending, setSbaSending] = useState(false)
   const [connectedAccounts, setConnectedAccounts] = useState([])
+  const [manualToken, setManualToken] = useState('')
+  const [manualPlatform, setManualPlatform] = useState(null)
+  const [manualSaving, setManualSaving] = useState(false)
 
   // ── OAuth Popup Message Listener ──────────────────────────────
   useEffect(() => {
@@ -217,6 +220,47 @@ export default function ConnectPage() {
       }
     }
     setConnecting(null)
+  }
+
+  async function saveManualToken() {
+    if (!manualPlatform || !manualToken.trim()) return
+    setManualSaving(true)
+    setLogs((l) => [
+      ...l,
+      { time: new Date().toLocaleTimeString(), msg: `💾 Saving token for ${manualPlatform}...`, ok: true },
+    ])
+    try {
+      const res = await fetch('/api/social-manager/connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client_id: 'default',
+          platform: manualPlatform,
+          access_token: manualToken.trim(),
+        }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setConnectedAccounts((c) => (c.includes(manualPlatform) ? c : [...c, manualPlatform]))
+        setLogs((l) => [
+          ...l,
+          { time: new Date().toLocaleTimeString(), msg: `✅ ${manualPlatform} connected via manual token!`, ok: true },
+        ])
+        setManualToken('')
+        setManualPlatform(null)
+      } else {
+        setLogs((l) => [
+          ...l,
+          { time: new Date().toLocaleTimeString(), msg: `❌ Failed: ${data.error || 'unknown'}`, ok: false },
+        ])
+      }
+    } catch (e) {
+      setLogs((l) => [
+        ...l,
+        { time: new Date().toLocaleTimeString(), msg: `❌ Error: ${e.message}`, ok: false },
+      ])
+    }
+    setManualSaving(false)
   }
 
   async function sendSbaChat() {
@@ -399,10 +443,59 @@ export default function ConnectPage() {
                     </span>
                   )}
                 </div>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setManualPlatform(p.id) }}
+                  className="mt-1.5 block text-[10px] text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                >
+                  🔑 or paste token manually
+                </button>
               </CardContent>
             </Card>
           ))}
         </div>
+
+        {/* Manual token input for this platform */}
+        {manualPlatform && (
+          <div className="mb-4 rounded-lg border border-accent/30 bg-accent/5 p-3">
+            <p className="mb-2 text-xs font-medium text-foreground">
+              🔑 Paste your {PLATFORMS.find((x) => x.id === manualPlatform)?.name || manualPlatform} Access Token:
+            </p>
+            <div className="flex gap-2">
+              <input
+                value={manualToken}
+                onChange={(e) => setManualToken(e.target.value)}
+                placeholder="EAAC... or EAA..."
+                className="flex-1 rounded-md border border-input bg-background px-2.5 py-1.5 font-mono text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+              <Button
+                size="sm"
+                disabled={manualSaving || !manualToken.trim()}
+                onClick={saveManualToken}
+              >
+                {manualSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                <span className="ml-1">Save</span>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { setManualPlatform(null); setManualToken('') }}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
+            <p className="mt-1.5 text-[10px] leading-relaxed text-muted-foreground">
+              Get token from{' '}
+              <a
+                href={PLATFORMS.find((x) => x.id === manualPlatform)?.setupUrl || '#'}
+                target="_blank" rel="noopener noreferrer"
+                className="underline hover:text-foreground"
+              >
+                Graph API Explorer
+              </a>
+              {' '}→ select your Page → copy "Page Access Token"
+            </p>
+          </div>
+        )}
 
         {/* Activity Log */}
         {logs.length > 0 && (
