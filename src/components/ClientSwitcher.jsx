@@ -215,7 +215,7 @@ export default function ClientSwitcher({ children }) {
                   </div>
                   <div>
                     <div className="text-sm font-medium text-primary">
-                      Create Company / Workspace
+                      Create Workspace
                     </div>
                     <div className="text-[11px] text-sidebar-foreground/60">
                       Add a new client workspace

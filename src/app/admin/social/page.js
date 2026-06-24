@@ -1,564 +1,776 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
-import Link from 'next/link'
-import { uid, ts, PAPERCLIP_BUBBLE, AgentBubbleHeader, TypingBubble, renderMD } from '@/lib/chat-utils'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useCompany } from '@/lib/client-context'
+import {
+  Share2, BarChart3, TrendingUp, Users, MessageCircle, Send,
+  Activity, Calendar, Clock, Eye, Heart, Repeat2, MessageSquare,
+  Play, Pause, AlertCircle, CheckCircle2, ExternalLink, RefreshCw,
+  Server, Settings as SettingsIcon, BookOpen, Image, Video,
+  Search, Filter, MoreHorizontal, ChevronDown, Upload, Download,
+  Plus, X, Copy, Trash2, Edit3, Globe, Smartphone, Loader2,
+  Crosshair, Bot, PieChart, Hash, UserCheck, Camera
+} from 'lucide-react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import PageShell from '@/components/PageShell'
 
-var SUGGESTIONS = [
-  { label: '📊 Social Overview', prompt: 'Show me social media performance across all platforms' },
-  { label: '📅 Scheduled Posts', prompt: 'What posts are scheduled this week?' },
-  { label: '📈 Instagram Analytics', prompt: 'How is Instagram performing this month?' },
-  { label: '⚡ Engagement Report', prompt: 'Give me the engagement report and best performing posts' },
+/* ─── Sample data ─── */
+const SAMPLE_POSTS = [
+  { id: 'pst_001', content: 'Summer collection launch! 🔥 Get 20% off today', client: 'Client A', platform: 'Instagram', type: 'feed', status: 'published', engagement: 4.2, likes: 1240, comments: 83, shares: 45, scheduled: '2025-06-15', posted: '2025-06-15', reach: 18200 },
+  { id: 'pst_002', content: 'Behind the scenes: Product shoot', client: 'Client A', platform: 'Instagram', type: 'story', status: 'published', engagement: 3.8, likes: 890, comments: 42, shares: 28, scheduled: '2025-06-16', posted: '2025-06-16', reach: 12400 },
+  { id: 'pst_003', content: 'New blog post: Industry trends 2025', client: 'Client B', platform: 'LinkedIn', type: 'article', status: 'scheduled', engagement: 0, likes: 0, comments: 0, shares: 0, scheduled: '2025-06-22', posted: null, reach: 0 },
+  { id: 'pst_004', content: 'Customer testimonial video', client: 'Client B', platform: 'Facebook', type: 'video', status: 'draft', engagement: 0, likes: 0, comments: 0, shares: 0, scheduled: '2025-06-25', posted: null, reach: 0 },
+  { id: 'pst_005', content: 'Flash sale this weekend!', client: 'Client A', platform: 'Facebook', type: 'feed', status: 'scheduled', engagement: 0, likes: 0, comments: 0, shares: 0, scheduled: '2025-06-20', posted: null, reach: 0 },
+  { id: 'pst_006', content: 'Wellness Wednesday tip: Morning routine', client: 'Client C', platform: 'Instagram', type: 'reel', status: 'published', engagement: 6.7, likes: 3200, comments: 156, shares: 420, scheduled: '2025-06-14', posted: '2025-06-14', reach: 45200 },
+  { id: 'pst_007', content: 'Product demo: See it in action', client: 'Client C', platform: 'YouTube', type: 'video', status: 'scheduled', engagement: 0, likes: 0, comments: 0, shares: 0, scheduled: '2025-06-28', posted: null, reach: 0 },
 ]
 
-// ─── REAL DATA — loaded from backend ───
-var ACCOUNTS = []
+const SAMPLE_PLATFORMS = [
+  { id: 'plt_001', name: '@client_a_insta', client: 'Client A', platform: 'Instagram', followers: 45200, following: 1240, posts: 342, engagement_rate: 3.8, status: 'connected' },
+  { id: 'plt_002', name: 'Client A Page', client: 'Client A', platform: 'Facebook', followers: 28100, following: 0, posts: 189, engagement_rate: 2.4, status: 'connected' },
+  { id: 'plt_003', name: '@client_a_tiktok', client: 'Client A', platform: 'TikTok', followers: 12500, following: 320, posts: 67, engagement_rate: 5.1, status: 'pending' },
+  { id: 'plt_004', name: 'Client B Business', client: 'Client B', platform: 'LinkedIn', followers: 8500, following: 0, posts: 156, engagement_rate: 4.6, status: 'connected' },
+  { id: 'plt_005', name: '@client_b_twitter', client: 'Client B', platform: 'Twitter', followers: 3200, following: 450, posts: 892, engagement_rate: 2.1, status: 'connected' },
+  { id: 'plt_006', name: '@client_c_health', client: 'Client C', platform: 'Instagram', followers: 78500, following: 890, posts: 423, engagement_rate: 5.8, status: 'connected' },
+  { id: 'plt_007', name: 'Client C Channel', client: 'Client C', platform: 'YouTube', followers: 12400, following: 0, posts: 89, engagement_rate: 3.2, status: 'connected' },
+]
 
-var SCHEDULED_POSTS = []
+const SAMPLE_AUDIENCES = [
+  { id: 'aud_001', client: 'Client A', platform: 'Instagram', followers: 45200, growth_rate: 3.2, top_age: '25-34', top_gender: 'Female 58%', top_city: 'Mumbai', best_time: '7PM-9PM', best_day: 'Sunday' },
+  { id: 'aud_002', client: 'Client A', platform: 'Facebook', followers: 28100, growth_rate: 1.8, top_age: '35-44', top_gender: 'Male 52%', top_city: 'Delhi', best_time: '8PM-10PM', best_day: 'Saturday' },
+  { id: 'aud_003', client: 'Client B', platform: 'LinkedIn', followers: 8500, growth_rate: 5.4, top_age: '25-34', top_gender: 'Male 65%', top_city: 'Bangalore', best_time: '12PM-2PM', best_day: 'Tuesday' },
+  { id: 'aud_004', client: 'Client C', platform: 'Instagram', followers: 78500, growth_rate: 8.1, top_age: '18-24', top_gender: 'Female 72%', top_city: 'Mumbai', best_time: '9PM-11PM', best_day: 'Friday' },
+]
 
-var TOP_POSTS = []
+const SUGGESTIONS = [
+  { label: '📊 Social Overview', prompt: 'show social overview all clients' },
+  { label: '📅 Scheduled Posts', prompt: 'show scheduled posts' },
+  { label: '📈 Instagram Analytics', prompt: 'instagram analytics all clients' },
+  { label: '⚡ Engagement Report', prompt: 'engagement report all clients' },
+]
 
-var ENGAGEMENT_TOTALS = {
-  total_reach: 0,
-  total_followers: 0,
-  total_engagement: 0,
-  total_posts_this_month: 0,
-  best_platform: null,
-  best_platform_eng: 0,
+const PLATFORM_ICONS = { Instagram: Camera, Facebook: Globe, LinkedIn: Users, Twitter: Hash, TikTok: Video, YouTube: Play }
+
+function StatusPill({ color, text }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-medium"
+      style={{ background: `${color}15`, color }}>
+      <span className="inline-flex h-1.5 w-1.5 rounded-full" style={{ background: color }} />
+      {text}
+    </span>
+  )
 }
 
-var CONTENT_TIPS = []
+function PlatformBadge({ platform }) {
+  const Icon = PLATFORM_ICONS[platform] || Globe
+  const colors = { Instagram: '#e1306c', Facebook: '#1877f2', LinkedIn: '#0a66c2', Twitter: '#1da1f2', TikTok: '#000000', YouTube: '#ff0000' }
+  const color = colors[platform] || '#6b7280'
+  return (
+    <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[9px] font-medium" style={{ background: `${color}15`, color }}>
+      <Icon className="h-3 w-3" />
+      {platform}
+    </span>
+  )
+}
 
-function formatNum(n) { if (!n) return '0'; if (n >= 1000000) return (n/1000000).toFixed(1) + 'M'; if (n >= 1000) return (n/1000).toFixed(1) + 'K'; return n.toLocaleString() }
+function PostCard({ post }) {
+  return (
+    <div className="rounded-lg border border-border bg-card p-3 hover:border-foreground/20 transition-colors space-y-2">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <span className="text-[9px] font-medium text-muted-foreground shrink-0">{post.posted || post.scheduled}</span>
+          <PlatformBadge platform={post.platform} />
+          <Badge variant="outline" className="text-[9px] px-1 h-3.5">{post.client}</Badge>
+        </div>
+        <StatusPill color={post.status === 'published' ? '#10b981' : post.status === 'scheduled' ? '#3b82f6' : '#6b7280'} text={post.status} />
+      </div>
+      <p className="text-xs text-foreground leading-relaxed line-clamp-2">{post.content}</p>
+      {post.status === 'published' && (
+        <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+          <span className="flex items-center gap-1"><Heart className="h-3 w-3" />{post.likes}</span>
+          <span className="flex items-center gap-1"><MessageSquare className="h-3 w-3" />{post.comments}</span>
+          <span className="flex items-center gap-1"><Repeat2 className="h-3 w-3" />{post.shares}</span>
+          <span className="flex items-center gap-1"><Eye className="h-3 w-3" />{post.reach.toLocaleString()}</span>
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function SocialPage() {
-  var [msgs, setMsgs] = useState([])
-  var [input, setInput] = useState('')
-  var [sending, setSending] = useState(false)
-  var [welcomeRevealed, setWelcomeRevealed] = useState(false)
-  var [chipsRevealed, setChipsRevealed] = useState(false)
-  var [selectedTab, setSelectedTab] = useState('overview')
-  var [successMsg, setSuccessMsg] = useState('')
-  var [refreshKey, setRefreshKey] = useState(0)
-  var bottomRef = useRef(null)
-  var inputRef = useRef(null)
-  var scrollRef = useRef(null)
-  var keepScrolled = useRef(true)
+  const { selectedCompany, companies } = useCompany()
+  const clientName = selectedCompany?.name || ''
+  const clientId = selectedCompany?.id || ''
 
-  var connectedAccounts = ACCOUNTS.filter(function(a) { return a.connected })
-  var pendingPosts = SCHEDULED_POSTS.filter(function(p) { return p.status === 'scheduled' })
+  const [msgs, setMsgs] = useState([])
+  const [input, setInput] = useState('')
+  const [sending, setSending] = useState(false)
+  const [tab, setTab] = useState('chat')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedClient, setSelectedClient] = useState('All Clients')
+  const [clientDropdownOpen, setClientDropdownOpen] = useState(false)
+  const bottomRef = useRef(null)
+  const inputRef = useRef(null)
 
-  var safeScroll = useCallback(function() {
-    if (!keepScrolled.current || !bottomRef.current) return
-    bottomRef.current.scrollIntoView({ block: 'end' })
-  }, [])
+  // Filter data by selected client
+  const filteredPosts = useMemo(() => {
+    if (selectedClient === 'All Clients') return SAMPLE_POSTS
+    return SAMPLE_POSTS.filter(p => p.client === selectedClient)
+  }, [selectedClient])
 
-  useEffect(function() { safeScroll() }, [msgs.length])
+  const filteredPlatforms = useMemo(() => {
+    if (selectedClient === 'All Clients') return SAMPLE_PLATFORMS
+    return SAMPLE_PLATFORMS.filter(p => p.client === selectedClient)
+  }, [selectedClient])
 
-  useEffect(function() {
-    var el = scrollRef.current
-    if (!el) return
-    var onScroll = function() {
-      keepScrolled.current = el.scrollHeight - el.scrollTop - el.clientHeight <= 40
+  const filteredAudiences = useMemo(() => {
+    if (selectedClient === 'All Clients') return SAMPLE_AUDIENCES
+    return SAMPLE_AUDIENCES.filter(a => a.client === selectedClient)
+  }, [selectedClient])
+
+  // KPIs
+  const kpis = useMemo(() => {
+    const platforms = filteredPlatforms
+    const posts = filteredPosts
+    const totalFollowers = platforms.reduce((s, p) => s + p.followers, 0)
+    const totalPosts = platforms.reduce((s, p) => s + p.posts, 0)
+    const totalPublished = posts.filter(p => p.status === 'published').length
+    const totalScheduled = posts.filter(p => p.status === 'scheduled').length
+    const totalLikes = posts.reduce((s, p) => s + p.likes, 0)
+    const totalComments = posts.reduce((s, p) => s + p.comments, 0)
+    const avgEngagement = platforms.length ? (platforms.reduce((s, p) => s + p.engagement_rate, 0) / platforms.length).toFixed(1) : 0
+    return { totalFollowers, totalPosts, totalPublished, totalScheduled, totalLikes, totalComments, avgEngagement }
+  }, [filteredPlatforms, filteredPosts])
+
+  // TabIcon
+  const TabIcon = ({ tabId }) => {
+    const icons = {
+      chat: MessageCircle, overview: BarChart3, platforms: Globe,
+      content: Image, schedule: Calendar, audience: Users,
+      analytics: TrendingUp, sba: Bot, settings: SettingsIcon
     }
-    el.addEventListener('scroll', onScroll, { passive: true })
-    return function() { el.removeEventListener('scroll', onScroll) }
-  }, [])
-
-  useEffect(function() {
-    if (welcomeRevealed) return
-    var t1 = setTimeout(function() { setWelcomeRevealed(true) }, 1500)
-    return function() { clearTimeout(t1) }
-  }, [welcomeRevealed])
-
-  useEffect(function() {
-    if (!welcomeRevealed || chipsRevealed) return
-    var t2 = setTimeout(function() { setChipsRevealed(true) }, 500)
-    return function() { clearTimeout(t2) }
-  }, [welcomeRevealed, chipsRevealed])
-
-  // Handle OAuth callback success
-  useEffect(function() {
-    var params = new URLSearchParams(window.location.search)
-    if (params.get('success') === 'facebook_connected') {
-      var page = params.get('page_name') || 'Facebook'
-      setSuccessMsg('✅ ' + page + ' connected successfully!')
-      window.history.replaceState({}, '', '/admin/social')
-      setTimeout(function() { setSuccessMsg('') }, 5000)
-    }
-    if (params.get('error')) {
-      setSuccessMsg('Connection failed')
-      window.history.replaceState({}, '', '/admin/social')
-      setTimeout(function() { setSuccessMsg('') }, 8000)
-    }
-  }, [])
-
-  // Fetch connected accounts from backend
-  useEffect(function() {
-    fetch('/api/social-manager/accounts').then(function(r) { return r.json() }).then(function(d) {
-      if (d.success && d.data) {
-        ACCOUNTS.length = 0
-        d.data.forEach(function(a) {
-          ACCOUNTS.push({
-            platform: a.platform === 'facebook' ? 'Facebook' : a.platform === 'instagram' ? 'Instagram' : a.platform,
-            connected: true,
-            name: a.account_name || (a.meta && a.meta.page_name) || a.account_id,
-            followers: 0,
-            engagement: 0,
-            reach: 0,
-            posts: 0,
-            growth: '+0%',
-            id: a.account_id
-          })
-        })
-        setRefreshKey(function(v) { return v + 1 })
-      }
-    }).catch(function() {})
-  }, [])
-
-  async function callAgent(text) {
-    try {
-      var l = text.toLowerCase()
-      if (l.includes('overview') || l.includes('all') || l.includes('performance')) {
-        return '**📊 Social Media Overview**\n\n' +
-          '**Connected:** ' + connectedAccounts.length + '/' + ACCOUNTS.length + ' platforms\n' +
-          '**Total Reach:** ' + formatNum(ENGAGEMENT_TOTALS.total_reach) + '\n' +
-          '**Total Followers:** ' + formatNum(ENGAGEMENT_TOTALS.total_followers) + '\n' +
-          '**Avg Engagement:** ' + ENGAGEMENT_TOTALS.total_engagement + '% (best: ' + ENGAGEMENT_TOTALS.best_platform + ' @ ' + ENGAGEMENT_TOTALS.best_platform_eng + '%)\n' +
-          '**Posts this month:** ' + ENGAGEMENT_TOTALS.total_posts_this_month + '\n' +
-          '**Scheduled this week:** ' + pendingPosts.length + ' posts\n\n' +
-          ACCOUNTS.filter(function(a) { return a.connected }).map(function(a) {
-            return '• **' + a.platform + '** — ' + formatNum(a.followers) + ' followers · ' + a.growth + ' growth · ' + a.engagement + '% eng\n  👁 ' + formatNum(a.reach) + ' reach · ' + a.posts + ' posts'
-          }).join('\n\n')
-      }
-      if (l.includes('schedule') || l.includes('post') || l.includes('this week')) {
-        return '**📅 Scheduled Posts — This Week**\n\n' +
-          pendingPosts.map(function(p) {
-            return '• ' + p.media + ' **' + p.platform + '** — ' + p.date + ' @ ' + p.time + '\n  "' + p.content + '"' + (p.type ? '\n  Type: ' + p.type : '')
-          }).join('\n\n') +
-          '\n\n**Total:** ' + pendingPosts.length + ' scheduled · 1 draft'
-      }
-      if (l.includes('instagram') || l.includes('ig')) {
-        var ig = ACCOUNTS.find(function(a) { return a.platform === 'Instagram' })
-        if (!ig || !ig.connected) return 'Instagram not connected yet. Want to connect it?'
-        return '**📸 Instagram Analytics**\n\n' +
-          '• Followers: ' + formatNum(ig.followers) + ' (' + ig.growth + ' growth)\n' +
-          '• Posts: ' + ig.posts + ' this month\n' +
-          '• Engagement: ' + ig.engagement + '%\n' +
-          '• Reach: ' + formatNum(ig.reach) + '\n\n' +
-          '**Top Post:** ' + TOP_POSTS.filter(function(p) { return p.platform === 'Instagram' }).map(function(p) { return '"' + p.content + '" — ' + p.engagement + '% eng · ' + formatNum(p.reach) + ' reach' }).join('\n')
-      }
-      if (l.includes('engagement') || l.includes('top post') || l.includes('best performing')) {
-        return '**⚡ Engagement Report**\n\n' +
-          '• Avg Engagement: ' + ENGAGEMENT_TOTALS.total_engagement + '%\n' +
-          '• Best Platform: ' + ENGAGEMENT_TOTALS.best_platform + ' @ ' + ENGAGEMENT_TOTALS.best_platform_eng + '%\n\n' +
-          '**Top 3 Posts:**\n\n' +
-          TOP_POSTS.map(function(p, i) {
-            return (i + 1) + '. ' + p.platform + ' — ' + '\n   "' + p.content + '"\n   ❤️ ' + p.engagement + '% eng · 👁 ' + formatNum(p.reach) + ' reach'
-          }).join('\n\n')
-      }
-      return 'Let me check social data for you! 📱'
-    } catch(e) {
-      return 'Checking social data for you... 📱'
-    }
+    const Icon = icons[tabId] || MessageCircle
+    return <Icon className="h-4 w-4" />
   }
 
-  var send = useCallback(async function(override) {
-    var text = (override || input).trim()
+  const send = useCallback(async (overrideText) => {
+    const text = (overrideText || input).trim()
     if (!text || sending) return
-    if (!override) setInput('')
-
-    var userMsg = { id: uid(), role: 'user', content: text, time: ts() }
-    setMsgs(function(p) { return p.concat([userMsg]) })
+    if (!overrideText) setInput('')
+    setMsgs(p => [...p, { id: Date.now().toString(), role: 'user', content: text, time: new Date().toISOString() }])
     setSending(true)
-    setWelcomeRevealed(true)
-    setChipsRevealed(true)
-
-    var reply = await callAgent(text)
-
-    await new Promise(function(r) { setTimeout(r, 400 + Math.random() * 500) })
+    try {
+      const res = await fetch('/api/agents/social-manager/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text, client_name: clientName, client_id: clientId }),
+      })
+      const data = await res.json()
+      const reply = data?.data?.response || data?.response || data?.data?.content || JSON.stringify(data)
+      setMsgs(p => [...p, { id: (Date.now() + 1).toString(), role: 'assistant', content: reply, time: new Date().toISOString() }])
+    } catch (e) {
+      setMsgs(p => [...p, { id: (Date.now() + 1).toString(), role: 'assistant', content: `❌ Error: ${e.message}`, time: new Date().toISOString() }])
+    }
     setSending(false)
-    setMsgs(function(p) { return p.concat([{ id: uid(), role: 'assistant', content: reply, time: ts() }]) })
-  }, [input, sending])
+  }, [input, sending, clientName, clientId])
 
-  function handleKeyDown(e) {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() }
-  }
+  const clientList = useMemo(() => {
+    const names = companies.map(c => c.name).filter(Boolean)
+    return ['All Clients', ...new Set(names)]
+  }, [companies])
 
-  var welcomeBody = 'Hey! I\'m your **Social Media Manager** 📱\n\nI manage all your platforms — Instagram, Facebook, LinkedIn, Twitter & YouTube.\n\n**What do you need?**\n📊 Full social overview\n📅 Scheduled posts & calendar\n📈 Instagram/Facebook/LinkedIn analytics\n⚡ Engagement report & best posts'
+  const TABS = [
+    { id: 'chat', label: 'Chat' },
+    { id: 'overview', label: 'Overview' },
+    { id: 'platforms', label: 'Platforms' },
+    { id: 'content', label: 'Content' },
+    { id: 'schedule', label: 'Schedule' },
+    { id: 'audience', label: 'Audience' },
+    { id: 'analytics', label: 'Analytics' },
+    { id: 'sba', label: 'SBA' },
+    { id: 'settings', label: 'Settings' },
+  ]
 
   return (
     <PageShell>
-      <div className="flex min-h-0 min-w-0 flex-1 flex-row">
-        {/* ─── LEFT: Chat ─── */}
-        <div className="relative flex min-h-0 min-w-0 w-full md:w-[45%] shrink-0 flex-col bg-[var(--card)]">
-          {/* Header */}
-          <div className="relative flex shrink-0 flex-col">
-            <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-[var(--border)]">
-              <div className="flex items-center gap-3 min-w-0 flex-1">
-                <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-pink-500/20">
-                  <span className="text-sm">📱</span>
-                  <span className="absolute -bottom-0.5 -right-0.5 flex h-2.5 w-2.5">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
-                  </span>
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-semibold text-[var(--foreground)]">Social Media</h3>
-                    <span className="flex items-center gap-1 text-[10px] text-emerald-400">● Live</span>
-                  </div>
-                  <p className="truncate text-xs text-[var(--muted-foreground)]">{connectedAccounts.length} connected · {formatNum(ENGAGEMENT_TOTALS.total_followers)} followers · {pendingPosts.length} scheduled</p>
-                </div>
+      <div className="flex h-full min-h-0 gap-0">
+        {/* ═══ LEFT: Main — 3/5 ═══ */}
+        <div className="relative flex min-h-0 w-full flex-col lg:w-3/5 shrink-0 bg-card">
+          {/* ─── Header + Client Filter ─── */}
+          <div className="flex shrink-0 items-center justify-between gap-3 px-5 py-3 border-b border-border">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-pink-500 to-purple-500/80">
+                <Share2 className="h-5 w-5 text-white" />
+                <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-500" />
+                </span>
               </div>
-              <div className="flex items-center gap-2">
-              <button onClick={function() {
-                window.location.href = 'https://www.facebook.com/v18.0/dialog/oauth?client_id=1900581880622376&redirect_uri=https%3A%2F%2Fagency-frontend-seven.vercel.app%2Fapi%2Fsocial%2Foauth%2Ffacebook%2Fcallback&scope=pages_show_list,pages_read_engagement,pages_manage_posts,ads_management,ads_read,business_management,instagram_basic,instagram_content_publish,public_profile&state=default:facebook&response_type=code';
-              }}
-                 className="flex items-center gap-1.5 rounded-lg bg-[#1877F2] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#166fe5] transition-colors cursor-pointer">
-                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
-                Connect Facebook
-              </button>
-              <button onClick={function() {
-                window.location.href = 'https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=&redirect_uri=http://18.213.66.136:8000/api/social/oauth/linkedin/callback&scope=w_member_social,email&state=default:linkedin';
-              }}
-                 className="flex items-center gap-1.5 rounded-lg bg-[#0A66C2] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#004182] transition-colors cursor-pointer">
-                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
-                Connect LinkedIn
-              </button>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-sm font-semibold text-foreground">Social Media Manager</h3>
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 text-muted-foreground">{filteredPlatforms.length} platforms</Badge>
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 text-muted-foreground">{kpis.totalFollowers.toLocaleString()} followers</Badge>
+                </div>
+                <p className="text-xs text-muted-foreground">All clients · Instagram, Facebook, LinkedIn, Twitter</p>
+              </div>
             </div>
-            {successMsg ? (
-              <div className="flex items-center justify-center px-4 py-2 bg-emerald-500/10 border-b border-emerald-500/20 text-sm text-emerald-400">
-                {successMsg}
+            <div className="relative shrink-0">
+              <button onClick={() => setClientDropdownOpen(p => !p)}
+                className="flex items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-accent transition-colors">
+                <Globe className="h-3.5 w-3.5 text-muted-foreground" />
+                <span className="max-w-[100px] truncate">{selectedClient}</span>
+                <ChevronDown className="h-3 w-3 text-muted-foreground" />
+              </button>
+              {clientDropdownOpen && (
+                <div className="absolute right-0 top-full mt-1 w-44 bg-card border border-border rounded-lg shadow-lg py-1 z-30">
+                  {clientList.map(client => (
+                    <button key={client} onClick={() => { setSelectedClient(client); setClientDropdownOpen(false) }}
+                      className={`w-full text-left px-3 py-1.5 text-xs transition-colors ${selectedClient === client ? 'bg-primary/10 text-primary font-medium' : 'text-foreground hover:bg-accent'}`}>
+                      {client}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ─── Tab Bar ─── */}
+          <div className="flex items-center gap-0.5 px-3 py-1.5 border-b border-border bg-background/40 overflow-x-auto scrollbar-auto-hide">
+            {TABS.map(t => (
+              <button key={t.id} onClick={() => setTab(t.id)}
+                className={`flex items-center gap-1.5 shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                  tab === t.id ? 'bg-primary text-white shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                }`}>
+                <TabIcon tabId={t.id} />
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {/* ─── Search Bar ─── */}
+          {(tab === 'content' || tab === 'platforms' || tab === 'audience') && (
+            <div className="shrink-0 px-4 py-2 border-b border-border">
+              <div className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-1.5">
+                <Search className="h-4 w-4 text-muted-foreground" />
+                <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+                  placeholder={`Search ${tab}...`}
+                  className="flex-1 bg-transparent text-xs text-foreground placeholder-muted-foreground outline-none" />
               </div>
-            ) : null}
-          </div>
-          </div>
+            </div>
+          )}
 
-          {/* Messages */}
-          <div className="relative min-h-0 min-w-0 flex-1">
-            <div ref={scrollRef} className="scrollbar-auto-hide absolute inset-0 overflow-y-auto overflow-x-hidden">
-              <div className="flex flex-col gap-3 px-6 pt-3 pb-32">
-                {!welcomeRevealed && <TypingBubble />}
-
-                {welcomeRevealed && (
-                  <>
-                    <div className="flex flex-col items-start">
-                      <AgentBubbleHeader emoji="📱" name="Social Media Manager" />
-                      <div className={PAPERCLIP_BUBBLE + ' bg-[var(--card)] border border-[var(--border)] text-[var(--foreground)] [border-radius:14px_14px_14px_4px]'}>
-                        <div className="max-w-full overflow-visible [&>*:first-child]:mt-0 [&>*:last-child]:mb-0" dangerouslySetInnerHTML={{ __html: renderMD(welcomeBody) }} />
-                      </div>
-                    </div>
-
-                    {chipsRevealed && (
-                      <div className="flex flex-wrap gap-2 pl-1">
-                        {SUGGESTIONS.map(function(s) {
-                          return (
-                            <button key={s.label} onClick={function() { send(s.prompt) }} className="rounded-full border border-[var(--border)] px-2.5 py-1 text-[11px] text-[var(--muted-foreground)] hover:border-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors">
-                              {s.label}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    )}
-
-                    {msgs.map(function(m) {
-                      if (m.role === 'user') {
-                        return (
-                          <div key={m.id} className="flex flex-col items-end gap-1">
-                            <div className={PAPERCLIP_BUBBLE + ' bg-[var(--primary)] text-white [border-radius:14px_14px_4px_14px]'}>
-                              {m.content}
-                            </div>
+          {/* ─── TAB CONTENT ─── */}
+          <div className="flex-1 overflow-y-auto scrollbar-auto-hide">
+            {/* ═══ CHAT ═══ */}
+            {tab === 'chat' && (
+              <div className="flex flex-col h-full min-h-0">
+                <div className="flex-1 overflow-y-auto scrollbar-auto-hide px-5 py-4">
+                  <div className="flex flex-col gap-4">
+                    {msgs.length === 0 && (
+                      <div className="flex flex-col items-center justify-center min-h-[400px] gap-6">
+                        <div className="text-center max-w-sm">
+                          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-pink-500/10 to-purple-500/10">
+                            <Share2 className="h-8 w-8 text-pink-500" />
                           </div>
-                        )
-                      }
-                      return (
-                        <div key={m.id} className="flex flex-col items-start">
-                          <AgentBubbleHeader emoji="📱" name="Social Media Manager" />
-                          <div className={PAPERCLIP_BUBBLE + ' bg-[var(--card)] border border-[var(--border)] text-[var(--foreground)] [border-radius:14px_14px_14px_4px]'}>
-                            <div className="max-w-full overflow-visible [&>*:first-child]:mt-0 [&>*:last-child]:mb-0" dangerouslySetInnerHTML={{ __html: renderMD(m.content) }} />
+                          <h2 className="text-lg font-semibold text-foreground mb-1">Social Media Manager 📱</h2>
+                          <p className="text-sm text-muted-foreground">
+                            Manage all clients' social media from one place. Schedule, analyze, engage — sab natural language mein.
+                          </p>
+                          <div className="mt-3 text-xs text-muted-foreground bg-muted/50 rounded-lg p-2.5">
+                            Selected: <span className="font-medium text-foreground">{selectedClient}</span>
                           </div>
                         </div>
-                      )
-                    })}
-                  </>
-                )}
+                        <div className="flex flex-wrap gap-2 justify-center max-w-md">
+                          {SUGGESTIONS.map(s => (
+                            <button key={s.label} onClick={() => { setInput(s.prompt); setTimeout(() => send(s.prompt), 100) }}
+                              className="rounded-full border border-border bg-card px-3.5 py-1.5 text-xs font-medium text-muted-foreground hover:border-primary/30 hover:text-primary hover:bg-primary/5 transition-colors">
+                              {s.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {msgs.map(m => (
+                      <div key={m.id} className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
+                        {m.role === 'assistant' && (
+                          <div className="flex items-center gap-2 mb-1.5 px-1">
+                            <Share2 className="h-4 w-4 text-pink-500" />
+                            <span className="text-xs font-medium text-foreground">Social Manager</span>
+                          </div>
+                        )}
+                        <div className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
+                          m.role === 'user' ? 'bg-primary text-primary-foreground rounded-br-md' : 'bg-muted/50 text-foreground border border-border rounded-bl-md'
+                        }`}>{m.content}</div>
+                      </div>
+                    ))}
+                    {sending && (
+                      <div className="flex items-start gap-2">
+                        <Share2 className="h-4 w-4 text-pink-500 mt-1.5" />
+                        <div className="flex gap-1"><span className="h-2 w-2 rounded-full bg-foreground/40 animate-bounce" style={{ animationDelay: '0ms' }} /><span className="h-2 w-2 rounded-full bg-foreground/40 animate-bounce" style={{ animationDelay: '150ms' }} /><span className="h-2 w-2 rounded-full bg-foreground/40 animate-bounce" style={{ animationDelay: '300ms' }} /></div>
+                      </div>
+                    )}
+                    <div ref={bottomRef} />
+                  </div>
+                </div>
+                <div className="border-t border-border px-4 py-3">
+                  <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 focus-within:border-primary/40 shadow-sm">
+                    <input ref={inputRef} value={input} onChange={e => setInput(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
+                      placeholder={`Ask your Social Media Manager... (${selectedClient})`} disabled={sending}
+                      className="min-h-[24px] flex-1 bg-transparent text-sm text-foreground placeholder-muted-foreground outline-none" />
+                    <button onClick={() => send()} disabled={!input.trim() || sending}
+                      className="rounded-lg bg-primary p-1.5 text-white transition-all hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed shrink-0">
+                      <Send className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
+            )}
 
-          {/* Input */}
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-[var(--card)] via-[var(--card)] to-transparent pt-6">
-            <div className="pointer-events-auto relative rounded-xl border border-[var(--border)] bg-[var(--background)] mx-4 mb-3">
-              <textarea ref={inputRef} value={input} onChange={function(e) { setInput(e.target.value) }} onKeyDown={handleKeyDown} placeholder="Ask your Social Media Manager..." rows={1} className="scrollbar-auto-hide block w-full resize-none bg-transparent px-3 py-2.5 pr-11 text-sm text-[var(--foreground)] placeholder-[var(--muted-foreground)] outline-none" style={{ maxHeight: '120px' }} />
-              <div className="flex shrink-0 items-center gap-1 pb-0.5">
-                <button disabled={!input.trim() || sending} onClick={function() { send() }} className="absolute bottom-1.5 right-1.5 flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--primary)] text-white disabled:opacity-30 transition-opacity">
-                  <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 2L11 13" /><path d="M22 2l-7 20-4-9-9-4 20-7z" /></svg>
-                </button>
+            {/* ═══ OVERVIEW ═══ */}
+            {tab === 'overview' && (
+              <div className="p-4 space-y-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {[
+                    { label: 'Followers', value: kpis.totalFollowers.toLocaleString(), icon: Users, color: 'text-pink-500', sub: 'across all platforms' },
+                    { label: 'Posts', value: kpis.totalPosts, icon: Image, color: 'text-blue-500', sub: 'total published' },
+                    { label: 'Avg Engagement', value: `${kpis.avgEngagement}%`, icon: TrendingUp, color: 'text-emerald-500', sub: 'across platforms' },
+                    { label: 'Engagement Rate', value: filteredPosts.filter(p => p.status === 'published').length ? (filteredPosts.reduce((s, p) => s + p.engagement, 0) / filteredPosts.filter(p => p.status === 'published').length).toFixed(1) + '%' : '0%', icon: Heart, color: 'text-red-500', sub: 'avg per post' },
+                  ].map((k, i) => (
+                    <Card key={i} className="border-border">
+                      <CardContent className="p-2.5">
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <k.icon className={`h-3.5 w-3.5 ${k.color}`} />
+                          <span className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground">{k.label}</span>
+                        </div>
+                        <p className="text-lg font-semibold tabular-nums text-foreground">{k.value}</p>
+                        <p className="text-[9px] text-muted-foreground">{k.sub}</p>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="text-xs font-medium text-muted-foreground">
+                    Recent posts across {selectedClient}
+                  </div>
+                  <button className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-accent">
+                    <BarChart3 className="h-3.5 w-3.5" /> Full Report
+                  </button>
+                </div>
+                {filteredPosts.slice(0, 4).map(p => <PostCard key={p.id} post={p} />)}
               </div>
-            </div>
-          </div>
-        </div>
-        <div role="separator" aria-orientation="vertical"
-          className="hidden md:block w-px shrink-0 bg-[var(--border)]" />
-        {/* ─── RIGHT: Dashboard ─── */}
-        <div className="hidden md:flex md:min-h-0 md:min-w-0 md:flex-1 flex-col bg-[var(--card)] min-w-0">
-          {/* Tabs */}
-          <div className="shrink-0 px-4 py-3 border-b border-[var(--border)]">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-[var(--foreground)]">SOCIAL INTELLIGENCE</h3>
-            </div>
-          </div>
-          <div className="shrink-0 px-4 py-2 flex gap-1.5 border-b border-[var(--border)] overflow-x-auto">
-            {[
-              { id: 'overview', label: '🕵️ Overview' },
-              { id: 'accounts', label: '📸 Accounts' },
-              { id: 'content', label: '📅 Content' },
-              { id: 'analytics', label: '📈 Analytics' },
-            ].map(function(tab) {
-              return (
-                <button key={tab.id} onClick={function() { setSelectedTab(tab.id) }}
-                  className={'shrink-0 rounded-lg px-2.5 py-1 text-[11px] font-medium transition-all ' + (selectedTab === tab.id ? 'bg-[var(--primary)]/10 text-[var(--primary)]' : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]')}>
-                  {tab.label}
-                </button>
-              )
-            })}
-          </div>
+            )}
 
-          {/* ─── TAB: Overview ─── */}
-          {selectedTab === 'overview' && (
-            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2.5 scrollbar-auto-hide">
-              {/* Quick Stats */}
-              <div className="grid grid-cols-4 gap-1.5">
-                {[
-                  { label: 'Connected Accounts', value: connectedAccounts.length + '/' + ACCOUNTS.length, color: 'text-[var(--foreground)]' },
-                  { label: 'Total Followers', value: formatNum(ENGAGEMENT_TOTALS.total_followers), color: 'text-[var(--foreground)]' },
-                  { label: 'Total Reach', value: formatNum(ENGAGEMENT_TOTALS.total_reach), color: 'text-pink-400' },
-                  { label: 'Avg Engagement', value: ENGAGEMENT_TOTALS.total_engagement + '%', color: 'text-emerald-400' },
-                ].map(function(m) {
+            {/* ═══ PLATFORMS ═══ */}
+            {tab === 'platforms' && (
+              <div className="p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-xs font-medium text-muted-foreground">{filteredPlatforms.length} connected platforms</div>
+                  <button className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:opacity-90">
+                    <Plus className="h-3.5 w-3.5" /> Connect Platform
+                  </button>
+                </div>
+                {filteredPlatforms.map(p => {
+                  const Icon = PLATFORM_ICONS[p.platform] || Globe
+                  const platformColors = { Instagram: '#e1306c', Facebook: '#1877f2', LinkedIn: '#0a66c2', Twitter: '#1da1f2', TikTok: '#000', YouTube: '#ff0000' }
+                  const color = platformColors[p.platform] || '#6b7280'
                   return (
-                    <div key={m.label} className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-2.5 py-2">
-                      <div className="text-[10px] text-[var(--muted-foreground)] mb-0.5">{m.label}</div>
-                      <div className={'text-lg font-bold tracking-tight ' + m.color}>{m.value}</div>
-                    </div>
+                    <Card key={p.id} className="border-border">
+                      <CardContent className="p-0">
+                        <div className="flex items-center gap-3 p-3">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" style={{ background: `${color}15` }}>
+                            <Icon className="h-4 w-4" style={{ color }} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-medium text-foreground">{p.name}</span>
+                              <Badge variant="outline" className="text-[9px] px-1 h-3.5">{p.client}</Badge>
+                            </div>
+                            <div className="flex items-center gap-3 text-[10px] text-muted-foreground mt-0.5">
+                              <span>{p.followers.toLocaleString()} followers</span>
+                              <span>· {p.posts} posts</span>
+                              <span>· {p.engagement_rate}% eng.</span>
+                            </div>
+                          </div>
+                          <StatusPill color={p.status === 'connected' ? '#10b981' : '#f59e0b'} text={p.status} />
+                        </div>
+                      </CardContent>
+                    </Card>
                   )
                 })}
               </div>
+            )}
 
-              {/* Connected Platforms */}
-              <div className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2.5">
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[11px] font-medium text-[var(--foreground)]">Connected Platforms</span>
-                  <span className="text-[10px] text-[var(--muted-foreground)]">{connectedAccounts.length}/{ACCOUNTS.length}</span>
+            {/* ═══ CONTENT ═══ */}
+            {tab === 'content' && (
+              <div className="p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="text-xs font-medium text-muted-foreground">{filteredPosts.length} total</div>
+                    <Badge variant="default" className="text-[9px] px-1.5 h-3.5 bg-emerald-500/90 text-white">{filteredPosts.filter(p => p.status === 'published').length} published</Badge>
+                    <Badge variant="secondary" className="text-[9px] px-1.5 h-3.5">{filteredPosts.filter(p => p.status === 'scheduled').length} scheduled</Badge>
+                    <Badge variant="outline" className="text-[9px] px-1.5 h-3.5">{filteredPosts.filter(p => p.status === 'draft').length} drafts</Badge>
+                  </div>
+                  <button className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:opacity-90">
+                    <Plus className="h-3.5 w-3.5" /> New Post
+                  </button>
                 </div>
-                <div className="space-y-1.5">
-                  {ACCOUNTS.map(function(a) {
-                    return (
-                      <div key={a.platform} className={'flex items-center justify-between rounded-lg px-2 py-1.5 ' + (a.connected ? 'bg-emerald-500/5' : 'bg-[var(--background)]')}>
-                        <div className="flex items-center gap-2">
-                          <div className={'h-1.5 w-1.5 rounded-full ' + (a.connected ? 'bg-emerald-400' : 'bg-[var(--border)]')} />
-                          <div>
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-xs font-medium text-[var(--foreground)]">{a.platform}</span>
-                              {a.connected && <span className="text-[9px] text-emerald-400">Connected</span>}
-                            </div>
-                            {a.name && <div className="text-[10px] text-[var(--muted-foreground)]">{a.name}</div>}
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-[11px] text-[var(--foreground)]">{formatNum(a.followers)}</div>
-                          <div className="text-[9px] text-[var(--muted-foreground)]">followers</div>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
+                {filteredPosts.map(p => <PostCard key={p.id} post={p} />)}
+                {filteredPosts.length === 0 && (
+                  <div className="text-center py-12">
+                    <Image className="h-10 w-10 text-muted-foreground/30 mx-auto mb-2" />
+                    <p className="text-sm text-muted-foreground">No content for this client yet. Create your first post!</p>
+                  </div>
+                )}
               </div>
+            )}
 
-              {/* Content Tips */}
-              <div className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2.5">
-                <span className="text-[11px] font-medium text-[var(--foreground)]">📝 Content Tips</span>
-                <div className="mt-1.5 space-y-1">
-                  {CONTENT_TIPS.map(function(t, idx) {
-                    return <div key={idx} className="text-[11px] text-[var(--muted-foreground)]">💡 {t}</div>
-                  })}
+            {/* ═══ SCHEDULE ═══ */}
+            {tab === 'schedule' && (
+              <div className="p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-xs font-medium text-muted-foreground">Upcoming scheduled posts</div>
+                  <button className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-accent">
+                    <Calendar className="h-3.5 w-3.5" /> Calendar View
+                  </button>
                 </div>
-              </div>
-            </div>
-          )}
-
-          {/* ─── TAB: Accounts ─── */}
-          {selectedTab === 'accounts' && (
-            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-1.5 scrollbar-auto-hide">
-              {ACCOUNTS.map(function(a) {
-                var pct = Math.round((a.followers / ENGAGEMENT_TOTALS.total_followers) * 100)
-                return (
-                  <div key={a.platform} className={'rounded-lg border ' + (a.connected ? 'border-emerald-500/20 bg-emerald-500/[.02]' : 'border-[var(--border)]')}>
-                    <div className="flex items-center justify-between">
+                {filteredPosts.filter(p => p.status === 'scheduled').length === 0 && (
+                  <div className="text-center py-8 rounded-lg border border-dashed border-border">
+                    <Calendar className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
+                    <p className="text-sm text-muted-foreground">No scheduled posts for {selectedClient}</p>
+                  </div>
+                )}
+                {filteredPosts.filter(p => p.status === 'scheduled').map(p => (
+                  <div key={p.id} className="flex items-start gap-3 rounded-lg border border-border bg-card p-3">
+                    <div className="flex flex-col items-center justify-center w-10 h-10 rounded-lg bg-blue-50 shrink-0">
+                      <span className="text-[9px] font-medium text-blue-600 leading-none">{p.scheduled.split('-')[2]}</span>
+                      <span className="text-[9px] text-blue-600 leading-none">{['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][parseInt(p.scheduled.split('-')[1])-1]}</span>
+                    </div>
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <div className={'h-2 w-2 rounded-full ' + (a.connected ? 'bg-emerald-400' : 'bg-[var(--border)]')} />
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-medium text-[var(--foreground)]">{a.platform}</span>
-                            {a.connected
-                              ? <span className="text-[9px] text-emerald-400">● Connected</span>
-                              : <span className="text-[9px] text-[var(--muted-foreground)]">Disconnected</span>}
-                          </div>
-                          {a.name && <div className="text-[10px] text-[var(--muted-foreground)]">{a.name}</div>}
-                        </div>
+                        <span className="text-xs font-medium text-foreground line-clamp-1">{p.content}</span>
+                        <PlatformBadge platform={p.platform} />
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5 text-[10px] text-muted-foreground">
+                        <Calendar className="h-3 w-3" />
+                        <span>{p.scheduled}</span>
+                        <Badge variant="outline" className="text-[9px] px-1 h-3.5">{p.client}</Badge>
                       </div>
                     </div>
-                    {a.connected && (
-                      <div className="grid grid-cols-3 gap-2 mt-2">
-                        <div>
-                          <div className="text-[9px] text-[var(--muted-foreground)]">Followers</div>
-                          <div className="text-[11px] font-medium text-[var(--foreground)]">{formatNum(a.followers)}</div>
-                        </div>
-                        <div>
-                          <div className="text-[9px] text-[var(--muted-foreground)]">Engagement</div>
-                          <div className="text-[11px] font-medium text-[var(--foreground)]">{a.engagement}%</div>
-                        </div>
-                        <div>
-                          <div className="text-[9px] text-[var(--muted-foreground)]">Posts/Month</div>
-                          <div className="text-[11px] font-medium text-[var(--foreground)]">{a.posts}</div>
-                        </div>
-                      </div>
-                    )}
+                    <div className="flex gap-1 shrink-0">
+                      <button className="rounded-md border border-border p-1 text-muted-foreground hover:text-foreground"><Edit3 className="h-3 w-3" /></button>
+                      <button className="rounded-md border border-border p-1 text-muted-foreground hover:text-destructive"><X className="h-3 w-3" /></button>
+                    </div>
                   </div>
-                )
-              })}
-            </div>
-          )}
+                ))}
+              </div>
+            )}
 
-          {/* ─── TAB: Content ─── */}
-          {selectedTab === 'content' && (
-            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2.5 scrollbar-auto-hide">
-              {/* Scheduled Posts */}
-              <div className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2.5">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[11px] font-medium text-[var(--foreground)]">📅 Scheduled This Week</span>
-                  <span className="text-[10px] text-[var(--muted-foreground)]">{pendingPosts.length} posts</span>
+            {/* ═══ AUDIENCE ═══ */}
+            {tab === 'audience' && (
+              <div className="p-4 space-y-3">
+                <div className="text-xs font-medium text-muted-foreground mb-1">
+                  Audience insights for {selectedClient}
                 </div>
-                <div className="space-y-1.5">
-                  {pendingPosts.length === 0 && <div className="text-[11px] text-[var(--muted-foreground)] py-1">No posts scheduled yet.</div>}
-                  {pendingPosts.map(function(p) {
-                    return (
-                      <div key={p.id} className="flex items-start gap-2 rounded-lg border border-[var(--border)]/50 px-2 py-1.5 bg-[var(--card)]">
-                        <div className="text-sm">{p.media}</div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-[11px] font-medium text-[var(--foreground)]">{p.platform}</span>
-                            <span className="text-[9px] text-[var(--muted-foreground)]">{p.date} @ {p.time}</span>
+                {filteredAudiences.length === 0 && (
+                  <div className="text-center py-12">
+                    <Users className="h-10 w-10 text-muted-foreground/30 mx-auto mb-2" />
+                    <p className="text-sm text-muted-foreground">No audience data available for {selectedClient}</p>
+                  </div>
+                )}
+                {filteredAudiences.map(a => {
+                  const Icon = PLATFORM_ICONS[a.platform] || Globe
+                  const platformColors = { Instagram: '#e1306c', Facebook: '#1877f2', LinkedIn: '#0a66c2', Twitter: '#1da1f2', TikTok: '#000', YouTube: '#ff0000' }
+                  const color = platformColors[a.platform] || '#6b7280'
+                  return (
+                    <Card key={a.client + a.platform} className="border-border">
+                      <CardHeader className="px-4 py-2.5 border-b border-border">
+                        <div className="flex items-center gap-2">
+                          <Icon className="h-4 w-4" style={{ color }} />
+                          <CardTitle className="text-xs font-semibold text-foreground">{a.platform} — {a.client}</CardTitle>
+                          <Badge variant="outline" className="text-[9px] px-1 h-3.5">{a.followers.toLocaleString()} followers</Badge>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="p-3">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                          {[
+                            { label: 'Growth Rate', value: `${a.growth_rate}%`, color: 'text-emerald-600' },
+                            { label: 'Top Age', value: a.top_age, color: 'text-blue-600' },
+                            { label: 'Top Gender', value: a.top_gender, color: 'text-purple-600' },
+                            { label: 'Top City', value: a.top_city, color: 'text-orange-600' },
+                            { label: 'Best Time', value: a.best_time, color: 'text-green-600' },
+                            { label: 'Best Day', value: a.best_day, color: 'text-rose-600' },
+                          ].map((k, i) => (
+                            <div key={i} className="rounded-lg bg-muted/50 p-2">
+                              <div className={`text-xs font-semibold ${k.color}`}>{k.value}</div>
+                              <div className="text-[9px] text-muted-foreground">{k.label}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* ═══ ANALYTICS ═══ */}
+            {tab === 'analytics' && (
+              <div className="p-4 space-y-3">
+                <div className="grid grid-cols-2 gap-2 mb-3">
+                  {[
+                    { label: 'Platform Report', desc: 'Per-platform performance', icon: PieChart, color: 'text-pink-500' },
+                    { label: 'Engagement Report', desc: 'Likes, shares, comments', icon: Heart, color: 'text-red-500' },
+                    { label: 'Growth Report', desc: 'Follower growth trends', icon: TrendingUp, color: 'text-emerald-500' },
+                    { label: 'Content Report', desc: 'Best performing content', icon: Image, color: 'text-blue-500' },
+                  ].map(r => (
+                    <button key={r.label} className="rounded-lg border border-border p-3 text-left hover:border-foreground/20 hover:bg-accent/30 transition-colors">
+                      <r.icon className={`h-6 w-6 ${r.color} mb-2`} />
+                      <div className="text-xs font-medium text-foreground">{r.label}</div>
+                      <div className="text-[10px] text-muted-foreground mt-0.5">{r.desc}</div>
+                      <div className="flex items-center gap-2 mt-2">
+                        <button className="flex items-center gap-1 rounded-md bg-primary px-2 py-1 text-[9px] font-medium text-white hover:opacity-90" onClick={e => e.stopPropagation()}>
+                          <Download className="h-3 w-3" /> PDF
+                        </button>
+                        <button className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[9px] font-medium text-foreground hover:bg-accent" onClick={e => e.stopPropagation()}>
+                          <Download className="h-3 w-3" /> CSV
+                        </button>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+                <Card className="border-border">
+                  <CardHeader className="px-4 py-3 border-b border-border">
+                    <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Generate Custom Report</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-3 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <select className="rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs text-foreground outline-none flex-1">
+                        <option>All Clients</option>
+                        {companies.filter(c => c.name).map(c => <option key={c.id}>{c.name}</option>)}
+                      </select>
+                      <select className="rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs text-foreground outline-none flex-1">
+                        <option>This Month</option>
+                        <option>Last Month</option>
+                        <option>Last Quarter</option>
+                        <option>Custom Range</option>
+                      </select>
+                      <button className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 shrink-0">Generate</button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* ═══ SBA ═══ */}
+            {tab === 'sba' && (
+              <div className="p-4 space-y-3">
+                <Card className="border-border">
+                  <CardHeader className="px-4 py-3 border-b border-border">
+                    <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Smart Business Assistant — Social</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-3 space-y-3">
+                    <div className="flex items-start gap-3 rounded-lg bg-purple-50 border border-purple-100 p-3">
+                      <Bot className="h-5 w-5 text-purple-500 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-xs font-medium text-purple-700 mb-1">SBA Social Insights</p>
+                        <ul className="text-[11px] text-purple-600 space-y-1">
+                          <li>• <strong>Client A</strong>: Instagram reel engagement 6.7% — best performing format</li>
+                          <li>• <strong>Client B</strong>: LinkedIn article scheduled for June 22 — high B2B potential</li>
+                          <li>• <strong>Client C</strong>: 8.1% follower growth this month — fastest growing</li>
+                          <li>• Overall avg engagement {kpis.avgEngagement}% — {'>'}3% is good benchmark</li>
+                        </ul>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { label: 'Client A Health', value: 'Growing', color: 'text-emerald-600', bg: 'bg-emerald-50' },
+                        { label: 'Client B Health', value: 'Needs Content', color: 'text-amber-600', bg: 'bg-amber-50' },
+                        { label: 'Client C Health', value: 'Viral Trend', color: 'text-purple-600', bg: 'bg-purple-50' },
+                        { label: 'Best Platform', value: 'Instagram', color: 'text-pink-600', bg: 'bg-pink-50' },
+                      ].map(s => (
+                        <div key={s.label} className={`rounded-lg ${s.bg} p-2.5`}>
+                          <div className="text-[10px] text-muted-foreground">{s.label}</div>
+                          <div className={`text-sm font-semibold ${s.color}`}>{s.value}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="rounded-lg border border-border p-3">
+                      <div className="text-xs font-medium text-foreground mb-2">Ask SBA</div>
+                      <div className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2">
+                        <Bot className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <input placeholder="e.g. Client A ki engagement kyu gira hai?" className="flex-1 bg-transparent text-xs text-foreground placeholder-muted-foreground outline-none" />
+                        <button className="rounded-lg bg-primary p-1 text-white"><Send className="h-3.5 w-3.5" /></button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* ═══ SETTINGS ═══ */}
+            {tab === 'settings' && (
+              <div className="p-4 space-y-3">
+                <Card className="border-border">
+                  <CardHeader className="px-4 py-3 border-b border-border">
+                    <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Connected Platforms</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-3 space-y-2">
+                    {companies.filter(c => c.name).map(c => (
+                      <div key={c.id} className="flex items-center justify-between rounded-lg border border-border p-2.5">
+                        <div className="flex items-center gap-2.5">
+                          <Globe className="h-4 w-4 text-muted-foreground" />
+                          <div>
+                            <div className="text-xs font-medium text-foreground">{c.name}</div>
+                            <div className="text-[10px] text-muted-foreground">
+                              {filteredPlatforms.filter(p => p.client === c.name).length} platforms connected
+                            </div>
                           </div>
-                          <div className="text-[10px] text-[var(--muted-foreground)] truncate mt-0.5">{p.content}</div>
                         </div>
+                        <button className="rounded-lg border border-border px-2.5 py-1 text-[10px] font-medium text-foreground hover:bg-accent transition-colors">Manage</button>
                       </div>
-                    )
-                  })}
-                </div>
-              </div>
+                    ))}
+                  </CardContent>
+                </Card>
 
-              {/* Top Posts */}
-              <div className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2.5">
-                <span className="text-[11px] font-medium text-[var(--foreground)]">🏆 Top Performing Posts</span>
-                <div className="mt-2 space-y-1.5">
-                  {TOP_POSTS.map(function(p, i) {
-                    return (
-                      <div key={i} className="border border-[var(--border)] rounded-lg px-2 py-1.5">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[10px] font-medium text-[var(--muted-foreground)]">#{i + 1}</span>
-                          <span className="text-[10px] text-[var(--muted-foreground)]">{p.platform}</span>
-                        </div>
-                        <div className="text-[10px] text-[var(--foreground)] mt-0.5">{p.content}</div>
-                        <div className="flex items-center gap-2 mt-1 text-[9px] text-[var(--muted-foreground)]">
-                          <span>❤️ {p.engagement}% eng</span>
-                          <span>👁 {formatNum(p.reach)} reach</span>
-                        </div>
+                <Card className="border-border">
+                  <CardHeader className="px-4 py-3 border-b border-border">
+                    <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Auto-Posting Preferences</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-3 space-y-2">
+                    {['Instagram', 'Facebook', 'LinkedIn', 'Twitter'].map(p => (
+                      <div key={p} className="flex items-center justify-between rounded-lg border border-border p-2.5">
+                        <PlatformBadge platform={p} />
+                        <label className="flex items-center gap-2 text-[10px] text-muted-foreground cursor-pointer">
+                          Auto-post
+                          <div className="relative h-4 w-7 rounded-full border border-border bg-muted transition-colors">
+                            <div className="absolute left-0.5 top-0.5 h-3 w-3 rounded-full bg-foreground/80 transition-transform" />
+                          </div>
+                        </label>
                       </div>
-                    )
-                  })}
-                </div>
+                    ))}
+                  </CardContent>
+                </Card>
               </div>
-            </div>
-          )}
+            )}
+          </div>
+        </div>
 
-          {/* ─── TAB: Analytics ─── */}
-          {selectedTab === 'analytics' && (
-            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2.5 scrollbar-auto-hide">
-              {/* Overview stats */}
-              <div className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2.5">
-                <span className="text-[11px] font-medium text-[var(--foreground)]">📊 Engagement Overview</span>
-                <div className="mt-2 grid grid-cols-2 gap-1.5">
-                  {[
-                    { label: 'Total Posts', value: ENGAGEMENT_TOTALS.total_posts_this_month + ' this month', sub: '+8 vs last month' },
-                    { label: 'Best Engagement', value: ENGAGEMENT_TOTALS.best_platform_eng + '%', sub: ENGAGEMENT_TOTALS.best_platform },
-                    { label: 'Avg Reach/Post', value: formatNum(Math.round(ENGAGEMENT_TOTALS.total_reach / ENGAGEMENT_TOTALS.total_posts_this_month)), sub: 'across all platforms' },
-                  ].map(function(m) {
-                    return (
-                      <div key={m.label} className="rounded-lg border border-[var(--border)] bg-[var(--card)] px-2.5 py-2">
-                        <div className="text-[10px] text-[var(--muted-foreground)]">{m.label}</div>
-                        <div className="text-sm font-semibold text-[var(--foreground)]">{m.value}</div>
-                        <div className="text-[9px] text-[var(--muted-foreground)]">{m.sub}</div>
-                      </div>
-                    )
-                  })}
-                  <div className="rounded-lg border border-[var(--border)] bg-[var(--card)] px-2.5 py-2 flex items-center justify-center">
-                    <span className="text-[11px] text-[var(--muted-foreground)]">More data coming...</span>
+        {/* ═══ RIGHT: Analytics — 2/5 ═══ */}
+        <div className="hidden lg:flex lg:w-2/5 flex-col bg-background border-l border-border overflow-y-auto">
+          <div className="p-4 space-y-4">
+            {/* ─── KPI Cards ─── */}
+            <div className="grid grid-cols-2 gap-2">
+              <Card className="border-border">
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Users className="h-3.5 w-3.5 text-primary" />
+                    <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Followers</span>
                   </div>
-                </div>
-              </div>
-
-              {/* Per-platform engagement bars */}
-              <div className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2.5">
-                <span className="text-[11px] font-medium text-[var(--foreground)]">📈 Per-Platform Engagement</span>
-                <div className="mt-2 space-y-1.5">
-                  {ACCOUNTS.filter(function(a) { return a.connected }).sort(function(a, b) { return b.engagement - a.engagement }).map(function(a) {
-                    var maxEng = Math.max(...ACCOUNTS.filter(function(x) { return x.connected }).map(function(x) { return x.engagement }))
-                    return (
-                      <div key={a.platform} className="flex items-center gap-2">
-                        <span className="w-20 text-[10px] text-[var(--muted-foreground)]">{a.platform}</span>
-                        <div className="flex-1 h-3 rounded-full bg-[var(--border)]/30">
-                          <div className={'h-full rounded-full ' + (a.engagement === maxEng ? 'bg-emerald-400' : 'bg-pink-400/60')} style={{ width: Math.max(2, a.engagement) + '%' }} />
-                        </div>
-                        <span className="w-8 text-right text-[10px] text-[var(--foreground)]">{a.engagement}%</span>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-
-              {/* Post types breakdown */}
-              <div className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2.5">
-                <span className="text-[11px] font-medium text-[var(--foreground)]">🎯 Content Type Performance</span>
-                <div className="mt-2 grid grid-cols-3 gap-1.5">
-                  {[
-                    { type: '📸 Image', eng: '4.2%', reach: '12.5K' },
-                    { type: '🎬 Video', eng: '3.8%', reach: '18.2K' },
-                    { type: '📝 Carousel', eng: '5.1%', reach: '9.8K' },
-                  ].map(function(p) {
-                    return (
-                      <div key={p.type} className="rounded-lg border border-[var(--border)] bg-[var(--card)] px-2 py-1.5 text-center">
-                        <div className="text-[10px] text-[var(--muted-foreground)]">{p.type}</div>
-                        <div className="text-[11px] font-medium text-[var(--foreground)]">{p.eng}</div>
-                        <div className="text-[9px] text-[var(--muted-foreground)]">{p.reach}</div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-
-              {/* Content Tips */}
-              <div className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2.5">
-                <span className="text-[11px] font-medium text-[var(--foreground)]">📝 Tips</span>
-                <div className="mt-1.5 space-y-1">
-                  {CONTENT_TIPS.map(function(t, idx) {
-                    return <div key={idx} className="text-[11px] text-[var(--muted-foreground)]">💡 {t}</div>
-                  })}
-                </div>
-              </div>
+                  <p className="text-xl font-semibold tabular-nums text-foreground">{kpis.totalFollowers.toLocaleString()}</p>
+                  <p className="text-[10px] text-muted-foreground">across all platforms</p>
+                </CardContent>
+              </Card>
+              <Card className="border-border">
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <MessageCircle className="h-3.5 w-3.5 text-emerald-500" />
+                    <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Engagement</span>
+                  </div>
+                  <p className="text-xl font-semibold tabular-nums text-foreground">{kpis.avgEngagement}%</p>
+                  <p className="text-[10px] text-muted-foreground">avg across platforms</p>
+                </CardContent>
+              </Card>
+              <Card className="border-border">
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Image className="h-3.5 w-3.5 text-blue-500" />
+                    <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Posts</span>
+                  </div>
+                  <p className="text-xl font-semibold tabular-nums text-foreground">{kpis.totalPosts}</p>
+                  <p className="text-[10px] text-muted-foreground">{kpis.totalPublished} pub · {kpis.totalScheduled} sch</p>
+                </CardContent>
+              </Card>
+              <Card className="border-border">
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Heart className="h-3.5 w-3.5 text-red-500" />
+                    <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Reactions</span>
+                  </div>
+                  <p className="text-xl font-semibold tabular-nums text-foreground">{(kpis.totalLikes + kpis.totalComments).toLocaleString()}</p>
+                  <p className="text-[10px] text-muted-foreground">{kpis.totalLikes} likes · {kpis.totalComments} comments</p>
+                </CardContent>
+              </Card>
             </div>
-          )}
+
+            {/* ─── Client Breakdown ─── */}
+            <Card className="border-border">
+              <CardHeader className="px-4 py-3 border-b border-border">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    {selectedClient === 'All Clients' ? 'Client Platforms' : selectedClient}
+                  </CardTitle>
+                  <Globe className="h-3.5 w-3.5 text-muted-foreground" />
+                </div>
+              </CardHeader>
+              <CardContent className="p-3 space-y-2">
+                {selectedClient === 'All Clients' ? (
+                  [...new Set(SAMPLE_PLATFORMS.map(p => p.client))].map(client => {
+                    const platforms = SAMPLE_PLATFORMS.filter(p => p.client === client)
+                    return (
+                      <div key={client} className="flex items-center justify-between rounded-lg border border-border p-2.5">
+                        <div>
+                          <div className="text-xs font-medium text-foreground">{client}</div>
+                          <div className="text-[10px] text-muted-foreground">{platforms.length} platforms · {platforms.reduce((s, p) => s + p.followers, 0).toLocaleString()} followers</div>
+                        </div>
+                        <div className="flex gap-1">
+                          {platforms.filter(p => p.status === 'connected').length > 0 && (
+                            <Badge variant="default" className="text-[9px] px-1 h-3.5 bg-emerald-500">{platforms.filter(p => p.status === 'connected').length} active</Badge>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })
+                ) : (
+                  <div className="text-xs text-muted-foreground text-center py-3">
+                    Showing platforms for <span className="font-medium text-foreground">{selectedClient}</span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* ─── Quick Actions ─── */}
+            <Card className="border-border">
+              <CardHeader className="px-4 py-3 border-b border-border">
+                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Quick Actions</CardTitle>
+              </CardHeader>
+              <CardContent className="p-3 grid grid-cols-2 gap-2">
+                <button onClick={() => { setTab('content') }}
+                  className="flex items-center gap-2 rounded-lg border border-border p-2.5 text-left hover:border-primary/30 hover:bg-primary/5 transition-colors group">
+                  <Plus className="h-4 w-4 text-emerald-500" />
+                  <div className="text-xs font-medium text-foreground group-hover:text-primary">New Post</div>
+                </button>
+                <button onClick={() => { setTab('schedule') }}
+                  className="flex items-center gap-2 rounded-lg border border-border p-2.5 text-left hover:border-primary/30 hover:bg-primary/5 transition-colors group">
+                  <Calendar className="h-4 w-4 text-blue-500" />
+                  <div className="text-xs font-medium text-foreground group-hover:text-primary">Schedule</div>
+                </button>
+                <button onClick={() => { setTab('analytics') }}
+                  className="flex items-center gap-2 rounded-lg border border-border p-2.5 text-left hover:border-primary/30 hover:bg-primary/5 transition-colors group">
+                  <BarChart3 className="h-4 w-4 text-purple-500" />
+                  <div className="text-xs font-medium text-foreground group-hover:text-primary">Analytics</div>
+                </button>
+                <button onClick={() => { setTab('sba') }}
+                  className="flex items-center gap-2 rounded-lg border border-border p-2.5 text-left hover:border-primary/30 hover:bg-primary/5 transition-colors group">
+                  <Bot className="h-4 w-4 text-orange-500" />
+                  <div className="text-xs font-medium text-foreground group-hover:text-primary">SBA Insights</div>
+                </button>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
     </PageShell>

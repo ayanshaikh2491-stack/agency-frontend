@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import {
   Settings,
@@ -22,16 +22,16 @@ const PLATFORMS = [
     id: 'facebook',
     name: 'Facebook Page',
     emoji: '👍',
-    desc: 'Connect your Facebook Business Page to post, engage, and run ads',
-    setupUrl: 'https://developers.facebook.com/apps/',
+    desc: 'Connect Page via Access Token (60 days valid). Browser login → auto Page Token extract. No app review needed.',
+    setupUrl: 'https://developers.facebook.com/tools/explorer/',
     bg: '#1877f2',
   },
   {
     id: 'instagram',
     name: 'Instagram Business',
     emoji: '📸',
-    desc: 'Connect Instagram Business account for posts, stories & analytics',
-    setupUrl: 'https://developers.facebook.com/docs/instagram-api/',
+    desc: 'Same FB Page Token works if IG Business is linked to your Page. Image posts only (JPG/PNG).',
+    setupUrl: 'https://business.facebook.com/',
     bg: '#e1306c',
   },
   {
@@ -93,6 +93,30 @@ export default function ConnectPage() {
   const [sbaInput, setSbaInput] = useState('')
   const [sbaSending, setSbaSending] = useState(false)
   const [connectedAccounts, setConnectedAccounts] = useState([])
+
+  // ── OAuth Popup Message Listener ──────────────────────────────
+  useEffect(() => {
+    function handleOAuthMessage(event) {
+      // Only accept messages from our own popup
+      if (event.data?.type !== 'oauth-result') return
+
+      const { platform, success, error } = event.data
+      if (success) {
+        setConnectedAccounts((c) => (c.includes(platform) ? c : [...c, platform]))
+        setLogs((l) => [
+          ...l,
+          { time: new Date().toLocaleTimeString(), msg: `✅ ${platform} connected via OAuth! Token saved.`, ok: true },
+        ])
+      } else {
+        setLogs((l) => [
+          ...l,
+          { time: new Date().toLocaleTimeString(), msg: `❌ ${platform} OAuth failed: ${error || 'unknown'}`, ok: false },
+        ])
+      }
+    }
+    window.addEventListener('message', handleOAuthMessage)
+    return () => window.removeEventListener('message', handleOAuthMessage)
+  }, [])
 
   function getN8nWebhookUrl(platform) {
     const base = webhookUrl.replace(/\/+$/, '')

@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import { CompanyProvider, useCompany } from '@/lib/client-context'
 import { motion, AnimatePresence } from 'framer-motion'
 import ClientSwitcher from '@/components/ClientSwitcher'
+import { useTheme } from '@/lib/theme-context'
 import {
   LayoutDashboard,
   Inbox,
@@ -15,13 +16,19 @@ import {
   History,
   SquarePen,
   Network,
-  Settings,
+  SettingsIcon,
   UserRound,
   LogOut,
   BookOpen,
   Package,
   ShieldCheck,
   DollarSign,
+  Crown,
+  Share2,
+  Megaphone,
+  Bot,
+  Sun,
+  Moon,
 } from 'lucide-react'
 
 /* ─── NavItem (sidebar variant) ─── */
@@ -66,7 +73,7 @@ function SidebarSection({ label, children }) {
 }
 
 /* ─── Agent Row (sidebar) ─── */
-function AgentRow({ name, emoji, status, href }) {
+function AgentRow({ name, icon: Icon, status, href }) {
   const statusColors = {
     running: '#10b981',
     active: '#4ade80',
@@ -78,7 +85,8 @@ function AgentRow({ name, emoji, status, href }) {
 
   const row = (
     <div className="flex items-center gap-2.5 text-[13px] font-medium transition-colors cursor-pointer px-3 py-1.5 rounded-md text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-primary">
-      {emoji && <span className="shrink-0 text-xs">{emoji}</span>}
+      {Icon && <Icon className="h-4 w-4 shrink-0 text-sidebar-primary" />}
+      {!Icon && emoji && <span className="shrink-0 text-xs">{emoji}</span>}
       <span className="flex-1 truncate">{name}</span>
       <span className="relative flex h-2 w-2 shrink-0">
         {status === 'running' ? (
@@ -97,6 +105,20 @@ function AgentRow({ name, emoji, status, href }) {
     return <Link href={href} className="block no-underline">{row}</Link>
   }
   return row
+}
+
+/* ─── Theme Toggle ─── */
+function ThemeToggle() {
+  const { theme, toggleTheme } = useTheme()
+  return (
+    <button
+      onClick={toggleTheme}
+      className="flex items-center gap-2.5 w-full rounded-md px-3 py-2 text-[13px] font-medium text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-primary transition-colors"
+    >
+      {theme === 'light' ? <Moon className="h-4 w-4 shrink-0" /> : <Sun className="h-4 w-4 shrink-0" />}
+      <span>{theme === 'light' ? 'Dark Mode' : 'Light Mode'}</span>
+    </button>
+  )
 }
 
 /* ─── Account Menu ─── */
@@ -156,9 +178,10 @@ function SidebarNav() {
   }, [selectedCompany])
 
   const mainAgents = [
-    { id: 'ceo', name: 'CEO Console', status: 'running', emoji: '👑', href: '/admin/ceo' },
-    { id: 'social', name: 'Social Media', status: 'running', emoji: '📱', href: '/admin/social' },
-    { id: 'ads', name: 'Ads Manager', status: 'running', emoji: '📢', href: '/admin/ads' },
+    { id: 'ceo', name: 'CEO Console', status: 'running', emoji: '', href: '/admin/ceo', icon: Crown },
+    { id: 'sba', name: 'SBA', status: 'running', emoji: '', href: '/admin/sba', icon: Bot },
+    { id: 'social', name: 'Social Media', status: 'running', emoji: '', href: '/admin/social', icon: Share2 },
+    { id: 'ads', name: 'Ads Manager', status: 'running', emoji: '', href: '/admin/ads', icon: Megaphone },
   ]
 
   return (
@@ -191,7 +214,7 @@ function SidebarNav() {
         {/* Agency */}
         <SidebarSection label="Agency">
           {mainAgents.map((a) => (
-            <AgentRow key={a.id} name={a.name} emoji={a.emoji} status={a.status} href={a.href} />
+            <AgentRow key={a.id} name={a.name} icon={a.icon} status={a.status} href={a.href} />
           ))}
           {agents.map((agent) => (
             <AgentRow key={agent.id} name={agent.label || agent.name} emoji={agent.emoji} status={agent.status} />
@@ -201,9 +224,14 @@ function SidebarNav() {
         {/* Company */}
         <SidebarSection label="Company">
           <NavItem href="/admin/org" icon={Network} label="Org" />
-          <NavItem href="/admin/settings" icon={Settings} label="Settings" />
+          <NavItem href="/admin/settings" icon={SettingsIcon} label="Settings" />
         </SidebarSection>
       </nav>
+
+      {/* ─── Theme Toggle ─── */}
+      <div className="px-2.5 pb-1">
+        <ThemeToggle />
+      </div>
 
       <AccountMenu />
     </>
