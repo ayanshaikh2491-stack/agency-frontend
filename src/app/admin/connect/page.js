@@ -165,7 +165,7 @@ export default function ConnectPage() {
             ok: true,
           },
         ])
-        const oauthRes = await fetch(`/api/social/oauth/${platform}/url`)
+        const oauthRes = await fetch(`/api/social/oauth/${platform}/authorize`)
         const oauthData = await oauthRes.json()
         const url = oauthData?.oauth_url || oauthData?.url
         if (url) {
@@ -191,7 +191,7 @@ export default function ConnectPage() {
         },
       ])
       try {
-        const oauthRes = await fetch(`/api/social/oauth/${platform}/url`)
+        const oauthRes = await fetch(`/api/social/oauth/${platform}/authorize`)
         const oauthData = await oauthRes.json()
         const url = oauthData?.oauth_url || oauthData?.url
         if (url) {
