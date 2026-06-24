@@ -19,8 +19,15 @@ export async function GET(request, { params }) {
     const resp = await fetch(targetUrl, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
+      // Follow redirects so we get the final response
+      redirect: 'follow',
       signal: AbortSignal.timeout(30000),
     })
+
+    // If backend returned a redirect, forward it to the browser
+    if (resp.redirected) {
+      return NextResponse.redirect(resp.url, { status: 302 })
+    }
 
     const contentType = resp.headers.get('content-type') || ''
     if (contentType.includes('text/html')) {
