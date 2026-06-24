@@ -27,6 +27,7 @@ import {
   Share2,
   Megaphone,
   Bot,
+  Layers,
   Sun,
   Moon,
 } from 'lucide-react'
@@ -202,13 +203,7 @@ function SidebarNav() {
 
         {/* Work */}
         <SidebarSection label="Work">
-          <NavItem href="/admin/dashboard/chat" icon={CircleDot} label="Boardroom" />
-          <NavItem href="/admin/tickets" icon={Package} label="Tickets" />
-          <NavItem href="/admin/routines" icon={Repeat} label="Routines" />
-          <NavItem href="/admin/goals" icon={Target} label="Goals" />
-          <NavItem href="/admin/activity" icon={History} label="Activity" />
-          <NavItem href="/admin/approvals" icon={ShieldCheck} label="Approvals" />
-          <NavItem href="/admin/costs" icon={DollarSign} label="Costs" />
+          <NavItem href="/admin/work" icon={Layers} label="Work Center" />
         </SidebarSection>
 
         {/* Agency */}

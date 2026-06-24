@@ -230,7 +230,7 @@ export default function ConnectPage() {
       { time: new Date().toLocaleTimeString(), msg: `💾 Saving token for ${manualPlatform}...`, ok: true },
     ])
     try {
-      const res = await fetch('/api/social-manager/connect', {
+      const res = await fetch('/api/save-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
