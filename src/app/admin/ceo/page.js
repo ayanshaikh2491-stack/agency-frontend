@@ -304,7 +304,7 @@ function ChatTab({ activeCompany }) {
     const intent = detectIntent(text)
     setRoutingInfo(intent)
 
-    fetch('/api/ceo/chat', {
+    fetch('/api/ceo/chat-direct', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message: text, session_id: 'web' })
