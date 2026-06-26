@@ -5,7 +5,7 @@ import {
   Bot, MessageSquare, Send, Sparkles, Zap, CheckCircle2,
   Activity, BarChart3, Users, Clock, DollarSign, TrendingUp,
   PieChart, AlertCircle, Loader2, RefreshCw, ChevronDown,
-  Plus, Search, Filter, Download, ExternalLink,
+  Plus, Search, Filter, Download, ExternalLink, X,
   Columns3, Calendar, Mail, Phone, Globe, Target,
   Play, Pause, GripVertical, UserPlus, ArrowUpRight,
   Briefcase, Percent,
@@ -65,6 +65,29 @@ export default function SalesAgentPage() {
   const [loading, setLoading] = useState(false)
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
+
+  /* ─── Modal states ─── */
+  const [showScheduleModal, setShowScheduleModal] = useState(false)
+  const [scheduleForm, setScheduleForm] = useState({
+    title: '',
+    lead_id: '',
+    lead_name: '',
+    date: '',
+    time: '',
+    duration_minutes: '',
+    notes: '',
+  })
+  const [scheduling, setScheduling] = useState(false)
+
+  const [showCampaignModal, setShowCampaignModal] = useState(false)
+  const [campaignForm, setCampaignForm] = useState({
+    name: '',
+    type: 'email',
+    target_industry: '',
+    target_location: '',
+    message_template: '',
+  })
+  const [creatingCampaign, setCreatingCampaign] = useState(false)
 
   /* ─── Fetch stats on mount ─── */
   useEffect(() => {
@@ -145,6 +168,69 @@ export default function SalesAgentPage() {
       setMsgs(c => [...c, { role: 'system', content: `❌ Error: ${e.message}` }])
     }
     setLoading(false)
+  }
+
+  /* ─── Schedule Meeting ─── */
+  async function handleScheduleMeeting(e) {
+    e.preventDefault()
+    setScheduling(true)
+    try {
+      const body = { title: scheduleForm.title, date: scheduleForm.date, time: scheduleForm.time }
+      if (scheduleForm.lead_id) body.lead_id = parseInt(scheduleForm.lead_id)
+      if (scheduleForm.lead_name) body.lead_name = scheduleForm.lead_name
+      if (scheduleForm.duration_minutes) body.duration_minutes = parseInt(scheduleForm.duration_minutes)
+      if (scheduleForm.notes) body.notes = scheduleForm.notes
+      const res = await fetch(`${API}/meetings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const d = await res.json()
+      if (d?.success) {
+        setShowScheduleModal(false)
+        setScheduleForm({ title: '', lead_id: '', lead_name: '', date: '', time: '', duration_minutes: '', notes: '' })
+        fetch(`${API}/meetings`).then(r => r.json()).then(d => setMeetingsList(d?.data?.meetings || []))
+      }
+    } catch (e) { console.error(e) }
+    setScheduling(false)
+  }
+
+  /* ─── Create Campaign ─── */
+  async function handleCreateCampaign(e) {
+    e.preventDefault()
+    setCreatingCampaign(true)
+    try {
+      const body = {
+        name: campaignForm.name,
+        type: campaignForm.type,
+        target_industry: campaignForm.target_industry,
+        target_location: campaignForm.target_location,
+        message_template: campaignForm.message_template,
+      }
+      const res = await fetch(`${API}/outbound`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const d = await res.json()
+      if (d?.success) {
+        setShowCampaignModal(false)
+        setCampaignForm({ name: '', type: 'email', target_industry: '', target_location: '', message_template: '' })
+        fetch(`${API}/outbound`).then(r => r.json()).then(d => setCampaignsList(d?.data?.campaigns || []))
+      }
+    } catch (e) { console.error(e) }
+    setCreatingCampaign(false)
+  }
+
+  /* ─── Launch Campaign ─── */
+  async function handleLaunchCampaign(campaignId) {
+    try {
+      const res = await fetch(`${API}/outbound/${campaignId}/launch`, { method: 'POST' })
+      const d = await res.json()
+      if (d?.success) {
+        fetch(`${API}/outbound`).then(r => r.json()).then(d => setCampaignsList(d?.data?.campaigns || []))
+      }
+    } catch (e) { console.error(e) }
   }
 
   /* ─── Pipeline stage counts ─── */
@@ -453,7 +539,7 @@ export default function SalesAgentPage() {
             <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               All Meetings ({meetingsList.length})
             </h3>
-            <Button size="sm" variant="outline" className="text-[11px] h-7">
+            <Button size="sm" variant="outline" className="text-[11px] h-7" onClick={() => setShowScheduleModal(true)}>
               <Plus className="size-3 mr-1" /> Schedule
             </Button>
           </div>
@@ -591,7 +677,7 @@ export default function SalesAgentPage() {
             <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Outbound Campaigns ({campaignsList.length})
             </h3>
-            <Button size="sm" variant="outline" className="text-[11px] h-7">
+            <Button size="sm" variant="outline" className="text-[11px] h-7" onClick={() => setShowCampaignModal(true)}>
               <Plus className="size-3 mr-1" /> New Campaign
             </Button>
           </div>
@@ -622,6 +708,7 @@ export default function SalesAgentPage() {
                     variant={c.status === 'running' ? 'outline' : 'default'}
                     className="text-[11px] h-7"
                     disabled={c.status === 'running'}
+                    onClick={() => handleLaunchCampaign(c.id)}
                   >
                     {c.status === 'running' ? <Pause className="size-3 mr-1" /> : <Play className="size-3 mr-1" />}
                     {c.status === 'running' ? 'Running' : 'Launch'}
@@ -639,6 +726,7 @@ export default function SalesAgentPage() {
      Render
      ═══════════════════════════════════════════════ */
   return (
+    <>
     <PageShell>
       {/* Topbar */}
       <div className="topbar">
@@ -712,5 +800,111 @@ export default function SalesAgentPage() {
         {activeTab === 'outbound' && renderOutbound()}
       </div>
     </PageShell>
+
+      {/* ─── Schedule Meeting Modal ─── */}
+      {showScheduleModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowScheduleModal(false)}>
+          <div className="bg-card border border-border rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border/60">
+              <h3 className="text-sm font-semibold text-foreground">Schedule Meeting</h3>
+              <button onClick={() => setShowScheduleModal(false)} className="size-7 flex items-center justify-center rounded-md hover:bg-accent/10 text-muted-foreground hover:text-foreground transition-colors">
+                <X className="size-4" />
+              </button>
+            </div>
+            <form onSubmit={handleScheduleMeeting} className="p-5 space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Title *</label>
+                <input value={scheduleForm.title} onChange={e => setScheduleForm(f => ({...f, title: e.target.value}))} required placeholder="e.g. Discovery Call" className="w-full h-9 px-3 text-sm bg-transparent border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring text-foreground placeholder:text-muted-foreground/50" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">Lead</label>
+                  <select value={scheduleForm.lead_id} onChange={e => { const opt = e.target.options[e.target.selectedIndex]; setScheduleForm(f => ({...f, lead_id: e.target.value, lead_name: opt?.getAttribute('data-name') || ''})) }} className="w-full h-9 px-3 text-sm bg-transparent border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring text-foreground">
+                    <option value="">None selected</option>
+                    {leadsList.map(l => <option key={l.id} value={l.id} data-name={l.business_name || l.name}>{l.business_name || l.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">Lead Name</label>
+                  <input value={scheduleForm.lead_name} onChange={e => setScheduleForm(f => ({...f, lead_name: e.target.value}))} placeholder="Custom name" className="w-full h-9 px-3 text-sm bg-transparent border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring text-foreground placeholder:text-muted-foreground/50" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">Date *</label>
+                  <input value={scheduleForm.date} onChange={e => setScheduleForm(f => ({...f, date: e.target.value}))} required type="date" className="w-full h-9 px-3 text-sm bg-transparent border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring text-foreground" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">Time *</label>
+                  <input value={scheduleForm.time} onChange={e => setScheduleForm(f => ({...f, time: e.target.value}))} required type="time" className="w-full h-9 px-3 text-sm bg-transparent border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring text-foreground" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">Duration (min)</label>
+                  <input value={scheduleForm.duration_minutes} onChange={e => setScheduleForm(f => ({...f, duration_minutes: e.target.value}))} type="number" min="1" placeholder="30" className="w-full h-9 px-3 text-sm bg-transparent border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring text-foreground placeholder:text-muted-foreground/50" />
+                </div>
+                <div></div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Notes</label>
+                <textarea value={scheduleForm.notes} onChange={e => setScheduleForm(f => ({...f, notes: e.target.value}))} rows={3} placeholder="Meeting agenda or notes..." className="w-full px-3 py-2 text-sm bg-transparent border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring text-foreground placeholder:text-muted-foreground/50 resize-none" />
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <Button type="button" variant="outline" size="sm" onClick={() => setShowScheduleModal(false)}>Cancel</Button>
+                <Button type="submit" size="sm" disabled={scheduling}>{scheduling ? <Loader2 className="size-3.5 animate-spin mr-1" /> : null}{scheduling ? 'Scheduling...' : 'Schedule Meeting'}</Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── New Campaign Modal ─── */}
+      {showCampaignModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowCampaignModal(false)}>
+          <div className="bg-card border border-border rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border/60">
+              <h3 className="text-sm font-semibold text-foreground">New Campaign</h3>
+              <button onClick={() => setShowCampaignModal(false)} className="size-7 flex items-center justify-center rounded-md hover:bg-accent/10 text-muted-foreground hover:text-foreground transition-colors">
+                <X className="size-4" />
+              </button>
+            </div>
+            <form onSubmit={handleCreateCampaign} className="p-5 space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Campaign Name *</label>
+                <input value={campaignForm.name} onChange={e => setCampaignForm(f => ({...f, name: e.target.value}))} required placeholder="e.g. Q2 Cold Outreach" className="w-full h-9 px-3 text-sm bg-transparent border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring text-foreground placeholder:text-muted-foreground/50" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Type *</label>
+                <select value={campaignForm.type} onChange={e => setCampaignForm(f => ({...f, type: e.target.value}))} required className="w-full h-9 px-3 text-sm bg-transparent border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring text-foreground">
+                  <option value="email">Email</option>
+                  <option value="sms">SMS</option>
+                  <option value="linkedin">LinkedIn</option>
+                  <option value="cold_call">Cold Call</option>
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">Target Industry</label>
+                  <input value={campaignForm.target_industry} onChange={e => setCampaignForm(f => ({...f, target_industry: e.target.value}))} placeholder="e.g. SaaS" className="w-full h-9 px-3 text-sm bg-transparent border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring text-foreground placeholder:text-muted-foreground/50" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">Target Location</label>
+                  <input value={campaignForm.target_location} onChange={e => setCampaignForm(f => ({...f, target_location: e.target.value}))} placeholder="e.g. India" className="w-full h-9 px-3 text-sm bg-transparent border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring text-foreground placeholder:text-muted-foreground/50" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">Message Template</label>
+                <textarea value={campaignForm.message_template} onChange={e => setCampaignForm(f => ({...f, message_template: e.target.value}))} rows={4} placeholder="Hi {{lead_name}}, we at {{company}} would love to connect..." className="w-full px-3 py-2 text-sm bg-transparent border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring text-foreground placeholder:text-muted-foreground/50 resize-none" />
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <Button type="button" variant="outline" size="sm" onClick={() => setShowCampaignModal(false)}>Cancel</Button>
+                <Button type="submit" size="sm" disabled={creatingCampaign}>{creatingCampaign ? <Loader2 className="size-3.5 animate-spin mr-1" /> : null}{creatingCampaign ? 'Creating...' : 'Create Campaign'}</Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </>
   )
 }

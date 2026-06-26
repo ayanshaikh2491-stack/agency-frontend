@@ -77,12 +77,25 @@ export default function SBAPage() {
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [mode, setMode] = useState('ai')
+  const [activeAgent, setActiveAgent] = useState('ceo')
   const [connectedPlatforms, setConnectedPlatforms] = useState([])
   const [pipelineData, setPipelineData] = useState(null)
   const [meetingsList, setMeetingsList] = useState([])
   const [financeData, setFinanceData] = useState(null)
   const [loadingTab, setLoadingTab] = useState(false)
   const chatEndRef = useRef(null)
+
+  /* ─── Agent options ─── */
+  const AGENTS = [
+    { id: 'ceo', name: 'CEO', icon: '🧠', desc: 'Boss — delegates to all agents' },
+    { id: 'social-manager', name: 'Social', icon: '📱', desc: 'Strategy + posting + scheduling' },
+    { id: 'content-creator', name: 'Content', icon: '✍️', desc: 'Creates posts, captions, blogs' },
+    { id: 'ads-runner', name: 'Ads', icon: '📢', desc: 'Campaigns + targeting + optimization' },
+    { id: 'intake-researcher', name: 'Research', icon: '🔍', desc: 'Leads + competitor analysis' },
+    { id: 'analytics-bot', name: 'Analytics', icon: '📊', desc: 'Reports + insights + ROI' },
+    { id: 'sales-closer', name: 'Sales', icon: '💼', desc: 'Proposals + lead closing' },
+    { id: 'seo-engine', name: 'SEO', icon: '📈', desc: 'Audits + keywords + rankings' },
+  ]
 
   /* ─── Fetch connected platforms ─── */
   useEffect(() => {
@@ -149,24 +162,24 @@ export default function SBAPage() {
           throw new Error('n8n not available')
         }
       } else {
-        const res = await fetch('/api/social-manager/chat', {
+        const res = await fetch('/api/sba/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: msg }),
+          body: JSON.stringify({ message: msg, session_id: 'sba_web' }),
         })
         const d = await res.json()
-        const reply = d?.data?.response || d?.response || JSON.stringify(d)
+        const reply = d?.data?.content || d?.data?.response || d?.response || JSON.stringify(d)
         setChat(c => [...c, { role: 'assistant', content: reply }])
       }
     } catch (e) {
       try {
-        const res = await fetch('/api/social-manager/chat', {
+        const res = await fetch('/api/sba/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: msg }),
+          body: JSON.stringify({ message: msg, session_id: 'sba_web' }),
         })
         const d = await res.json()
-        const reply = d?.data?.response || d?.response || JSON.stringify(d)
+        const reply = d?.data?.content || d?.data?.response || d?.response || JSON.stringify(d)
         setChat(c => [...c, { role: 'assistant', content: reply + '\n\n_(n8n fallback → AI)_' }])
       } catch (e2) {
         setChat(c => [...c, { role: 'assistant', content: `❌ Error: ${e2.message}` }])
@@ -190,7 +203,7 @@ export default function SBAPage() {
             <Bot className="size-4 text-accent" />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-medium text-foreground">SBA — Smart Business Assistant</div>
+            <div className="text-sm font-medium text-foreground">CEO Agent — Agency Boss</div>
             <div className="text-[11px] text-muted-foreground flex items-center gap-1.5">
               <span className={`inline-block w-1.5 h-1.5 rounded-full ${mode === 'n8n' ? 'bg-blue-500' : 'bg-emerald-500'}`} />
               {mode === 'n8n' ? 'n8n mode' : 'AI mode'}

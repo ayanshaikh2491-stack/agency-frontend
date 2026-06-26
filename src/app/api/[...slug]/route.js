@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 
-const BACKEND_URL = process.env.BACKEND_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://18.213.66.136:8000'
+const BACKEND_URL = process.env.BACKEND_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 const N8N_PIPELINE_URL = process.env.N8N_PIPELINE_URL || 'https://nexus-n8n-x17d.onrender.com/webhook/n8n-pipeline-status'
 
 async function proxy(request, { params }) {
