@@ -298,27 +298,33 @@ function ChatTab({ activeCompany }) {
     if (!text || sending) return
     if (!override) setInput('')
 
-    setMsgs(p => [...p, { id: Date.now().toString(), role: 'user', content: text, time: new Date().toISOString() }])
+    const userMsgId = Date.now().toString()
+    setMsgs(p => [...p, { id: userMsgId, role: 'user', content: text, time: new Date().toISOString() }])
     setSending(true)
     const intent = detectIntent(text)
     setRoutingInfo(intent)
 
-    let ceoReply = 'Haan bhai! Kya karna hai? 👊'
-    const l = text.toLowerCase()
-    if (l.includes('status') || l.includes('update') || l.includes('how are things')) {
-      const active = WORKER_LABELS.filter(a => a.status === 'active').length
-      ceoReply = `**📡 Agency Status Report**\n\n**Cluster:** ${WORKER_LABELS.length} agents online · ${active} active\n· Total tasks in queue: ${AGENCY_METRICS.totalTasks}\n· Clients: ${AGENCY_METRICS.clients}\n· Pipeline: $${(AGENCY_METRICS.pipelineValue / 1000).toFixed(0)}K\n· Uptime: ${AGENCY_METRICS.uptime}%\n\n_All systems nominal._`
-    } else if (intent) {
-      ceoReply = `**Directive received!** 🎯\n\nRouting to **${intent.label}** ${intent.emoji}\n\nQueuing task for processing...\n_Expected completion: ~5 minutes_`
-    } else if (l.includes('help') || l.includes('what can')) {
-      ceoReply = '💡 **You can ask me to:**\n• Research leads/prospects\n• Write content (blog, scripts)\n• Manage social media accounts\n• Run ad campaigns\n• Generate reports\n• Or just ask for a status update!'
-    }
-
-    setTimeout(() => {
-      setRoutingInfo(null)
-      setSending(false)
-      setMsgs(p => [...p, { id: (Date.now() + 1).toString(), role: 'assistant', content: ceoReply, time: new Date().toISOString() }])
-    }, 500 + Math.random() * 500)
+    fetch('/api/ceo/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text, session_id: 'web' })
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.status === 'success') {
+          setMsgs(p => [...p, { id: (Date.now() + 1).toString(), role: 'assistant', content: data.response || 'Kuch gadbad ho gayi', time: new Date().toISOString() }])
+        } else {
+          const errMsg = data.message || 'Kuch gadbad ho gayi, dobara try karo'
+          setMsgs(p => [...p, { id: (Date.now() + 1).toString(), role: 'assistant', content: `❌ ${errMsg}`, time: new Date().toISOString() }])
+        }
+        setRoutingInfo(null)
+        setSending(false)
+      })
+      .catch(err => {
+        setMsgs(p => [...p, { id: (Date.now() + 1).toString(), role: 'assistant', content: `❌ Network error: ${err.message}`, time: new Date().toISOString() }])
+        setRoutingInfo(null)
+        setSending(false)
+      })
   }, [input, sending])
 
   const handleKeyDown = useCallback((e) => {
