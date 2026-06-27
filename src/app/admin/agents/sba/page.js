@@ -85,16 +85,17 @@ export default function SBAPage() {
   const [loadingTab, setLoadingTab] = useState(false)
   const chatEndRef = useRef(null)
 
-  /* ─── Agent options ─── */
+  /* ─── Agent options (direct API call) ─── */
   const AGENTS = [
-    { id: 'ceo', name: 'CEO', icon: '🧠', desc: 'Boss — delegates to all agents' },
-    { id: 'social-manager', name: 'Social', icon: '📱', desc: 'Strategy + posting + scheduling' },
-    { id: 'content-creator', name: 'Content', icon: '✍️', desc: 'Creates posts, captions, blogs' },
-    { id: 'ads-runner', name: 'Ads', icon: '📢', desc: 'Campaigns + targeting + optimization' },
-    { id: 'intake-researcher', name: 'Research', icon: '🔍', desc: 'Leads + competitor analysis' },
-    { id: 'analytics-bot', name: 'Analytics', icon: '📊', desc: 'Reports + insights + ROI' },
-    { id: 'sales-closer', name: 'Sales', icon: '💼', desc: 'Proposals + lead closing' },
-    { id: 'seo-engine', name: 'SEO', icon: '📈', desc: 'Audits + keywords + rankings' },
+    { id: 'ceo-agent', name: '🧠 CEO', desc: 'Boss — delegates to all agents' },
+    { id: 'sba-agent', name: '🤝 SBA', desc: 'Leads + pipeline + meetings' },
+    { id: 'social-manager', name: '📱 Social', desc: 'Posts + schedule + manage' },
+    { id: 'content-creator', name: '✍️ Content', desc: 'Blogs + captions + emails' },
+    { id: 'ads-runner', name: '📢 Ads', desc: 'Campaigns + targeting' },
+    { id: 'intake-researcher', name: '🔍 Research', desc: 'Leads + competitors' },
+    { id: 'analytics-bot', name: '📊 Analytics', desc: 'Reports + ROI' },
+    { id: 'sales-closer', name: '💼 Sales', desc: 'Proposals + closing' },
+    { id: 'seo-engine', name: '📈 SEO', desc: 'Audits + keywords' },
   ]
 
   /* ─── Fetch connected platforms ─── */
@@ -162,25 +163,43 @@ export default function SBAPage() {
           throw new Error('n8n not available')
         }
       } else {
-        const res = await fetch('/api/sba/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: msg, session_id: 'sba_web' }),
-        })
-        const d = await res.json()
-        const reply = d?.data?.content || d?.data?.response || d?.response || JSON.stringify(d)
-        setChat(c => [...c, { role: 'assistant', content: reply }])
+        // Route based on agent selection
+        const agentId = activeAgent || 'ceo-agent'
+        
+        if (agentId === 'sba-agent') {
+          // SBA agent goes through dedicated SBA API
+          const res = await fetch('/api/sba/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: msg, session_id: 'sba_web' }),
+          })
+          const d = await res.json()
+          const reply = d?.response || d?.message || JSON.stringify(d)
+          setChat(c => [...c, { role: 'assistant', content: reply, agent: 'sba-agent' }])
+        } else {
+          // Other agents go through CEO agent router
+          const res = await fetch(`/api/agents/${agentId}/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: msg, session_id: 'web_client' }),
+          })
+          const d = await res.json()
+          const reply = d?.data?.content || d?.data?.response || d?.response || JSON.stringify(d)
+          setChat(c => [...c, { role: 'assistant', content: reply, agent: agentId }])
+        }
       }
     } catch (e) {
       try {
-        const res = await fetch('/api/sba/chat', {
+        // Fallback: always try CEO agent
+        const agentId = activeAgent || 'ceo-agent'
+        const res = await fetch(`/api/agents/${agentId}/chat`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: msg, session_id: 'sba_web' }),
+          body: JSON.stringify({ message: msg, session_id: 'web_client' }),
         })
         const d = await res.json()
         const reply = d?.data?.content || d?.data?.response || d?.response || JSON.stringify(d)
-        setChat(c => [...c, { role: 'assistant', content: reply + '\n\n_(n8n fallback → AI)_' }])
+        setChat(c => [...c, { role: 'assistant', content: reply + '\n\n_(fallback)_' }])
       } catch (e2) {
         setChat(c => [...c, { role: 'assistant', content: `❌ Error: ${e2.message}` }])
       }

@@ -7,12 +7,14 @@ import {
   Zap, CheckCircle, Clock, MessageSquare,
   Briefcase, PieChart, Activity, LayoutDashboard,
   FileText, Search, Crown, Megaphone, AlertCircle,
+  RefreshCw, Loader2, AlertTriangle,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import PageShell from '@/components/PageShell'
 import { RunActivityChart, PriorityChart, IssueStatusChart, SuccessRateChart } from '@/components/ActivityCharts'
+import * as ceoAPI from '@/lib/ceo-api'
 
 /* ═══════════════════════════════════════════════
    REAL TAGS Agency Metrics (Production Data)
@@ -85,16 +87,16 @@ const TABS = [
 
 /* ─── Helpers ─── */
 
-function MetricCard({ icon: Icon, label, value, sub, color }) {
+function MetricCard({ icon: Icon, label, value, sub, color, loading }) {
   return (
     <Card className="border-border">
       <CardContent className="p-4">
         <div className="flex items-center gap-2 mb-2">
-          <Icon className="h-4 w-4 shrink-0" style={{ color }} />
+          {loading ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : <Icon className="h-4 w-4 shrink-0" style={{ color }} />}
           <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</span>
         </div>
-        <p className="text-2xl font-bold tabular-nums text-foreground">{value}</p>
-        {sub && <p className="text-xs text-muted-foreground mt-1">{sub}</p>}
+        <p className="text-2xl font-bold tabular-nums text-foreground">{loading ? '-' : value}</p>
+        {sub && <p className="text-xs text-muted-foreground mt-1">{loading ? '...' : sub}</p>}
       </CardContent>
     </Card>
   )
@@ -107,18 +109,43 @@ function AgentStatusDot({ status }) {
 
 /* ─── Overview Tab ─── */
 
-function OverviewTab() {
-  const active = WORKER_LABELS.filter(a => a.status === 'active').length
-  const agentCount = WORKER_LABELS.length
+function OverviewTab({ metrics, agents, loading, lastUpdated }) {
+  const active = agents?.filter(a => a.status === 'active').length || 0
+  const agentCount = agents?.length || 0
+
+  // Calculate real metrics from API data
+  const displayMetrics = useMemo(() => {
+    if (!metrics) return AGENCY_METRICS
+    return {
+      clients: metrics.clients || AGENCY_METRICS.clients,
+      projects: metrics.projects || AGENCY_METRICS.projects,
+      totalTasks: metrics.totalTasks || AGENCY_METRICS.totalTasks,
+      taskDaily: Math.floor((metrics.totalTasks || 0) / 8),
+      agentCount: metrics.agentCount || AGENCY_METRICS.agentCount,
+      pipelineValue: AGENCY_METRICS.pipelineValue,
+      closedDeals: AGENCY_METRICS.closedDeals,
+      monthlyRevenue: AGENCY_METRICS.monthlyRevenue,
+      uptime: AGENCY_METRICS.uptime,
+      avgClientSatisfaction: AGENCY_METRICS.avgClientSatisfaction,
+    }
+  }, [metrics])
 
   return (
     <div className="p-5 space-y-6 overflow-y-auto">
+      {/* Last Updated Indicator */}
+      {lastUpdated && (
+        <div className="text-xs text-muted-foreground flex items-center gap-1">
+          <RefreshCw className="h-3 w-3" />
+          Last updated: {new Date(lastUpdated).toLocaleTimeString()}
+        </div>
+      )}
+
       {/* KPI Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <MetricCard icon={Users} label="Active Clients" value={AGENCY_METRICS.clients} sub={`${AGENCY_METRICS.projects} projects`} color="#3B82F6" />
-        <MetricCard icon={Target} label="Pipeline Value" value={`$${(AGENCY_METRICS.pipelineValue / 1000).toFixed(0)}K`} sub={`${AGENCY_METRICS.closedDeals} deals closed`} color="#8B5CF6" />
-        <MetricCard icon={DollarSign} label="Monthly Revenue" value={`$${(AGENCY_METRICS.monthlyRevenue / 1000).toFixed(1)}K`} sub="Forecast: $285.6K" color="#10B981" />
-        <MetricCard icon={Activity} label="Daily Tasks" value={AGENCY_METRICS.taskDaily} sub={`${AGENCY_METRICS.totalTasks} queued`} color="#F59E0B" />
+        <MetricCard icon={Users} label="Active Clients" value={displayMetrics.clients} sub={`${displayMetrics.projects} projects`} color="#3B82F6" loading={loading} />
+        <MetricCard icon={Target} label="Pipeline Value" value={`$${(displayMetrics.pipelineValue / 1000).toFixed(0)}K`} sub={`${displayMetrics.closedDeals} deals closed`} color="#8B5CF6" loading={loading} />
+        <MetricCard icon={DollarSign} label="Monthly Revenue" value={`$${(displayMetrics.monthlyRevenue / 1000).toFixed(1)}K`} sub="Forecast: $285.6K" color="#10B981" loading={loading} />
+        <MetricCard icon={Activity} label="Daily Tasks" value={displayMetrics.taskDaily} sub={`${displayMetrics.totalTasks} queued`} color="#F59E0B" loading={loading} />
       </div>
 
       {/* Agent Health + Stats */}
@@ -213,17 +240,18 @@ function OverviewTab() {
 
 /* ─── Agents Tab ─── */
 
-function AgentsTab() {
-  const active = WORKER_LABELS.filter(a => a.status === 'active').length
-  const totalTasks = WORKER_LABELS.reduce((sum, a) => sum + a.tasks, 0)
+function AgentsTab({ agents, loading }) {
+  const agentList = agents || WORKER_LABELS
+  const active = agentList.filter(a => a.status === 'active').length
+  const totalTasks = agentList.reduce((sum, a) => sum + (a.tasks || 0), 0)
 
   return (
     <div className="p-5 space-y-4 overflow-y-auto">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <MetricCard icon={Bot} label="Total Agents" value={WORKER_LABELS.length} sub="CEO + workers" color="#8B5CF6" />
-        <MetricCard icon={Zap} label="Active" value={active} sub="Running now" color="#10B981" />
-        <MetricCard icon={Clock} label="Total Tasks" value={totalTasks} sub="Queued" color="#3B82F6" />
-        <MetricCard icon={CheckCircle} label="Success Rate" value="98.7%" sub="Last 7 days" color="#F59E0B" />
+        <MetricCard icon={Bot} label="Total Agents" value={agentList.length} sub="CEO + workers" color="#8B5CF6" loading={loading} />
+        <MetricCard icon={Zap} label="Active" value={active} sub="Running now" color="#10B981" loading={loading} />
+        <MetricCard icon={Clock} label="Total Tasks" value={totalTasks} sub="Queued" color="#3B82F6" loading={loading} />
+        <MetricCard icon={CheckCircle} label="Success Rate" value="98.7%" sub="Last 7 days" color="#F59E0B" loading={loading} />
       </div>
 
       <Card className="border-border">
@@ -231,20 +259,27 @@ function AgentsTab() {
           <CardTitle className="text-xs font-bold uppercase">Worker Agents</CardTitle>
         </CardHeader>
         <CardContent className="p-0 divide-y divide-border">
-          {WORKER_LABELS.map(a => (
-            <div key={a.slug} className="flex items-center gap-3 px-4 py-3 hover:bg-accent/50 transition-colors">
-              <span className="text-lg">{a.emoji}</span>
-              <div className="flex-1 min-w-0">
-                <p className={`text-sm font-bold ${a.color}`}>{a.label}</p>
-                <p className="text-xs text-muted-foreground">{a.lastAction}</p>
-              </div>
-              <div className="text-right shrink-0">
-                <p className="text-sm font-bold text-foreground">{a.tasks}</p>
-                <p className="text-xs text-muted-foreground">tasks</p>
-              </div>
-              <AgentStatusDot status={a.status} />
+          {loading ? (
+            <div className="p-8 text-center text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />
+              Loading agents...
             </div>
-          ))}
+          ) : (
+            agentList.map(a => (
+              <div key={a.slug || a.id} className="flex items-center gap-3 px-4 py-3 hover:bg-accent/50 transition-colors">
+                <span className="text-lg">{a.emoji || '🤖'}</span>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm font-bold ${a.color || 'text-foreground'}`}>{a.label || a.name || 'Unknown'}</p>
+                  <p className="text-xs text-muted-foreground">{a.lastAction || a.last_action || 'No recent activity'}</p>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-sm font-bold text-foreground">{a.tasks || 0}</p>
+                  <p className="text-xs text-muted-foreground">tasks</p>
+                </div>
+                <AgentStatusDot status={a.status} />
+              </div>
+            ))
+          )}
         </CardContent>
       </Card>
     </div>
