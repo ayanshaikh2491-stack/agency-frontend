@@ -180,7 +180,7 @@ function SidebarNav() {
 
   const mainAgents = [
     { id: 'ceo', name: 'CEO Console', status: 'running', emoji: '', href: '/admin/ceo', icon: Crown },
-    { id: 'sba', name: 'SBA', status: 'running', emoji: '', href: '/admin/sba', icon: Bot },
+    { id: 'sba', name: 'SBA', status: 'running', emoji: '', href: '/admin/agents/sba', icon: Bot },
     { id: 'social', name: 'Social Media', status: 'running', emoji: '', href: '/admin/social', icon: Share2 },
     { id: 'ads', name: 'Ads Manager', status: 'running', emoji: '', href: '/admin/ads', icon: Megaphone },
   ]

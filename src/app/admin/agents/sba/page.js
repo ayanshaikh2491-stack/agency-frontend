@@ -77,7 +77,7 @@ export default function SBAPage() {
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [mode, setMode] = useState('ai')
-  const [activeAgent, setActiveAgent] = useState('ceo')
+  const [activeAgent, setActiveAgent] = useState('sba-agent')
   const [connectedPlatforms, setConnectedPlatforms] = useState([])
   const [pipelineData, setPipelineData] = useState(null)
   const [meetingsList, setMeetingsList] = useState([])
@@ -85,17 +85,9 @@ export default function SBAPage() {
   const [loadingTab, setLoadingTab] = useState(false)
   const chatEndRef = useRef(null)
 
-  /* ─── Agent options (direct API call) ─── */
+  /* ─── Agent options (ONLY SBA) ─── */
   const AGENTS = [
-    { id: 'ceo-agent', name: '🧠 CEO', desc: 'Boss — delegates to all agents' },
-    { id: 'sba-agent', name: '🤝 SBA', desc: 'Leads + pipeline + meetings' },
-    { id: 'social-manager', name: '📱 Social', desc: 'Posts + schedule + manage' },
-    { id: 'content-creator', name: '✍️ Content', desc: 'Blogs + captions + emails' },
-    { id: 'ads-runner', name: '📢 Ads', desc: 'Campaigns + targeting' },
-    { id: 'intake-researcher', name: '🔍 Research', desc: 'Leads + competitors' },
-    { id: 'analytics-bot', name: '📊 Analytics', desc: 'Reports + ROI' },
-    { id: 'sales-closer', name: '💼 Sales', desc: 'Proposals + closing' },
-    { id: 'seo-engine', name: '📈 SEO', desc: 'Audits + keywords' },
+    { id: 'sba-agent', name: '📊 SBA Agent (OpenCode)', desc: 'Lead qualification + Pipeline + Meetings' },
   ]
 
   /* ─── Fetch connected platforms ─── */
@@ -222,7 +214,7 @@ export default function SBAPage() {
             <Bot className="size-4 text-accent" />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-medium text-foreground">CEO Agent — Agency Boss</div>
+            <div className="text-sm font-medium text-foreground">📊 SBA Agent (OpenCode) — Sales Pipeline</div>
             <div className="text-[11px] text-muted-foreground flex items-center gap-1.5">
               <span className={`inline-block w-1.5 h-1.5 rounded-full ${mode === 'n8n' ? 'bg-blue-500' : 'bg-emerald-500'}`} />
               {mode === 'n8n' ? 'n8n mode' : 'AI mode'}
@@ -259,7 +251,7 @@ export default function SBAPage() {
               <div className="size-12 rounded-full bg-accent/10 flex items-center justify-center mx-auto mb-4">
                 <Bot className="size-6 text-accent" />
               </div>
-              <p className="text-sm font-medium text-foreground mb-1">Smart Business Assistant</p>
+              <p className="text-sm font-medium text-foreground mb-1">SBA Agent - Sales Business Assistant</p>
               <p className="text-xs text-muted-foreground mb-6 max-w-sm mx-auto">
                 I manage all your social media, campaigns, and business operations.
                 <br />
@@ -316,7 +308,7 @@ export default function SBAPage() {
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={mode === 'n8n' ? 'Tell SBA what to do (via n8n)...' : 'Tell SBA what to do...'}
+              placeholder={mode === 'n8n' ? 'Tell SBA what to do (via n8n)...' : 'Ask SBA about leads, pipeline, meetings...'}
               className="flex-1 text-sm bg-transparent border-none outline-none text-foreground placeholder:text-muted-foreground/50"
             />
             <Button
@@ -783,7 +775,7 @@ export default function SBAPage() {
         <div className="flex items-center gap-3">
           <h2 className="flex items-center gap-2">
             <Bot className="size-5" />
-            Smart Business Assistant
+            SBA Agent - Sales Business Assistant
           </h2>
           <Badge variant="outline" className="text-[10px] font-mono">
             <span className={`inline-block w-1.5 h-1.5 rounded-full ${mode === 'n8n' ? 'bg-blue-500' : 'bg-emerald-500'} mr-1.5`} />
