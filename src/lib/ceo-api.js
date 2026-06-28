@@ -156,10 +156,10 @@ export async function sendCEOCommand(message) {
 
 /**
  * CEO chat (conversational)
- * POST /api/ceo/chat-direct
+ * POST /api/ceo/chat-hermes
  */
 export async function sendCEOChat(message, sessionId = 'web') {
-  return fetchAPI('/api/ceo/chat-direct', {
+  return fetchAPI('/api/ceo/chat-hermes', {
     method: 'POST',
     body: JSON.stringify({ message, session_id: sessionId }),
   })

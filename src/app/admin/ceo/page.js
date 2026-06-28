@@ -339,7 +339,7 @@ function ChatTab() {
     setMsgs(p => [...p, { id: Date.now().toString(), role: 'user', content: text, time: new Date().toISOString() }])
     setSending(true)
 
-    fetch('/api/ceo/chat-direct', {
+    fetch('/api/ceo/chat-hermes', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message: text, session_id: 'web' })

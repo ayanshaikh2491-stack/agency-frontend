@@ -95,9 +95,14 @@ export const api = {
   },
 
   ceoChat(message, context) {
-    return fetchAPI('/api/ceo/chat', {
+    // ── Hermes CEO on EC2 port 9000 (proxied via backend) ──
+    return fetchAPI('/api/ceo/chat-hermes', {
       method: 'POST',
-      body: { message, context },
+      body: {
+        message,
+        session_id: context?.session_id || 'web',
+        workspace_id: context?.workspace_id || '',
+      },
     })
   },
 

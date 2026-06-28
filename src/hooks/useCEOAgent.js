@@ -41,10 +41,22 @@ export function useCEOAgent() {
 
     try {
       const response = await api.ceoChat(text, { command, entities, history: historyRef.current })
+      // ── Hermes response normalization ──
+      // Handles: { message }, { content }, { text }, { response }, { data.content }
+      const agentText = (
+        response.message ||
+        response.content ||
+        response.text ||
+        response.response ||
+        response.data?.content ||
+        response.data?.message ||
+        (response.success === false ? `⚠️ ${response.error || 'CEO se connect nahi ho pa raha'}` : '') ||
+        ''
+      )
       const agentMessage = {
         id: response.id || generateId(),
         role: 'agent',
-        content: response.message || response.content || response.text || '',
+        content: agentText,
         timestamp: new Date(),
         command: response.command || command,
         entities: response.entities || entities,
