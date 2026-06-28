@@ -87,8 +87,11 @@ export default function SBAPage() {
 
   /* ─── Agent options (ONLY SBA) ─── */
   const AGENTS = [
-    { id: 'sba-agent', name: '📊 SBA Agent (OpenCode)', desc: 'Lead qualification + Pipeline + Meetings' },
+    { id: 'sba-agent', name: '📊 SBA Agent (OpenCode)', desc: 'Lead qualification + Pipeline + Meetings + Finance' },
   ]
+
+  /* ─── SBA Agent Status ─── */
+  const [sbaStatus, setSbaStatus] = useState('checking') // checking | online | offline
 
   /* ─── Fetch connected platforms ─── */
   useEffect(() => {
@@ -99,6 +102,26 @@ export default function SBAPage() {
         setConnectedPlatforms(Object.keys(accts))
       })
       .catch(() => {})
+  }, [])
+
+  /* ─── Check SBA Agent status on mount ─── */
+  useEffect(() => {
+    fetch('/api/sba/status')
+      .then(r => r.json())
+      .then(d => {
+        if (d?.success && d?.sba?.status === 'running') {
+          setSbaStatus('online')
+          // Add welcome message from SBA
+          setChat([{
+            role: 'assistant',
+            content: `👋 **SBA Agent Online!**\n\nAI Brain: OpenCode Zen (deepseek-v4-flash-free)\n\nMain hun aapka Sales Business Agent:\n• 🎯 Lead qualification (0-100 scoring)\n• 📊 Pipeline management\n• 📅 Meeting scheduling\n• 💰 Finance & deals tracking\n• 📧 Outbound campaigns\n• 🤖 24/7 autonomous lead processing\n\nBatao, kya karna hai?`,
+            agent: 'sba-agent',
+          }])
+        } else {
+          setSbaStatus('offline')
+        }
+      })
+      .catch(() => setSbaStatus('offline'))
   }, [])
 
   /* ─── Fetch tab data when switching tabs ─── */
@@ -216,9 +239,9 @@ export default function SBAPage() {
           <div className="flex-1 min-w-0">
             <div className="text-sm font-medium text-foreground">📊 SBA Agent (OpenCode) — Sales Pipeline</div>
             <div className="text-[11px] text-muted-foreground flex items-center gap-1.5">
-              <span className={`inline-block w-1.5 h-1.5 rounded-full ${mode === 'n8n' ? 'bg-blue-500' : 'bg-emerald-500'}`} />
-              {mode === 'n8n' ? 'n8n mode' : 'AI mode'}
-              {connectedPlatforms.length > 0 && `· ${connectedPlatforms.length} platforms`}
+              <span className={`inline-block w-1.5 h-1.5 rounded-full ${sbaStatus === 'online' ? 'bg-emerald-500' : sbaStatus === 'offline' ? 'bg-red-500' : 'bg-yellow-500'}`} />
+              {sbaStatus === 'online' ? 'AI Online · OpenCode Zen' : sbaStatus === 'offline' ? 'AI Offline' : 'Checking...'}
+              {mode === 'n8n' && ' · n8n mode'}
             </div>
           </div>
           <div className="flex items-center gap-1.5">
@@ -253,17 +276,17 @@ export default function SBAPage() {
               </div>
               <p className="text-sm font-medium text-foreground mb-1">SBA Agent - Sales Business Assistant</p>
               <p className="text-xs text-muted-foreground mb-6 max-w-sm mx-auto">
-                I manage all your social media, campaigns, and business operations.
+                I manage leads, pipeline, meetings, finance & campaigns.
                 <br />
-                {mode === 'n8n' ? '⚡ Routing via n8n workflow engine' : '🧠 Using AI backend'}
+                AI-powered with OpenCode Zen (deepseek-v4-flash-free).
               </p>
               <div className="max-w-md mx-auto grid grid-cols-1 gap-1.5">
                 {[
-                  '📊 "Show me this week\'s performance"',
-                  '📝 "Schedule an Instagram post tomorrow at 10am"',
-                  '📈 "Generate a weekly report for Client A"',
-                  '🔄 "Cross-post to Facebook + LinkedIn"',
-                  '🤖 "What can you automate for me?"',
+                  '🎯 "Qualify all my leads and show me hot ones (80+)"',
+                  '📊 "Show me the full pipeline status"',
+                  '📅 "Schedule a meeting with top lead tomorrow"',
+                  '💰 "What is my total pipeline value?"',
+                  '🤖 "Start the 24/7 autonomous lead processor"',
                 ].map((cmd, i) => (
                   <button
                     key={i}
@@ -328,44 +351,64 @@ export default function SBAPage() {
 
       {/* Right — Insights Panel */}
       <div className="w-72 shrink-0 hidden lg:flex flex-col gap-3">
-        {/* Connected platforms */}
+        {/* SBA Agent Status */}
         <div className="border border-border rounded-lg bg-card p-3.5">
           <h4 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2.5">
-            Connected Platforms
+            SBA Agent Status
           </h4>
-          <div className="space-y-2">
-            {Object.entries(PLATFORM_CONFIG).map(([key, pf]) => {
-              const PFIcon = pf.icon
-              const active = connectedPlatforms.includes(key)
+          <div className="flex items-center gap-2 text-xs">
+            <span className={`inline-block w-2 h-2 rounded-full ${sbaStatus === 'online' ? 'bg-emerald-500' : sbaStatus === 'offline' ? 'bg-red-500' : 'bg-yellow-500'}`} />
+            <span className="text-foreground">{sbaStatus === 'online' ? 'Online' : sbaStatus === 'offline' ? 'Offline' : 'Checking...'}</span>
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-1.5 leading-relaxed">
+            {sbaStatus === 'online'
+              ? 'AI Brain: OpenCode Zen (deepseek-v4-flash-free)\nRuns on EC2 port 9001'
+              : 'SBA Agent is not connected to backend'}
+          </p>
+        </div>
+
+        {/* Pipeline Stages */}
+        <div className="border border-border rounded-lg bg-card p-3.5">
+          <h4 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2.5">
+            Pipeline Stages
+          </h4>
+          <div className="space-y-1.5">
+            {['lead', 'contacted', 'meeting', 'proposal', 'negotiation', 'closed'].map((stage, i) => {
+              const count = pipelineData?.pipeline?.[stage]?.length || 0
+              const colors = ['#6b7280', '#3b82f6', '#f59e0b', '#8b5cf6', '#ef4444', '#10b981']
               return (
-                <div key={key} className="flex items-center gap-2">
-                  <PFIcon className="size-3.5 shrink-0" style={{ color: active ? pf.color : undefined }} />
-                  <span className={`text-xs flex-1 ${active ? 'text-foreground' : 'text-muted-foreground/50'}`}>
-                    {pf.label}
-                  </span>
-                  <span className={`inline-block w-1.5 h-1.5 rounded-full ${active ? 'bg-emerald-500' : 'bg-muted-foreground/30'}`} />
+                <div key={stage} className="flex items-center gap-2">
+                  <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: colors[i] }} />
+                  <span className="text-xs text-muted-foreground flex-1 capitalize">{stage}</span>
+                  <span className="text-xs font-medium text-foreground">{count}</span>
                 </div>
               )
             })}
           </div>
         </div>
 
-        {/* Quick actions */}
+        {/* Quick Actions */}
         <div className="border border-border rounded-lg bg-card p-3.5">
           <h4 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2.5">
             Quick Actions
           </h4>
           <div className="space-y-1">
             {[
-              { label: 'Generate Report', icon: BarChart3 },
-              { label: 'Schedule Post', icon: Plus },
-              { label: 'Check Analytics', icon: TrendingUp },
-              { label: 'Run Automation', icon: Zap },
+              { label: 'Qualify All Leads', icon: Sparkles },
+              { label: 'View Pipeline', icon: Columns3 },
+              { label: 'Schedule Meeting', icon: Calendar },
+              { label: 'Start Auto Loop', icon: Play },
             ].map((action) => {
               const ActionIcon = action.icon
               return (
                 <button
                   key={action.label}
+                  onClick={() => {
+                    if (action.label === 'Qualify All Leads') setInput('Qualify all my leads now')
+                    else if (action.label === 'View Pipeline') setInput('Show me the full pipeline')
+                    else if (action.label === 'Schedule Meeting') setInput('Schedule a meeting with the top lead')
+                    else if (action.label === 'Start Auto Loop') setInput('Start the 24/7 autonomous lead processor')
+                  }}
                   className="flex items-center gap-2 w-full px-2 py-1.5 text-[12px] text-muted-foreground hover:text-foreground hover:bg-accent/5 transition-colors rounded-sm"
                 >
                   <ActionIcon className="size-3.5" />
@@ -376,29 +419,33 @@ export default function SBAPage() {
           </div>
         </div>
 
-        {/* Mode info */}
+        {/* Lead Scoring Info */}
         <div className="border border-border rounded-lg bg-card p-3.5">
           <h4 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2.5">
-            Current Mode
+            Lead Scoring
           </h4>
-          <div className="flex items-center gap-2 text-xs">
-            {mode === 'n8n' ? (
-              <>
-                <Server className="size-3.5 text-blue-500" />
-                <span className="text-foreground">n8n Workflow</span>
-              </>
-            ) : (
-              <>
-                <Sparkles className="size-3.5 text-accent" />
-                <span className="text-foreground">AI Powered</span>
-              </>
-            )}
+          <div className="space-y-1.5 text-[11px]">
+            <div className="flex items-center gap-2">
+              <span className="inline-block w-2 h-2 rounded-full bg-red-500" />
+              <span className="text-muted-foreground">80-100</span>
+              <span className="text-foreground font-medium">🔥 Hot</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="inline-block w-2 h-2 rounded-full bg-amber-500" />
+              <span className="text-muted-foreground">50-79</span>
+              <span className="text-foreground">Qualified</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="inline-block w-2 h-2 rounded-full bg-blue-500" />
+              <span className="text-muted-foreground">20-49</span>
+              <span className="text-foreground">Nurture</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="inline-block w-2 h-2 rounded-full bg-gray-500" />
+              <span className="text-muted-foreground">0-19</span>
+              <span className="text-foreground">Junk</span>
+            </div>
           </div>
-          <p className="text-[10px] text-muted-foreground mt-1.5 leading-relaxed">
-            {mode === 'n8n'
-              ? 'Requests route through your n8n instance for custom workflows.'
-              : 'Direct AI chat for social media management, scheduling, and analytics.'}
-          </p>
         </div>
       </div>
     </div>
