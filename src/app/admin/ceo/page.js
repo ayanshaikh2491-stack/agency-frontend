@@ -322,14 +322,36 @@ function ServicesTab() {
 
 /* ─── Chat Tab ─── */
 
+const CEO_STORAGE_KEY = 'hermes_ceo_chat'
+const MAX_STORED_MSGS = 100
+
 function ChatTab() {
-  const [msgs, setMsgs] = useState([])
+  const [msgs, setMsgs] = useState(() => {
+    // ── Load from localStorage on mount ──
+    try {
+      const saved = localStorage.getItem(CEO_STORAGE_KEY)
+      return saved ? JSON.parse(saved) : []
+    } catch { return [] }
+  })
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
 
+  // ── Save to localStorage whenever msgs change ──
+  useEffect(() => {
+    try {
+      const toSave = msgs.slice(-MAX_STORED_MSGS) // keep last 100
+      localStorage.setItem(CEO_STORAGE_KEY, JSON.stringify(toSave))
+    } catch {}
+  }, [msgs])
+
   useEffect(() => { bottomRef.current?.scrollIntoView({ block: 'end' }) }, [msgs.length])
+
+  const clearChat = useCallback(() => {
+    setMsgs([])
+    localStorage.removeItem(CEO_STORAGE_KEY)
+  }, [])
 
   const send = useCallback((override) => {
     const text = (override || input).trim()
@@ -342,16 +364,13 @@ function ChatTab() {
     fetch('/api/ceo/chat-hermes', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: text, session_id: 'web' })
+      body: JSON.stringify({ message: text, session_id: 'hermes_web' })
     })
       .then(r => r.json())
       .then(data => {
-        if (data.status === 'success') {
-          setMsgs(p => [...p, { id: (Date.now() + 1).toString(), role: 'assistant', content: data.response || 'Kuch gadbad ho gayi', time: new Date().toISOString() }])
-        } else {
-          const errMsg = data.message || 'Kuch gadbad ho gayi, dobara try karo'
-          setMsgs(p => [...p, { id: (Date.now() + 1).toString(), role: 'assistant', content: `❌ ${errMsg}`, time: new Date().toISOString() }])
-        }
+        const reply = data.message || data.response || data.content || data.text || 'Kuch gadbad ho gayi'
+        const isErr = data.status !== 'success' && !data.success
+        setMsgs(p => [...p, { id: (Date.now() + 1).toString(), role: 'assistant', content: isErr ? `❌ ${reply}` : reply, time: new Date().toISOString() }])
         setSending(false)
       })
       .catch(err => {
@@ -375,7 +394,7 @@ function ChatTab() {
             <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-500" />
           </span>
         </div>
-        <div>
+        <div className="flex-1">
           <div className="flex items-center gap-2">
             <h3 className="text-sm font-bold text-foreground">CEO Command</h3>
             <Badge variant="outline" className="text-xs px-2 py-0 h-5 border-emerald-500/30 text-emerald-600">
@@ -383,8 +402,13 @@ function ChatTab() {
               Live
             </Badge>
           </div>
-          <p className="text-xs text-muted-foreground">TAGS Agency</p>
+          <p className="text-xs text-muted-foreground">TAGS Agency · {msgs.length} messages saved</p>
         </div>
+        {msgs.length > 0 && (
+          <button onClick={clearChat} className="text-xs text-muted-foreground hover:text-red-400 transition-colors px-2 py-1 rounded border border-border hover:border-red-400/30">
+            Clear
+          </button>
+        )}
       </div>
 
       {/* Messages */}
