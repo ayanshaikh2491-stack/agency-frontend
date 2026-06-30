@@ -27,6 +27,8 @@ import {
   Share2,
   Megaphone,
   Bot,
+  Search,
+  Globe,
   Layers,
   Sun,
   Moon,
@@ -183,6 +185,8 @@ function SidebarNav() {
     { id: 'sba', name: 'SBA', status: 'running', emoji: '', href: '/admin/agents/sba', icon: Bot },
     { id: 'social', name: 'Social Media', status: 'running', emoji: '', href: '/admin/social', icon: Share2 },
     { id: 'ads', name: 'Ads Manager', status: 'running', emoji: '', href: '/admin/ads', icon: Megaphone },
+    { id: 'seo', name: 'SEO Engine', status: 'running', emoji: '', href: '/admin/agents/seo', icon: Search },
+    { id: 'website', name: 'Website Agent', status: 'running', emoji: '', href: '/admin/agents/website', icon: Globe },
   ]
 
   return (
