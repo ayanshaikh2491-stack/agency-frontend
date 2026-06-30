@@ -1,4 +1,5 @@
 const API_BASE = ''
+const EC2_BACKEND = 'http://18.213.66.136:8000'
 
 async function fetchAPI(endpoint, options = {}) {
   const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`
@@ -95,8 +96,8 @@ export const api = {
   },
 
   ceoChat(message, context) {
-    // ── Hermes CEO on EC2 port 9000 (proxied via backend) ──
-    return fetchAPI('/api/ceo/chat-hermes', {
+    // ── Hermes CEO on EC2 port 8000 (direct call to bypass Vercel timeout) ──
+    return fetchAPI(`${EC2_BACKEND}/api/ceo/chat-hermes`, {
       method: 'POST',
       body: {
         message,

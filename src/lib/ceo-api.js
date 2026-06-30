@@ -4,7 +4,8 @@
  * ================================================
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://18.213.66.136:8000'
+const EC2_BACKEND = 'http://18.213.66.136:8000'
 
 /* ─────────────────────────────────────────────────
    Error Handling & Response Validation
@@ -155,14 +156,32 @@ export async function sendCEOCommand(message) {
 }
 
 /**
- * CEO chat (conversational)
+ * CEO chat (conversational) - Direct EC2 call for fast response
  * POST /api/ceo/chat-hermes
  */
 export async function sendCEOChat(message, sessionId = 'web') {
-  return fetchAPI('/api/ceo/chat-hermes', {
-    method: 'POST',
-    body: JSON.stringify({ message, session_id: sessionId }),
-  })
+  try {
+    const url = `${EC2_BACKEND}/api/ceo/chat-hermes`
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, session_id: sessionId }),
+    })
+    const data = await response.json()
+    return {
+      success: true,
+      data,
+      error: null,
+      status: response.status,
+    }
+  } catch (error) {
+    return {
+      success: false,
+      data: null,
+      error: error?.message || 'Chat failed',
+      status: 500,
+    }
+  }
 }
 
 /* ─────────────────────────────────────────────────

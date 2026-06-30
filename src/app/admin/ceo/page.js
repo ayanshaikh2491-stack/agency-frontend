@@ -16,6 +16,8 @@ import PageShell from '@/components/PageShell'
 import { RunActivityChart, PriorityChart, IssueStatusChart, SuccessRateChart } from '@/components/ActivityCharts'
 import * as ceoAPI from '@/lib/ceo-api'
 
+const EC2_BACKEND = 'http://18.213.66.136:8000'
+
 /* ═══════════════════════════════════════════════
    REAL TAGS Agency Metrics (Production Data)
    ═══════════════════════════════════════════════ */
@@ -361,7 +363,7 @@ function ChatTab() {
     setMsgs(p => [...p, { id: Date.now().toString(), role: 'user', content: text, time: new Date().toISOString() }])
     setSending(true)
 
-    fetch('/api/ceo/chat-hermes', {
+    fetch(`${EC2_BACKEND}/api/ceo/chat-hermes`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message: text, session_id: 'hermes_web' })

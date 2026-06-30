@@ -10,7 +10,9 @@ import {
   AlertCircle, Loader2, RefreshCw, ChevronDown,
   Plus, Search, Filter, Download, ExternalLink,
   Server, Play, Pause, Columns3, Calendar,
-  GripVertical,
+  GripVertical, Mic, MicOff, Square, FileText,
+  Phone, Video, XCircle, Languages, ArrowRightLeft,
+  Brain, Lightbulb,
 } from 'lucide-react'
 import PageShell from '@/components/PageShell'
 import { Badge } from '@/components/ui/badge'
@@ -69,6 +71,489 @@ function MetricsBar({ metrics }) {
 }
 
 /* ═══════════════════════════════════════════════
+   MEETING COMPANION WIDGET — Live Meeting Notes
+   ═══════════════════════════════════════════════ */
+function MeetingCompanion({ meeting, onClose }) {
+  const [isRecording, setIsRecording] = useState(false)
+  const [transcript, setTranscript] = useState('')
+  const [liveNotes, setLiveNotes] = useState(null)
+  const [manualNotes, setManualNotes] = useState('')
+  const [analyzing, setAnalyzing] = useState(false)
+  const recognitionRef = useRef(null)
+
+  // Translation state
+  const [inputText, setInputText] = useState('')
+  const [translatedText, setTranslatedText] = useState('')
+  const [translating, setTranslating] = useState(false)
+  const [translateDirection, setTranslateDirection] = useState('en-hi') // en-hi or hi-en
+
+  // Audio Translation state
+  const [audioMode, setAudioMode] = useState(false) // Voice-to-voice translation
+  const [listeningFor, setListeningFor] = useState('lead') // 'lead' or 'me'
+  const [lastSpoken, setLastSpoken] = useState({ lead: '', me: '' })
+  const audioRecognitionRef = useRef(null)
+
+  // SBA Thinking state
+  const [situationText, setSituationText] = useState('')
+  const [sbaThinking, setSbaThinking] = useState(null)
+  const [thinking, setThinking] = useState(false)
+
+  /* ─── Translate (text) ─── */
+  async function handleTranslate() {
+    if (!inputText.trim()) return
+    setTranslating(true)
+    try {
+      const res = await fetch('/api/sba/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: inputText, direction: translateDirection, context: `Meeting with ${meeting?.lead_name}` })
+      })
+      const d = await res.json()
+      if (d?.success) setTranslatedText(d.data.translated)
+    } catch (e) { console.error('Translation failed:', e) }
+    setTranslating(false)
+  }
+
+  /* ─── Voice-to-Voice Translation ─── */
+  function startAudioTranslation() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SpeechRecognition) {
+      alert('Speech recognition nahi hai. Chrome browser use karo.')
+      return
+    }
+
+    const recognition = new SpeechRecognition()
+    recognition.continuous = true
+    recognition.interimResults = true
+    recognition.lang = listeningFor === 'lead' ? 'en-US' : 'en-IN'  // Lead = English, Me = Hinglish
+
+    recognition.onresult = async (event) => {
+      let finalTranscript = ''
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript + ' '
+        }
+      }
+
+      if (finalTranscript.trim()) {
+        // Update transcript display
+        if (listeningFor === 'lead') {
+          setLastSpoken(prev => ({ ...prev, lead: finalTranscript.trim() }))
+          setTranscript(prev => prev + `[Lead]: ${finalTranscript}\n`)
+        } else {
+          setLastSpoken(prev => ({ ...prev, me: finalTranscript.trim() }))
+          setTranscript(prev => prev + `[Me]: ${finalTranscript}\n`)
+        }
+
+        // Translate and speak
+        const direction = listeningFor === 'lead' ? 'en-hi' : 'hi-en'
+        try {
+          const res = await fetch('/api/sba/translate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: finalTranscript.trim(), direction })
+          })
+          const d = await res.json()
+          if (d?.success) {
+            const translated = d.data.translated
+            speakText(translated, direction === 'en-hi' ? 'hi-IN' : 'en-US')
+          }
+        } catch (e) { console.error('Voice translation failed:', e) }
+      }
+    }
+
+    recognition.onerror = (e) => console.error('Audio recognition error:', e)
+    recognition.start()
+    audioRecognitionRef.current = recognition
+    setAudioMode(true)
+  }
+
+  function stopAudioTranslation() {
+    if (audioRecognitionRef.current) {
+      audioRecognitionRef.current.stop()
+      audioRecognitionRef.current = null
+    }
+    setAudioMode(false)
+  }
+
+  function speakText(text, lang = 'hi-IN') {
+    if ('speechSynthesis' in window) {
+      const utterance = new SpeechSynthesisUtterance(text)
+      utterance.lang = lang
+      utterance.rate = 0.9  // Thoda slow for clarity
+      utterance.pitch = 1
+      window.speechSynthesis.speak(utterance)
+    }
+  }
+
+  /* ─── SBA Think ─── */
+  async function handleTranslate() {
+    if (!inputText.trim()) return
+    setTranslating(true)
+    try {
+      const res = await fetch('/api/sba/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: inputText, direction: translateDirection, context: `Meeting with ${meeting?.lead_name}` })
+      })
+      const d = await res.json()
+      if (d?.success) setTranslatedText(d.data.translated)
+    } catch (e) { console.error('Translation failed:', e) }
+    setTranslating(false)
+  }
+
+  /* ─── SBA Think ─── */
+  async function handleSBAThink() {
+    if (!situationText.trim()) return
+    setThinking(true)
+    try {
+      const res = await fetch('/api/sba/think', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ situation: situationText, context: { meeting: meeting } })
+      })
+      const d = await res.json()
+      if (d?.success) setSbaThinking(d.data.thinking)
+    } catch (e) { console.error('Thinking failed:', e) }
+    setThinking(false)
+  }
+
+  /* ─── Start/Stop Recording ─── */
+  function toggleRecording() {
+    if (isRecording) {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop()
+        recognitionRef.current = null
+      }
+      setIsRecording(false)
+      analyzeTranscript()
+    } else {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+      if (!SpeechRecognition) {
+        alert('Speech recognition not supported. Use Chrome browser.')
+        return
+      }
+      const recognition = new SpeechRecognition()
+      recognition.continuous = true
+      recognition.interimResults = true
+      recognition.lang = 'en-IN'
+
+      recognition.onresult = (event) => {
+        let finalTranscript = ''
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript + ' '
+          }
+        }
+        if (finalTranscript) {
+          setTranscript(prev => prev + finalTranscript)
+          fetch(`/api/sba/meetings/${meeting.id}/transcript`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ transcript: finalTranscript.trim(), action: 'append' })
+          }).catch(() => {})
+        }
+      }
+
+      recognition.onerror = (e) => console.error('Speech error:', e)
+      recognition.start()
+      recognitionRef.current = recognition
+      setIsRecording(true)
+    }
+  }
+
+  /* ─── Analyze Transcript ─── */
+  async function analyzeTranscript() {
+    if (!transcript.trim()) return
+    setAnalyzing(true)
+    try {
+      const res = await fetch(`/api/sba/meetings/${meeting.id}/transcript`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transcript, action: 'analyze' })
+      })
+      const d = await res.json()
+      if (d?.success) setLiveNotes(d.data.analysis)
+    } catch (e) { console.error('Analysis failed:', e) }
+    setAnalyzing(false)
+  }
+
+  /* ─── Finalize Meeting ─── */
+  async function finalizeMeeting() {
+    setAnalyzing(true)
+    try {
+      const res = await fetch(`/api/sba/meetings/${meeting.id}/transcript`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transcript: transcript + '\n\nManual Notes:\n' + manualNotes, action: 'finalize' })
+      })
+      const d = await res.json()
+      if (d?.success) {
+        setLiveNotes(d.data.final_notes)
+        alert('✅ Meeting notes finalized! Ready to send to CEO.')
+      }
+    } catch (e) { console.error('Finalize failed:', e) }
+    setAnalyzing(false)
+  }
+
+  /* ─── Send to CEO ─── */
+  async function sendToCEO() {
+    try {
+      const res = await fetch(`/api/sba/meetings/${meeting.id}/handoff-to-ceo`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+      const d = await res.json()
+      if (d?.success) {
+        alert('🤝 SBA → CEO handoff complete! CEO will now create workspace.')
+        onClose()
+      } else {
+        alert('Handoff failed: ' + (d?.message || 'Unknown error'))
+      }
+    } catch (e) { alert('Handoff failed: ' + e.message) }
+  }
+
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) recognitionRef.current.stop()
+      if (audioRecognitionRef.current) audioRecognitionRef.current.stop()
+      window.speechSynthesis?.cancel()
+    }
+  }, [])
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="w-[90vw] max-w-5xl h-[85vh] bg-card border border-border rounded-xl shadow-2xl flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center gap-3 px-5 py-3 border-b border-border bg-gradient-to-r from-accent/5 to-transparent">
+          <div className={`size-10 rounded-lg flex items-center justify-center ${isRecording ? 'bg-red-500/20 animate-pulse' : audioMode ? 'bg-blue-500/20 animate-pulse' : 'bg-accent/10'}`}>
+            {audioMode ? <Languages className="size-5 text-blue-500" /> : isRecording ? <Mic className="size-5 text-red-500" /> : <Video className="size-5 text-accent" />}
+          </div>
+          <div className="flex-1">
+            <h3 className="text-sm font-semibold text-foreground">Meeting Companion — {meeting?.lead_name || meeting?.title}</h3>
+            <p className="text-[11px] text-muted-foreground">{meeting?.date} at {meeting?.time} · {meeting?.duration_minutes || 30}min</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {audioMode && (
+              <span className="flex items-center gap-1 text-[11px] text-blue-400 font-medium">
+                <span className="size-2 rounded-full bg-blue-400 animate-pulse" /> Audio Translator ON
+              </span>
+            )}
+            {isRecording && (
+              <span className="flex items-center gap-1 text-[11px] text-red-500 font-medium">
+                <span className="size-2 rounded-full bg-red-500 animate-pulse" /> Recording...
+              </span>
+            )}
+            <button onClick={onClose} className="p-1.5 rounded-md hover:bg-accent/10"><XCircle className="size-4 text-muted-foreground" /></button>
+          </div>
+        </div>
+
+        {/* 3-Column Layout */}
+        <div className="flex-1 flex gap-0 min-h-0">
+          {/* Left: Controls + Transcript */}
+          <div className="w-[35%] border-r border-border flex flex-col">
+            <div className="flex items-center gap-2 p-3 border-b border-border">
+              <button
+                onClick={toggleRecording}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg border transition-all ${isRecording ? 'bg-red-500/10 border-red-500/30 text-red-500' : 'bg-accent/10 border-accent/30 text-accent'}`}
+              >
+                {isRecording ? <><Square className="size-4" /> Stop</> : <><Mic className="size-4" /> Record</>}
+              </button>
+              <button onClick={finalizeMeeting} disabled={analyzing} className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-500 disabled:opacity-50">
+                {analyzing ? <Loader2 className="size-4 animate-spin" /> : <FileText className="size-4" />}
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              <h4 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Live Transcript</h4>
+              <div className="text-xs text-foreground leading-relaxed whitespace-pre-wrap font-mono bg-muted/30 rounded-lg p-3 min-h-[150px]">
+                {transcript || <span className="text-muted-foreground/40">Recording se transcript aayega...</span>}
+              </div>
+            </div>
+            <div className="border-t border-border p-3">
+              <h4 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Manual Notes</h4>
+              <textarea value={manualNotes} onChange={e => setManualNotes(e.target.value)} placeholder="Notes likho..." className="w-full h-16 text-xs bg-muted/30 rounded-lg p-2 border-none outline-none text-foreground placeholder:text-muted-foreground/40 resize-none" />
+            </div>
+          </div>
+
+          {/* Middle: Audio Translator + SBA Think */}
+          <div className="w-[30%] border-r border-border flex flex-col">
+            {/* Audio Translator - Voice to Voice */}
+            <div className="p-3 border-b border-border">
+              <h4 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+                <Languages className="size-3" /> 🎤 Audio Translator
+              </h4>
+
+              {/* Audio Mode Toggle */}
+              <div className="flex items-center gap-1 mb-2">
+                <button
+                  onClick={() => { setListeningFor('lead'); if (!audioMode) startAudioTranslation(); else { stopAudioTranslation(); startAudioTranslation(); } }}
+                  className={`flex-1 text-[10px] py-2 rounded flex items-center justify-center gap-1 transition-all ${listeningFor === 'lead' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'text-muted-foreground'}`}
+                >
+                  <span className={`size-1.5 rounded-full ${audioMode && listeningFor === 'lead' ? 'bg-blue-400 animate-pulse' : 'bg-muted-foreground'}`} />
+                  Lead Bol Raha
+                </button>
+                <button
+                  onClick={() => { setListeningFor('me'); if (!audioMode) startAudioTranslation(); else { stopAudioTranslation(); startAudioTranslation(); } }}
+                  className={`flex-1 text-[10px] py-2 rounded flex items-center justify-center gap-1 transition-all ${listeningFor === 'me' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'text-muted-foreground'}`}
+                >
+                  <span className={`size-1.5 rounded-full ${audioMode && listeningFor === 'me' ? 'bg-emerald-400 animate-pulse' : 'bg-muted-foreground'}`} />
+                  Mai Bol Raha
+                </button>
+              </div>
+
+              {/* Start/Stop Audio Translation */}
+              <button
+                onClick={audioMode ? stopAudioTranslation : startAudioTranslation}
+                className={`w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold rounded-lg transition-all ${
+                  audioMode
+                    ? 'bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30'
+                    : 'bg-gradient-to-r from-accent to-accent/80 text-white hover:from-accent/90'
+                }`}
+              >
+                {audioMode ? (
+                  <><Square className="size-4" /> Translation Band Karo</>
+                ) : (
+                  <><Mic className="size-4" /> Audio Translation Start</>
+                )}
+              </button>
+
+              {/* Live Translation Status */}
+              {audioMode && (
+                <div className="mt-2 p-2 bg-accent/5 rounded-lg border border-accent/20">
+                  <div className="flex items-center gap-1.5 text-[10px] text-accent mb-1">
+                    <span className="size-1.5 rounded-full bg-accent animate-pulse" />
+                    {listeningFor === 'lead' ? 'Lead ki sun raha...' : 'Tumhari sun raha...'}
+                  </div>
+                  <p className="text-[9px] text-muted-foreground">
+                    {listeningFor === 'lead' ? 'Lead English bolega → SBA Hinglish mein bolega' : 'Tum Hinglish bologe → SBA English mein bolega'}
+                  </p>
+                </div>
+              )}
+
+              {/* Last Spoken */}
+              {lastSpoken.lead && (
+                <div className="mt-2 p-2 bg-blue-500/5 rounded-lg border border-blue-500/20">
+                  <p className="text-[10px] text-blue-400 mb-1">🗣️ Lead (English):</p>
+                  <p className="text-xs text-foreground">{lastSpoken.lead}</p>
+                </div>
+              )}
+              {lastSpoken.me && (
+                <div className="mt-2 p-2 bg-emerald-500/5 rounded-lg border border-emerald-500/20">
+                  <p className="text-[10px] text-emerald-400 mb-1">🎤 Me (Hinglish):</p>
+                  <p className="text-xs text-foreground">{lastSpoken.me}</p>
+                </div>
+              )}
+            </div>
+
+            {/* SBA Think */}
+            <div className="p-3 flex-1 overflow-y-auto">
+              <h4 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+                <Brain className="size-3" /> SBA Soche
+              </h4>
+              <textarea
+                value={situationText}
+                onChange={e => setSituationText(e.target.value)}
+                placeholder="Situation batao, SBA sochega..."
+                className="w-full h-16 text-xs bg-muted/30 rounded-lg p-2 border-none outline-none text-foreground placeholder:text-muted-foreground/40 resize-none mb-2"
+              />
+              <button
+                onClick={handleSBAThink}
+                disabled={thinking}
+                className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 disabled:opacity-50"
+              >
+                {thinking ? <Loader2 className="size-3 animate-spin" /> : <Lightbulb className="size-3" />}
+                {thinking ? 'Soch raha...' : 'SBA se Poocho'}
+              </button>
+              {sbaThinking && (
+                <div className="mt-2 space-y-2">
+                  {sbaThinking.analysis && (
+                    <div className="p-2 bg-amber-500/5 rounded-lg border border-amber-500/20">
+                      <p className="text-[10px] text-amber-400 mb-1">🧠 Analysis:</p>
+                      <p className="text-xs text-foreground">{sbaThinking.analysis}</p>
+                    </div>
+                  )}
+                  {sbaThinking.decision && (
+                    <div className="p-2 bg-emerald-500/5 rounded-lg border border-emerald-500/20">
+                      <p className="text-[10px] text-emerald-400 mb-1">✅ Decision:</p>
+                      <p className="text-xs text-foreground">{sbaThinking.decision}</p>
+                    </div>
+                  )}
+                  {sbaThinking.message_to_send && (
+                    <div className="p-2 bg-accent/5 rounded-lg border border-accent/20">
+                      <p className="text-[10px] text-accent mb-1">💬 Message:</p>
+                      <p className="text-xs text-foreground">{sbaThinking.message_to_send}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Right: AI Analysis */}
+          <div className="w-[35%] overflow-y-auto p-4">
+            <h4 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">AI Notes</h4>
+            {liveNotes ? (
+              <div className="space-y-3">
+                {liveNotes.client_needs && (
+                  <div className="bg-card border border-border rounded-lg p-3">
+                    <h5 className="text-xs font-semibold text-accent mb-1">🎯 Client Needs</h5>
+                    <ul className="text-xs text-foreground space-y-1">{liveNotes.client_needs.map((n, i) => <li key={i}>• {n}</li>)}</ul>
+                  </div>
+                )}
+                {liveNotes.pain_points && (
+                  <div className="bg-card border border-border rounded-lg p-3">
+                    <h5 className="text-xs font-semibold text-red-400 mb-1">⚠️ Pain Points</h5>
+                    <ul className="text-xs text-foreground space-y-1">{liveNotes.pain_points.map((p, i) => <li key={i}>• {p}</li>)}</ul>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-card border border-border rounded-lg p-3">
+                    <h5 className="text-[10px] text-muted-foreground mb-1">💰 Budget</h5>
+                    <p className="text-sm font-semibold text-foreground">{liveNotes.budget || 'Nahi discuss hua'}</p>
+                  </div>
+                  <div className="bg-card border border-border rounded-lg p-3">
+                    <h5 className="text-[10px] text-muted-foreground mb-1">📅 Timeline</h5>
+                    <p className="text-sm font-semibold text-foreground">{liveNotes.timeline || 'Nahi discuss hua'}</p>
+                  </div>
+                </div>
+                {liveNotes.agent_setup && (
+                  <div className="bg-card border border-border rounded-lg p-3">
+                    <h5 className="text-xs font-semibold text-emerald-400 mb-2">🤖 Agent Setup</h5>
+                    <div className="grid grid-cols-2 gap-1.5 text-xs">
+                      {Object.entries(liveNotes.agent_setup).map(([agent, status]) => (
+                        <div key={agent} className="flex items-center gap-1.5">
+                          <span className={`size-1.5 rounded-full ${status?.toString().toLowerCase().includes('yes') ? 'bg-emerald-500' : 'bg-muted-foreground'}`} />
+                          <span className="text-muted-foreground capitalize">{agent.replace('_', ' ')}:</span>
+                          <span className="text-foreground">{status?.toString()}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {liveNotes.action_items && (
+                  <div className="bg-card border border-border rounded-lg p-3">
+                    <h5 className="text-xs font-semibold text-amber-400 mb-1">✅ Action Items</h5>
+                    <ul className="text-xs text-foreground space-y-1">{liveNotes.action_items.map((a, i) => <li key={i}>• {a}</li>)}</ul>
+                  </div>
+                )}
+                <button onClick={sendToCEO} className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold rounded-lg bg-gradient-to-r from-accent to-accent/80 text-white hover:from-accent/90 transition-all">
+                  <Bot className="size-4" /> CEO ko Bhejo → Workspace Banao
+                </button>
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <FileText className="size-12 text-muted-foreground/20 mx-auto mb-4" />
+                <p className="text-sm text-muted-foreground">Recording start karo</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ═══════════════════════════════════════════════
    SBA Page
    ═══════════════════════════════════════════════ */
 export default function SBAPage() {
@@ -83,6 +568,7 @@ export default function SBAPage() {
   const [meetingsList, setMeetingsList] = useState([])
   const [financeData, setFinanceData] = useState(null)
   const [loadingTab, setLoadingTab] = useState(false)
+  const [activeMeeting, setActiveMeeting] = useState(null)  // Meeting companion widget
   const chatEndRef = useRef(null)
 
   /* ─── Agent options (ONLY SBA) ─── */
@@ -686,6 +1172,11 @@ export default function SBAPage() {
       </div>
     )
 
+    // If active meeting, show Meeting Companion
+    if (activeMeeting) {
+      return <MeetingCompanion meeting={activeMeeting} onClose={() => setActiveMeeting(null)} />
+    }
+
     return (
       <div className="flex-1 overflow-y-auto">
         <div className="border border-border rounded-lg bg-card">
@@ -716,6 +1207,14 @@ export default function SBAPage() {
                     </div>
                   </div>
                   <Badge variant={m.status === 'scheduled' ? 'default' : 'secondary'} className="text-[10px]">{m.status}</Badge>
+                  {m.status === 'scheduled' && (
+                    <button
+                      onClick={() => setActiveMeeting(m)}
+                      className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-medium rounded-md bg-accent/10 text-accent hover:bg-accent/20 transition-colors"
+                    >
+                      <Video className="size-3" /> Join & Notes
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
