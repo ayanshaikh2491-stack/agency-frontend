@@ -1,6 +1,7 @@
 const API_BASE = ''
-// ── Direct EC2 for CEO chat (bypasses Vercel timeout) ──
-const EC2_BACKEND = 'http://18.213.66.136:8000'
+// ── Direct EC2 for CEO chat (HTTPS for production) ──
+// NOTE: If port 443 blocked, add rule in AWS Console → EC2 → Security Groups → Inbound → Port 443 → 0.0.0.0/0
+const EC2_BACKEND = 'https://18.213.66.136'
 
 async function fetchAPI(endpoint, options = {}) {
   const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`

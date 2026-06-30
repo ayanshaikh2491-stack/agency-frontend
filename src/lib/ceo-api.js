@@ -4,8 +4,9 @@
  * ================================================
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://18.213.66.136:8000'
-const EC2_BACKEND = 'http://18.213.66.136:8000'
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://18.213.66.136'
+// ── Direct EC2 for CEO chat (HTTPS for production) ──
+const EC2_BACKEND = 'https://18.213.66.136'
 
 /* ─────────────────────────────────────────────────
    Error Handling & Response Validation
