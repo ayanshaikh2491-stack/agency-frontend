@@ -1,4 +1,5 @@
 const API_BASE = ''
+// ── Direct EC2 for CEO chat (bypasses Vercel timeout) ──
 const EC2_BACKEND = 'http://18.213.66.136:8000'
 
 async function fetchAPI(endpoint, options = {}) {
