@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import {
-  Crown, Bot, Share2, Megaphone, MessageSquare, Users,
+  Crown, Bot, Share2, Megaphone, Search, Globe, MessageSquare, Users,
   DollarSign, TrendingUp, Activity, Clock, ArrowRight,
   BarChart3, Calendar, CheckCircle2, AlertCircle, Loader2,
   Zap, PieChart, ExternalLink, RefreshCw
@@ -23,6 +23,8 @@ const AGENTS = [
   { id: 'sba',   name: 'SBA',            desc: 'Lead qualification, pipeline, meetings, and sales automation',  icon: Bot,        color: '#16a34a', href: '/admin/agents/sba', status: 'running' },
   { id: 'social',name: 'Social Media',   desc: 'Schedule posts, manage platforms, track engagement',              icon: Share2,     color: '#d97706', href: '/admin/social', status: 'running' },
   { id: 'ads',   name: 'Ads Manager',    desc: 'Create and manage ad campaigns across platforms',                 icon: Megaphone,  color: '#dc2626', href: '/admin/ads', status: 'idle' },
+  { id: 'seo',   name: 'SEO Engine',     desc: 'Keyword research, site audits, rank tracking, and backlinks',               icon: Search,       color: '#8b5cf6', href: '/admin/agents/seo', status: 'running' },
+  { id: 'website', name: 'Website Agent', desc: 'Design, build, and maintain client websites and landing pages',           icon: Globe,        color: '#06b6d4', href: '/admin/agents/website', status: 'running' },
 ]
 
 /* ─── Recent Activity (placeholder) ─── */
