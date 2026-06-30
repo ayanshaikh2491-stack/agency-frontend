@@ -89,6 +89,7 @@ export default function AgentsPage() {
     { id: 'intake-researcher', name: 'Intake Researcher', emoji: '🔍', desc: 'Finds & qualifies leads' },
     { id: 'content-creator', name: 'Content Creator', emoji: '✍️', desc: 'Creates blog posts & content' },
     { id: 'seo-engine', name: 'SEO Engine', emoji: '📈', desc: 'Optimizes rankings & keywords' },
+    { id: 'website-builder', name: 'Website Agent', emoji: '🌐', desc: 'Designs & builds websites' },
     { id: 'ads-runner', name: 'Ads Runner', emoji: '📢', desc: 'Runs Facebook/Google campaigns' },
     { id: 'analytics-bot', name: 'Analytics Bot', emoji: '📊', desc: 'Reports & data analysis' },
     { id: 'sales-closer', name: 'Sales Closer', emoji: '💼', desc: 'Converts leads to clients' },
