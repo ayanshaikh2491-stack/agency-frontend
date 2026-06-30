@@ -1,7 +1,6 @@
 const API_BASE = ''
-// ── Direct EC2 for CEO chat (HTTPS for production) ──
-// NOTE: If port 443 blocked, add rule in AWS Console → EC2 → Security Groups → Inbound → Port 443 → 0.0.0.0/0
-const EC2_BACKEND = 'https://18.213.66.136'
+// ── Direct EC2 via Cloudflare Tunnel (proper HTTPS, valid cert) ──
+const EC2_BACKEND = 'https://continuity-ons-kelkoo-pendant.trycloudflare.com'
 
 async function fetchAPI(endpoint, options = {}) {
   const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`

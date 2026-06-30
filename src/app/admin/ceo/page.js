@@ -16,7 +16,7 @@ import PageShell from '@/components/PageShell'
 import { RunActivityChart, PriorityChart, IssueStatusChart, SuccessRateChart } from '@/components/ActivityCharts'
 import * as ceoAPI from '@/lib/ceo-api'
 
-const EC2_BACKEND = 'https://18.213.66.136'
+const EC2_BACKEND = 'https://continuity-ons-kelkoo-pendant.trycloudflare.com'
 
 /* ═══════════════════════════════════════════════
    REAL TAGS Agency Metrics (Production Data)

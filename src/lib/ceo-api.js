@@ -4,9 +4,9 @@
  * ================================================
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://18.213.66.136'
-// ── Direct EC2 for CEO chat (HTTPS for production) ──
-const EC2_BACKEND = 'https://18.213.66.136'
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://continuity-ons-kelkoo-pendant.trycloudflare.com'
+// ── Direct EC2 via Cloudflare Tunnel (proper HTTPS, valid cert) ──
+const EC2_BACKEND = 'https://continuity-ons-kelkoo-pendant.trycloudflare.com'
 
 /* ─────────────────────────────────────────────────
    Error Handling & Response Validation
