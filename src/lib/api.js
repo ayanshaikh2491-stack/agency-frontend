@@ -39,13 +39,6 @@ export const api = {
     })
   },
 
-  signup(fullName, email, password) {
-    return fetchAPI('/api/auth/signup', {
-      method: 'POST',
-      body: { fullName, email, password },
-    })
-  },
-
   logout() {
     return fetchAPI('/api/auth/logout', { method: 'POST' })
   },
