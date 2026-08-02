@@ -17,15 +17,41 @@ export async function POST(request) {
     const supabase = createClient(SUPABASE_URL, SERVICE_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
     })
+
+    // Resolve client_id: accept UUID directly, or look up by slug/name
+    let clientId = body.client_id || 'default'
+    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRe.test(clientId)) {
+      const { data: client, error: clientErr } = await supabase
+        .from('clients')
+        .select('id')
+        .or(`slug.eq.${clientId},name.eq.${clientId}`)
+        .limit(1)
+        .maybeSingle()
+      if (clientErr || !client) {
+        return NextResponse.json({ success: false, error: `Unknown client: ${clientId}` }, { status: 400 })
+      }
+      clientId = client.id
+    }
+
+    // goal_status enum: draft, active, in_progress, completed, cancelled
+    const statusMap = { pending: 'active', new: 'draft', done: 'completed', in_progress: 'in_progress' }
+    const insertRow = {
+      client_id: clientId,
+      title: body.content || body.title || '',
+      description: body.description || body.content || '',
+      status: statusMap[body.status] || body.status || 'active',
+      command_type: body.command_type || 'cto-command',
+      created_at: body.created_at || new Date().toISOString(),
+      updated_at: body.updated_at || new Date().toISOString(),
+    }
+    // created_by is a UUID FK — only set when a valid UUID is provided
+    if (body.created_by && uuidRe.test(body.created_by)) {
+      insertRow.created_by = body.created_by
+    }
     const { data, error } = await supabase
       .from('goals')
-      .insert({
-        client_id: body.client_id || 'default',
-        content: body.content || '',
-        status: body.status || 'pending',
-        command_type: body.command_type || 'cto-command',
-        created_at: body.created_at || new Date().toISOString(),
-      })
+      .insert(insertRow)
       .select()
     if (error) {
       return NextResponse.json({ success: false, error: error.message }, { status: 500 })
