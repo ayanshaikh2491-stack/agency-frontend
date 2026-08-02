@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
 
 /**
- * SBA API proxy.
- * Routes to the admin backend (FastAPI, port 9002).
- * Set SBA_API_URL in .env.local to override.
+ * SBA API catch-all proxy.
+ * Handles /api/sba/* paths (chat, status, leads, meetings, etc.)
+ * Routes to the EC2 SBA backend.
  */
 const SBA_API_URL = process.env.SBA_API_URL ||
   `${process.env.BACKEND_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://18.213.66.136:8000'}/api/sba`
@@ -28,7 +28,7 @@ async function proxyToSBA(request) {
         'Accept': 'application/json',
       },
       body: body || undefined,
-      signal: AbortSignal.timeout(120000),
+      signal: AbortSignal.timeout(120000), // 2 min for LLM calls
     })
 
     const contentType = response.headers.get('content-type') || ''
@@ -48,8 +48,8 @@ async function proxyToSBA(request) {
   }
 }
 
-export async function GET(request) { return proxyToSBA(request) }
-export async function POST(request) { return proxyToSBA(request) }
-export async function PUT(request) { return proxyToSBA(request) }
-export async function DELETE(request) { return proxyToSBA(request) }
-export async function PATCH(request) { return proxyToSBA(request) }
+export async function GET(request, { params }) { return proxyToSBA(request) }
+export async function POST(request, { params }) { return proxyToSBA(request) }
+export async function PUT(request, { params }) { return proxyToSBA(request) }
+export async function DELETE(request, { params }) { return proxyToSBA(request) }
+export async function PATCH(request, { params }) { return proxyToSBA(request) }
