@@ -102,7 +102,7 @@ export default function CEODecisionLog() {
   const fetchDecisions = useCallback(async () => {
     try {
       setLoading(true)
-      const response = await fetch('http://localhost:8000/api/ceo/decisions?limit=50')
+      const response = await fetch('/api/ceo/decisions?limit=50')
       if (response.ok) {
         const data = await response.json()
         setDecisions(Array.isArray(data.decisions) ? data.decisions : [])

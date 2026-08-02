@@ -41,7 +41,7 @@ async function proxy(request, { params }) {
       headers: fetchHeaders,
       body: body || undefined,
       redirect: 'manual',
-      signal: AbortSignal.timeout(30000),
+      signal: AbortSignal.timeout(120000),
     })
 
     const location = response.headers.get('location')

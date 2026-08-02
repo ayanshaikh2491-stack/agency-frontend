@@ -112,7 +112,7 @@ export default function CEOClientList({ onClientSelect }) {
   const fetchClients = useCallback(async () => {
     try {
       setLoading(true)
-      const response = await fetch('http://localhost:8000/api/clients')
+      const response = await fetch('/api/clients')
       if (response.ok) {
         const data = await response.json()
         setClients(Array.isArray(data.clients) ? data.clients : [])
@@ -145,7 +145,7 @@ export default function CEOClientList({ onClientSelect }) {
   const handleAction = useCallback(async (action, clientId) => {
     setActionInProgress(true)
     try {
-      const response = await fetch(`http://localhost:8000/api/clients/${clientId}/${action}`, {
+      const response = await fetch(`/api/clients/${clientId}/${action}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       })

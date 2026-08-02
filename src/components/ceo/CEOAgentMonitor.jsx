@@ -131,7 +131,7 @@ export default function CEOAgentMonitor({ onAgentSelect }) {
 
   const fetchAgents = useCallback(async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/agents')
+      const response = await fetch('/api/agents')
       if (response.ok) {
         const data = await response.json()
         const agentList = Array.isArray(data.agents) ? data.agents : []
@@ -140,7 +140,7 @@ export default function CEOAgentMonitor({ onAgentSelect }) {
         const enriched = await Promise.all(
           agentList.map(async (agent) => {
             try {
-              const queueRes = await fetch(`http://localhost:8000/api/agents/${agent.id}/queue`)
+              const queueRes = await fetch(`/api/agents/${agent.id}/queue`)
               if (queueRes.ok) {
                 const queueData = await queueRes.json()
                 return { ...agent, queue_size: queueData.queue_size || 0 }
@@ -176,7 +176,7 @@ export default function CEOAgentMonitor({ onAgentSelect }) {
 
     setActionInProgress(true)
     try {
-      const response = await fetch(`http://localhost:8000/api/agents/${agentId}/${action}`, {
+      const response = await fetch(`/api/agents/${agentId}/${action}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       })

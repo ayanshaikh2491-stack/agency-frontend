@@ -45,9 +45,9 @@ export default function CEODashboardKPIs({ onKPIClick }) {
     try {
       setRefreshing(true)
       const [clientRes, agentRes, healthRes] = await Promise.all([
-        fetch('http://localhost:8000/api/clients'),
-        fetch('http://localhost:8000/api/agents'),
-        fetch('http://localhost:8000/api/monitor/health').catch(() => null)
+        fetch('/api/clients'),
+        fetch('/api/agents'),
+        fetch('/api/monitor/health').catch(() => null)
       ])
 
       const clients = clientRes.ok ? await clientRes.json() : { clients: [] }

@@ -2,13 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useCompany } from '@/lib/client-context'
-import { createBrowserClient } from '@supabase/ssr'
 import Link from 'next/link'
-
-const supabase = createBrowserClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
-)
 
 function uid() { return 'm' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6) }
 function ts() { return new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' }) }
@@ -197,11 +191,15 @@ export default function CTOPage() {
     if (!override) setInput('')
 
     try {
-      await supabase.from('goals').insert({
-        client_id: localStorage.getItem('activeClientId') || 'default',
-        content: text,
-        status: 'pending',
-        command_type: 'cto-command',
+      await fetch('/api/cto/goals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client_id: localStorage.getItem('activeClientId') || 'default',
+          content: text,
+          status: 'pending',
+          command_type: 'cto-command',
+        }),
       })
     } catch (e) {}
 
