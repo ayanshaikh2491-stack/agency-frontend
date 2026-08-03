@@ -1,6 +1,4 @@
 const API_BASE = ''
-// ── Direct EC2 via Cloudflare Tunnel (proper HTTPS, valid cert) ──
-const EC2_BACKEND = 'https://continuity-ons-kelkoo-pendant.trycloudflare.com'
 
 async function fetchAPI(endpoint, options = {}) {
   const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`
@@ -90,8 +88,8 @@ export const api = {
   },
 
   ceoChat(message, context) {
-    // ── Hermes CEO on EC2 port 8000 (direct call to bypass Vercel timeout) ──
-    return fetchAPI(`${EC2_BACKEND}/api/ceo/chat-hermes`, {
+    // Same-origin proxy (Vercel -> EC2 /api/ceo/chat); avoids Vercel function timeout by proxying
+    return fetchAPI('/api/ceo/chat', {
       method: 'POST',
       body: {
         message,
