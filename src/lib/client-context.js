@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react'
+import { normalizeList } from '@/lib/api-lists'
 
 const CompanyContext = createContext(null)
 
@@ -75,8 +76,8 @@ export function CompanyProvider({ children }) {
 
         if (cancelled) return
 
-        const agentList = agentsRes?.data || []
-        const clientList = clientsRes?.data || []
+        const agentList = normalizeList(agentsRes, 'agents')
+        const clientList = normalizeList(clientsRes, 'clients')
 
         setAgents(agentList)
         setClients(clientList)

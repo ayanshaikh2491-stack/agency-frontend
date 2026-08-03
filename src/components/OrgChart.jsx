@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { normalizeList } from '@/lib/api-lists'
 
 const AGENT_EMOJIS = {
   'intake-researcher': '🔍',
@@ -40,7 +41,7 @@ export default function OrgChart({ agents: propAgents }) {
     fetch('/api/agents')
       .then(r => r.json())
       .then(d => {
-        const list = d.data || []
+        const list = normalizeList(d, 'agents')
         setAgents(list)
         setLoading(false)
       })

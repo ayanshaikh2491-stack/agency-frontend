@@ -4,6 +4,8 @@
  * ================================================
  */
 
+import { normalizeList } from '@/lib/api-lists'
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://18.213.66.136:8000'
 
 /* ─────────────────────────────────────────────────
@@ -76,8 +78,8 @@ export async function fetchMetrics() {
       }
     }
 
-    const clients = clientsRes.data || []
-    const agents = agentsRes.data || []
+    const clients = normalizeList(clientsRes, 'clients')
+    const agents = normalizeList(agentsRes, 'agents')
 
     return {
       success: true,

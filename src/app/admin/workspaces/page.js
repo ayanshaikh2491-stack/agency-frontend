@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
+import { normalizeList } from '@/lib/api-lists'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, Trash2, X, Building2, Globe, Mail, Phone, ExternalLink, Bot, Brain, BarChart3 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
@@ -25,7 +26,7 @@ export default function WorkspacesPage() {
   async function loadWorkspaces() {
     try {
       const res = await fetch('/api/workspaces/').then(r => r.json())
-      setWorkspaces(res.data || [])
+      setWorkspaces(normalizeList(res, 'workspaces'))
     } catch { setWorkspaces([]) }
     setLoading(false)
   }

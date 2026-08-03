@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { useCompany } from '@/lib/client-context'
+import { normalizeList } from '@/lib/api-lists'
 import AgentList from '@/components/agents/AgentList'
 import ChatWindow from '@/components/agents/ChatWindow'
 
@@ -58,7 +59,7 @@ function useCEOOOrchestrators() {
         }
         if (l.includes('status') || l.includes('all') || l.includes('agency') || l.includes('health')) {
           const agentRes = await fetch('/api/agents').then(r => r.json())
-          const agentList = agentRes.data || []
+          const agentList = normalizeList(agentRes, 'agents')
           const status = agentList.map(a => `  • ${a.name || a.slug}: ${a.status || 'active'}`).join('\n')
           return `👑 **CEO**: Here's your agency status!\n\n**Agents (${agentList.length}):**\n${status}\n\nAll agents are operational.`
         }
@@ -77,7 +78,7 @@ export default function AgentsPage() {
 
   useEffect(() => {
     fetch('/api/agents').then(r => r.json()).then(d => {
-      setAgents(d.data || [])
+      setAgents(normalizeList(d, 'agents'))
     }).catch(() => {}).finally(() => setLoading(false))
   }, [])
 

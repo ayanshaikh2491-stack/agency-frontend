@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { Badge } from '@/components/ui/badge'
 import OrgChart from '@/components/OrgChart'
+import { normalizeList } from '@/lib/api-lists'
 
 export default function OrgPage() {
   const [agents, setAgents] = useState([])
@@ -13,7 +14,7 @@ export default function OrgPage() {
       fetch('/api/agents').then(r => r.json()),
       fetch('/api/status').then(r => r.json()).catch(() => ({})),
     ]).then(([agentsData, statusData]) => {
-      setAgents(agentsData.data || [])
+      setAgents(normalizeList(agentsData, 'agents'))
       setStats(statusData)
       setLoading(false)
     }).catch(() => setLoading(false))
