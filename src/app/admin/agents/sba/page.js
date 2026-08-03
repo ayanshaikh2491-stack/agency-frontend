@@ -79,6 +79,9 @@ function MeetingCompanion({ meeting, onClose }) {
   const [liveNotes, setLiveNotes] = useState(null)
   const [manualNotes, setManualNotes] = useState('')
   const [analyzing, setAnalyzing] = useState(false)
+  const [meetingKaran, setMeetingKaran] = useState(meeting?.purpose || '')
+  const [karanSaving, setKaranSaving] = useState(false)
+  const [backingUp, setBackingUp] = useState(false)
   const recognitionRef = useRef(null)
 
   // Translation state
@@ -189,6 +192,47 @@ function MeetingCompanion({ meeting, onClose }) {
       utterance.pitch = 1
       window.speechSynthesis.speak(utterance)
     }
+  }
+
+  /* ─── Meeting ka Karan (purpose) ─── */
+  async function saveMeetingKaran() {
+    setKaranSaving(true)
+    try {
+      const res = await fetch(`/api/sba/meetings/${meeting.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ purpose: meetingKaran })
+      })
+      const d = await res.json()
+      if (d?.success && d?.data?.meeting?.purpose !== undefined) {
+        setMeetingKaran(d.data.meeting.purpose)
+      }
+    } catch (e) { console.error('Karan save failed:', e) }
+    setKaranSaving(false)
+  }
+
+  /* ─── Backup (meeting notes + karan + transcript download) ─── */
+  async function downloadBackup() {
+    setBackingUp(true)
+    try {
+      const res = await fetch(`/api/sba/meetings/${meeting.id}/backup`)
+      const d = await res.json()
+      if (d?.success && d?.data) {
+        const blob = new Blob([JSON.stringify(d.data, null, 2)], { type: 'application/json' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        const dateStr = meeting?.date || new Date().toISOString().split('T')[0]
+        a.href = url
+        a.download = `meeting-backup-${meeting?.lead_name?.replace(/\s+/g, '-') || meeting.id}-${dateStr}.json`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+      } else {
+        alert('Backup failed: ' + (d?.message || 'Unknown error'))
+      }
+    } catch (e) { alert('Backup failed: ' + e.message) }
+    setBackingUp(false)
   }
 
   /* ─── SBA Think ─── */
@@ -364,6 +408,14 @@ function MeetingCompanion({ meeting, onClose }) {
                 <span className="size-2 rounded-full bg-red-500 animate-pulse" /> Recording...
               </span>
             )}
+            <button
+              onClick={downloadBackup}
+              disabled={backingUp}
+              title="Meeting backup download karo (notes + karan + transcript)"
+              className="p-1.5 rounded-md hover:bg-accent/10 disabled:opacity-50"
+            >
+              {backingUp ? <Loader2 className="size-4 text-accent animate-spin" /> : <Download className="size-4 text-muted-foreground" />}
+            </button>
             <button onClick={onClose} className="p-1.5 rounded-md hover:bg-accent/10"><XCircle className="size-4 text-muted-foreground" /></button>
           </div>
         </div>
@@ -372,6 +424,28 @@ function MeetingCompanion({ meeting, onClose }) {
         <div className="flex-1 flex gap-0 min-h-0">
           {/* Left: Controls + Transcript */}
           <div className="w-[35%] border-r border-border flex flex-col">
+            <div className="p-3 border-b border-border">
+              <h4 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                <Calendar className="size-3" /> Meeting ka Karan (Purpose)
+              </h4>
+              <div className="flex gap-1.5">
+                <input
+                  value={meetingKaran}
+                  onChange={e => setMeetingKaran(e.target.value)}
+                  onBlur={saveMeetingKaran}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur() } }}
+                  placeholder="e.g. Lead ne scope aur budget discuss karna hai"
+                  className="flex-1 text-xs bg-muted/30 rounded-lg px-2.5 py-2 border-none outline-none text-foreground placeholder:text-muted-foreground/40"
+                />
+                <button
+                  onClick={saveMeetingKaran}
+                  disabled={karanSaving}
+                  className="px-2.5 py-2 text-xs font-medium rounded-lg bg-accent/10 text-accent hover:bg-accent/20 disabled:opacity-50"
+                >
+                  {karanSaving ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-3.5" />}
+                </button>
+              </div>
+            </div>
             <div className="flex items-center gap-2 p-3 border-b border-border">
               <button
                 onClick={toggleRecording}
@@ -1395,6 +1469,9 @@ export default function SBAPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium text-foreground">{m.title}</div>
+                    {m.purpose && (
+                      <div className="text-[11px] text-accent truncate mt-0.5">🎯 {m.purpose}</div>
+                    )}
                     <div className="text-[11px] text-muted-foreground">
                       {m.date} at {m.time}
                       {m.lead_name ? ` · ${m.lead_name}` : ''}
