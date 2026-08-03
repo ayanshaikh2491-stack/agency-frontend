@@ -98,6 +98,11 @@ function MeetingCompanion({ meeting, onClose }) {
   const [sbaThinking, setSbaThinking] = useState(null)
   const [thinking, setThinking] = useState(false)
 
+  // Handoff Analysis state
+  const [handoffAnalysis, setHandoffAnalysis] = useState(null)
+  const [handoffLoading, setHandoffLoading] = useState(false)
+  const [showForceHandoff, setShowForceHandoff] = useState(false)
+
   /* ─── Translate (text) ─── */
   async function handleTranslate() {
     if (!inputText.trim()) return
@@ -184,22 +189,6 @@ function MeetingCompanion({ meeting, onClose }) {
       utterance.pitch = 1
       window.speechSynthesis.speak(utterance)
     }
-  }
-
-  /* ─── SBA Think ─── */
-  async function handleTranslate() {
-    if (!inputText.trim()) return
-    setTranslating(true)
-    try {
-      const res = await fetch('/api/sba/translate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: inputText, direction: translateDirection, context: `Meeting with ${meeting?.lead_name}` })
-      })
-      const d = await res.json()
-      if (d?.success) setTranslatedText(d.data.translated)
-    } catch (e) { console.error('Translation failed:', e) }
-    setTranslating(false)
   }
 
   /* ─── SBA Think ─── */
@@ -296,8 +285,12 @@ function MeetingCompanion({ meeting, onClose }) {
     setAnalyzing(false)
   }
 
-  /* ─── Send to CEO ─── */
+  /* ─── Smart Send to CEO ─── */
   async function sendToCEO() {
+    if (handoffLoading) return
+    setHandoffLoading(true)
+    setHandoffAnalysis(null)
+    setShowForceHandoff(false)
     try {
       const res = await fetch(`/api/sba/meetings/${meeting.id}/handoff-to-ceo`, {
         method: 'POST',
@@ -305,12 +298,39 @@ function MeetingCompanion({ meeting, onClose }) {
       })
       const d = await res.json()
       if (d?.success) {
-        alert('🤝 SBA → CEO handoff complete! CEO will now create workspace.')
-        onClose()
+        if (d.handoff_ready) {
+          // ✅ SBA confident — direct handoff
+          alert('✅ SBA ' + d.confidence + '% confident! Lead CEO ko handoff ho gaya.\n\nCEO ab workspace banayega aur relevant skills assign karega.')
+          onClose()
+        } else {
+          // ⚠ SBA not confident — show analysis + suggestions
+          setHandoffAnalysis(d.data)
+          setShowForceHandoff(true)
+        }
       } else {
         alert('Handoff failed: ' + (d?.message || 'Unknown error'))
       }
     } catch (e) { alert('Handoff failed: ' + e.message) }
+  }
+
+  /* ─── Force Handoff (bypass SBA check) ─── */
+  async function forceSendToCEO() {
+    setHandoffLoading(true)
+    try {
+      const res = await fetch(`/api/sba/meetings/${meeting.id}/handoff-to-ceo?force=true`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+      const d = await res.json()
+      if (d?.success && d.handoff_ready) {
+        alert('✅ Force handoff successful! CEO ab workspace banayega.')
+        onClose()
+      } else {
+        alert('Force handoff failed: ' + (d?.message || 'Unknown error'))
+      }
+    } catch (e) { alert('Force handoff failed: ' + e.message) }
+    setHandoffLoading(false)
+    setShowForceHandoff(false)
   }
 
   useEffect(() => {
@@ -536,9 +556,40 @@ function MeetingCompanion({ meeting, onClose }) {
                     <ul className="text-xs text-foreground space-y-1">{liveNotes.action_items.map((a, i) => <li key={i}>• {a}</li>)}</ul>
                   </div>
                 )}
-                <button onClick={sendToCEO} className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold rounded-lg bg-gradient-to-r from-accent to-accent/80 text-white hover:from-accent/90 transition-all">
-                  <Bot className="size-4" /> CEO ko Bhejo → Workspace Banao
-                </button>
+                {/* ─── Smart Handoff Section ─── */}
+                {handoffLoading ? (
+                  <button disabled className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold rounded-lg bg-accent/50 text-white/70 transition-all">
+                    <Loader2 className="size-4 animate-spin" /> SBA Analyze kar raha...
+                  </button>
+                ) : handoffAnalysis ? (
+                  <div className="space-y-3">
+                    {/* SBA Analysis + Suggestions */}
+                    <div className="bg-amber-500/5 border border-amber-500/30 rounded-lg p-3">
+                      <h5 className="text-xs font-semibold text-amber-400 mb-1">⚠ SBA Confident Nahi Hai</h5>
+                      <p className="text-[11px] text-muted-foreground mb-2">{handoffAnalysis.analysis?.slice(0, 200)}</p>
+                      {handoffAnalysis.suggestions?.length > 0 && (
+                        <>
+                          <p className="text-[10px] font-medium text-amber-400 mb-1">Pehle yeh clarify karo:</p>
+                          <ul className="text-[10px] text-muted-foreground space-y-0.5">
+                            {handoffAnalysis.suggestions.map((s, i) => <li key={i} className="flex items-start gap-1">• {s}</li>)}
+                          </ul>
+                        </>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => { setHandoffAnalysis(null); setShowForceHandoff(false); }} className="flex-1 px-3 py-2.5 text-xs font-medium rounded-lg border border-border text-muted-foreground hover:bg-accent/5">
+                        Cancel
+                      </button>
+                      <button onClick={forceSendToCEO} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium rounded-lg bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500/20">
+                        <Zap className="size-3" /> Force Handoff
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button onClick={sendToCEO} className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold rounded-lg bg-gradient-to-r from-accent to-accent/80 text-white hover:from-accent/90 transition-all">
+                    <Bot className="size-4" /> CEO ko Bhejo → Workspace Banao
+                  </button>
+                )}
               </div>
             ) : (
               <div className="text-center py-12">
@@ -569,6 +620,8 @@ export default function SBAPage() {
   const [financeData, setFinanceData] = useState(null)
   const [loadingTab, setLoadingTab] = useState(false)
   const [activeMeeting, setActiveMeeting] = useState(null)  // Meeting companion widget
+  const [calendarDate, setCalendarDate] = useState(new Date())
+  const [selectedDate, setSelectedDate] = useState(null)
   const chatEndRef = useRef(null)
 
   /* ─── Agent options (ONLY SBA) ─── */
@@ -1163,8 +1216,112 @@ export default function SBAPage() {
   }
 
   /* ═══════════════════════════════════════════════
-     Meetings tab — Calendar from Sales Agent
+     Meetings tab — Google Calendar-style view
      ═══════════════════════════════════════════════ */
+  const year = calendarDate.getFullYear()
+  const month = calendarDate.getMonth()
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const firstDayOfWeek = new Date(year, month, 1).getDay()
+  const todayStr = new Date().toISOString().split('T')[0]
+  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December']
+  const dayHeaders = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+
+  function prevMonth() { setCalendarDate(new Date(year, month - 1, 1)); setSelectedDate(null) }
+  function nextMonth() { setCalendarDate(new Date(year, month + 1, 1)); setSelectedDate(null) }
+
+  const meetingsByDate = useMemo(() => {
+    const map = {}
+    meetingsList.forEach(m => {
+      const key = m.date || ''
+      if (!map[key]) map[key] = []
+      map[key].push(m)
+    })
+    return map
+  }, [meetingsList])
+
+  const selectedMeetings = selectedDate ? (meetingsByDate[selectedDate] || []) : []
+
+  function fmtDate(y, mo, d) {
+    return `${y}-${String(mo + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+  }
+
+  const renderCalendarGrid = () => (
+    <>
+      <div className="flex items-center justify-between px-1 mb-4">
+        <button onClick={prevMonth} className="p-1.5 rounded-md hover:bg-accent/10 text-muted-foreground hover:text-foreground transition-colors">
+          <ChevronDown className="size-4 rotate-90" />
+        </button>
+        <h3 className="text-sm font-semibold text-foreground">{monthNames[month]} {year}</h3>
+        <button onClick={nextMonth} className="p-1.5 rounded-md hover:bg-accent/10 text-muted-foreground hover:text-foreground transition-colors">
+          <ChevronDown className="size-4 -rotate-90" />
+        </button>
+      </div>
+      <div className="grid grid-cols-7 mb-1">
+        {dayHeaders.map(d => (
+          <div key={d} className="text-[10px] font-semibold text-muted-foreground text-center py-1 uppercase tracking-wider">{d}</div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7">
+        {Array.from({ length: firstDayOfWeek }).map((_, i) => (
+          <div key={`e-${i}`} className="aspect-square p-1" />
+        ))}
+        {Array.from({ length: daysInMonth }).map((_, i) => {
+          const day = i + 1
+          const ds = fmtDate(year, month, day)
+          const isToday = ds === todayStr
+          const isSel = ds === selectedDate
+          const dayMs = meetingsByDate[ds] || []
+          return (
+            <button
+              key={ds}
+              onClick={() => setSelectedDate(isSel ? null : ds)}
+              className={`aspect-square p-1 rounded-md flex flex-col items-start gap-0.5 transition-colors ${
+                isSel ? 'bg-accent/20 ring-1 ring-accent' : isToday ? 'bg-accent/10' : 'hover:bg-accent/5'
+              }`}
+            >
+              <span className={`text-[11px] font-medium ${isToday ? 'text-accent' : 'text-foreground'}`}>{day}</span>
+              {dayMs.slice(0, 3).map((m, mi) => (
+                <span key={mi} className={`text-[7px] leading-tight truncate w-full px-0.5 rounded ${
+                  m.status === 'scheduled' ? 'bg-accent/20 text-accent' : 'bg-muted/30 text-muted-foreground'
+                }`}>
+                  {m.time?.slice(0, 5)} {m.lead_name?.slice(0, 6) || ''}
+                </span>
+              ))}
+              {dayMs.length > 3 && (
+                <span className="text-[7px] text-muted-foreground/60 pl-0.5">+{dayMs.length - 3}</span>
+              )}
+            </button>
+          )
+        })}
+      </div>
+    </>
+  )
+
+  const renderTodayBox = () => {
+    const tm = meetingsByDate[todayStr] || []
+    return (
+      <div className="border border-border/60 rounded-lg p-3">
+        <h4 className="text-[11px] font-semibold text-foreground mb-2 flex items-center gap-1.5">
+          <Calendar className="size-3 text-accent" /> Aaj ki Meetings
+        </h4>
+        {tm.length === 0 ? (
+          <p className="text-[11px] text-muted-foreground/60">No meetings today</p>
+        ) : (
+          <div className="space-y-1.5">
+            {tm.map((m, i) => (
+              <div key={m.id || i} className="flex items-center gap-2 text-[11px] text-foreground">
+                <span className="text-accent font-medium">{m.time?.slice(0,5)}</span>
+                <span className="text-muted-foreground">·</span>
+                <span className="flex-1 truncate">{m.title || m.lead_name}</span>
+                <Badge variant={m.status==='scheduled'?'default':'secondary'} className="text-[8px] h-4 px-1.5">{m.status}</Badge>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
+
   const renderMeetings = () => {
     if (loadingTab) return (
       <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
@@ -1172,7 +1329,6 @@ export default function SBAPage() {
       </div>
     )
 
-    // If active meeting, show Meeting Companion
     if (activeMeeting) {
       return <MeetingCompanion meeting={activeMeeting} onClose={() => setActiveMeeting(null)} />
     }
@@ -1181,17 +1337,56 @@ export default function SBAPage() {
       <div className="flex-1 overflow-y-auto">
         <div className="border border-border rounded-lg bg-card">
           <div className="px-4 py-3 border-b border-border/60 flex items-center justify-between">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">All Meetings</h3>
-            <Button size="sm" variant="outline" className="text-[11px] h-7">
-              <Plus className="size-3 mr-1" /> Schedule
-            </Button>
-          </div>
-          {meetingsList.length === 0 ? (
-            <div className="text-center py-12 text-sm text-muted-foreground">
-              <Calendar className="size-8 mx-auto mb-3 text-muted-foreground/40" />
-              <p>No meetings yet</p>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Calendar</h3>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" className="text-[11px] h-7" onClick={() => { setCalendarDate(new Date()); setSelectedDate(todayStr) }}>
+                <Calendar className="size-3 mr-1" /> Today
+              </Button>
+              <Button size="sm" className="text-[11px] h-7">
+                <Plus className="size-3 mr-1" /> Schedule
+              </Button>
             </div>
-          ) : (
+          </div>
+
+          <div className="p-4">
+            <div className="flex gap-6">
+              <div className="flex-1 min-w-0">
+                {renderCalendarGrid()}
+              </div>
+
+              <div className="w-64 shrink-0 space-y-4">
+                {renderTodayBox()}
+
+                {selectedDate && selectedDate !== todayStr && (
+                  <div className="border border-border/60 rounded-lg p-3">
+                    <h4 className="text-[11px] font-semibold text-foreground mb-2">{selectedDate}</h4>
+                    {selectedMeetings.length === 0 ? (
+                      <p className="text-[11px] text-muted-foreground/60">No meetings</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {selectedMeetings.map((m, i) => (
+                          <div key={m.id || i} className="flex items-start gap-2 p-2 rounded-md hover:bg-accent/5 transition-colors cursor-pointer" onClick={() => m.status === 'scheduled' && setActiveMeeting(m)}>
+                            <div className={`size-2 rounded-full mt-0.5 shrink-0 ${m.status === 'scheduled' ? 'bg-accent' : 'bg-muted-foreground'}`} />
+                            <div className="min-w-0">
+                              <div className="text-[12px] font-medium text-foreground truncate">{m.title || m.lead_name || 'Meeting'}</div>
+                              <div className="text-[10px] text-muted-foreground">{m.time?.slice(0,5)}{m.lead_name ? ` · ${m.lead_name}` : ''}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {meetingsList.length > 0 && (
+          <div className="border border-border rounded-lg bg-card mt-4">
+            <div className="px-4 py-3 border-b border-border/60">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">All Meetings</h3>
+            </div>
             <div className="divide-y divide-border/60">
               {meetingsList.map((m, i) => (
                 <div key={m.id || i} className="px-4 py-3 flex items-center gap-3.5">
@@ -1208,18 +1403,15 @@ export default function SBAPage() {
                   </div>
                   <Badge variant={m.status === 'scheduled' ? 'default' : 'secondary'} className="text-[10px]">{m.status}</Badge>
                   {m.status === 'scheduled' && (
-                    <button
-                      onClick={() => setActiveMeeting(m)}
-                      className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-medium rounded-md bg-accent/10 text-accent hover:bg-accent/20 transition-colors"
-                    >
+                    <button onClick={() => setActiveMeeting(m)} className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-medium rounded-md bg-accent/10 text-accent hover:bg-accent/20 transition-colors">
                       <Video className="size-3" /> Join & Notes
                     </button>
                   )}
                 </div>
               ))}
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     )
   }

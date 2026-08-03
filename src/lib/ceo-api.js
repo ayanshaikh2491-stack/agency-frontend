@@ -4,9 +4,7 @@
  * ================================================
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://continuity-ons-kelkoo-pendant.trycloudflare.com'
-// ── Direct EC2 via Cloudflare Tunnel (proper HTTPS, valid cert) ──
-const EC2_BACKEND = 'https://continuity-ons-kelkoo-pendant.trycloudflare.com'
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://18.213.66.136:8000'
 
 /* ─────────────────────────────────────────────────
    Error Handling & Response Validation
@@ -158,21 +156,20 @@ export async function sendCEOCommand(message) {
 
 /**
  * CEO chat (conversational) - Direct EC2 call for fast response
- * POST /api/ceo/chat-hermes
+ * POST /api/ceo/chat
  */
 export async function sendCEOChat(message, sessionId = 'web') {
   try {
-    const url = `${EC2_BACKEND}/api/ceo/chat-hermes`
-    const response = await fetch(url, {
+    const response = await fetch('/api/ceo/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message, session_id: sessionId }),
     })
     const data = await response.json()
     return {
-      success: true,
-      data,
-      error: null,
+      success: data.success !== false,          // respect backend's success field
+      data: data.success ? data : null,
+      error: data.success ? null : (data.error || 'Chat failed'),
       status: response.status,
     }
   } catch (error) {

@@ -28,7 +28,7 @@ async function proxyToSBA(request) {
         'Accept': 'application/json',
       },
       body: body || undefined,
-      signal: AbortSignal.timeout(120000),
+      signal: AbortSignal.timeout(240000),
     })
 
     const contentType = response.headers.get('content-type') || ''

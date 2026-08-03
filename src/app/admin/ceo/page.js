@@ -16,8 +16,6 @@ import PageShell from '@/components/PageShell'
 import { RunActivityChart, PriorityChart, IssueStatusChart, SuccessRateChart } from '@/components/ActivityCharts'
 import * as ceoAPI from '@/lib/ceo-api'
 
-const EC2_BACKEND = 'https://continuity-ons-kelkoo-pendant.trycloudflare.com'
-
 /* ═══════════════════════════════════════════════
    REAL TAGS Agency Metrics (Production Data)
    ═══════════════════════════════════════════════ */
@@ -324,7 +322,7 @@ function ServicesTab() {
 
 /* ─── Chat Tab ─── */
 
-const CEO_STORAGE_KEY = 'hermes_ceo_chat'
+const CEO_STORAGE_KEY = 'ceo_chat'
 const MAX_STORED_MSGS = 100
 
 function ChatTab() {
@@ -363,10 +361,10 @@ function ChatTab() {
     setMsgs(p => [...p, { id: Date.now().toString(), role: 'user', content: text, time: new Date().toISOString() }])
     setSending(true)
 
-    fetch(`${EC2_BACKEND}/api/ceo/chat-hermes`, {
+    fetch(`/api/ceo/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: text, session_id: 'hermes_web' })
+      body: JSON.stringify({ message: text, session_id: 'web' })
     })
       .then(r => r.json())
       .then(data => {
