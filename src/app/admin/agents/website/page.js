@@ -581,11 +581,12 @@ export default function WebsitePage() {
 
   /* ─── Fetch connected platforms ─── */
   useEffect(() => {
-    fetch('/api/social/oauth/status')
+    fetch('/api/social/tokens/status')
       .then(r => r.json())
       .then(d => {
-        const accts = d?.data?.accounts || {}
-        setConnectedPlatforms(Object.keys(accts))
+        const tokens = Array.isArray(d?.connected_accounts) ? d.connected_accounts : []
+        const platforms = [...new Set(tokens.map(t => t?.platform).filter(Boolean))]
+        setConnectedPlatforms(platforms)
       })
       .catch(() => {})
   }, [])

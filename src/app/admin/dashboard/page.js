@@ -105,7 +105,7 @@ function AgentRunCard({ agent, isActive }) {
 
   return (
     <Link
-      href={agent?.route || agent?.id ? `/admin/agents/${agent.id}` : '#'}
+      href={agent?.route || (agent?.id ? '/admin/agents' : '#')}
       className={`flex flex-col overflow-hidden border ${
         isActive
           ? 'border-blue-500/25 bg-blue-500/[0.04]'
