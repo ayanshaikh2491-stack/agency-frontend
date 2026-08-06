@@ -132,6 +132,11 @@ export default function SocialPage() {
   const [postPayload, setPostPayload] = useState(JSON.stringify(POST_TEMPLATES.reddit, null, 2))
   const [postResult, setPostResult] = useState(null)
   const [organicLoading, setOrganicLoading] = useState(true)
+  const [setup, setSetup] = useState(null)
+  const [connectForm, setConnectForm] = useState({})
+  const [connectOpen, setConnectOpen] = useState({})
+  const [connectSaving, setConnectSaving] = useState(false)
+  const [connectResult, setConnectResult] = useState(null)
 
   useEffect(() => {
     fetch('/api/social/organic/channels?workspace_id=default')
@@ -146,7 +151,41 @@ export default function SocialPage() {
       })
       .catch(() => {})
       .finally(() => setOrganicLoading(false))
+    fetch('/api/social/organic/setup?workspace_id=default')
+      .then(r => r.json())
+      .then(d => setSetup(d))
+      .catch(() => {})
   }, [])
+
+  async function refreshSetup() {
+    try {
+      const r = await fetch('/api/social/organic/setup?workspace_id=default')
+      const d = await r.json()
+      if (d) setSetup(d)
+    } catch (e) { /* keep stale setup */ }
+  }
+
+  function setChannelField(channelId, fieldName, value) {
+    setConnectForm(f => ({ ...f, [channelId]: { ...(f[channelId] || {}), [fieldName]: value } }))
+  }
+
+  async function connectChannel(channelId) {
+    setConnectResult(null)
+    setConnectSaving(true)
+    try {
+      const res = await fetch('/api/social/organic/connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channel: channelId, workspace_id: 'default', config: connectForm[channelId] || {} }),
+      })
+      const data = await res.json().catch(() => ({ ok: res.ok, status: res.status }))
+      setConnectResult({ channel: channelId, ...data })
+      await refreshSetup()
+    } catch (e) {
+      setConnectResult({ channel: channelId, error: e.message })
+    }
+    setConnectSaving(false)
+  }
 
   function handlePostChannelChange(e) {
     const ch = e.target.value
@@ -725,6 +764,102 @@ export default function SocialPage() {
                     )}
                   </Card>
                 ))}
+
+                {/* ─── Connect Channels (guided client onboarding) ─── */}
+                <Card className="border-border">
+                  <CardHeader className="px-4 py-3 border-b border-border">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Connect Channels</CardTitle>
+                      {setup && (
+                        <Badge variant={setup.connected_count === setup.total ? 'default' : 'outline'}
+                          className="text-[10px] px-1.5 py-0 h-4">
+                          {setup.connected_count}/{setup.total} connected
+                        </Badge>
+                      )}
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-3 space-y-2">
+                    {!setup && (
+                      <div className="flex items-center justify-center gap-2 py-4 text-xs text-muted-foreground">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading connect status...
+                      </div>
+                    )}
+                    {setup && Object.values(setup.channels || {}).map(ch => {
+                      const isConnected = ch.connected
+                      const isOpen = connectOpen[ch.id]
+                      const vals = connectForm[ch.id] || {}
+                      const resultFor = connectResult && connectResult.channel === ch.id ? connectResult : null
+                      return (
+                        <div key={ch.id} className="rounded-lg border border-border">
+                          <div className="flex items-center gap-2 px-2.5 py-2">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-semibold text-foreground">{ch.name}</span>
+                                {ch.type && <Badge variant="secondary" className="text-[9px] px-1 h-3.5">{ch.type}</Badge>}
+                              </div>
+                              {!isConnected && ch.missing && ch.missing.length > 0 && (
+                                <div className="text-[10px] text-muted-foreground mt-0.5">
+                                  missing: <span className="text-amber-500">{ch.missing.join(', ')}</span>
+                                </div>
+                              )}
+                            </div>
+                            <div className="ml-auto flex items-center gap-1.5 shrink-0">
+                              {isConnected ? (
+                                <Badge className="text-[9px] px-1.5 h-4 bg-emerald-500/15 text-emerald-400 border-emerald-500/30">
+                                  <CheckCircle2 className="h-3 w-3 mr-1" /> Connected
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-[9px] px-1.5 h-4">Not connected</Badge>
+                              )}
+                              <button
+                                onClick={() => setConnectOpen(o => ({ ...o, [ch.id]: !o[ch.id] }))}
+                                className="rounded-lg border border-border px-2 py-1 text-[10px] font-medium text-foreground hover:bg-accent transition-colors">
+                                {isOpen ? 'Close' : isConnected ? 'Edit' : 'Connect'}
+                              </button>
+                            </div>
+                          </div>
+
+                          {isOpen && (
+                            <div className="border-t border-border p-2.5 space-y-2">
+                              {Array.isArray(ch.instructions) && (
+                                <ol className="list-decimal pl-4 space-y-0.5 text-[10px] text-muted-foreground">
+                                  {ch.instructions.map((s, i) => <li key={i}>{s}</li>)}
+                                </ol>
+                              )}
+                              <div className="grid gap-2">
+                                {(ch.fields || []).map(f => (
+                                  <div key={f.name}>
+                                    <label className="block text-[10px] font-medium text-muted-foreground mb-1">
+                                      {f.label}{f.optional ? ' (optional)' : ''}
+                                    </label>
+                                    <input
+                                      type={f.type || 'text'}
+                                      value={vals[f.name] || ''}
+                                      onChange={e => setChannelField(ch.id, f.name, e.target.value)}
+                                      placeholder={f.name}
+                                      className="w-full rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs text-foreground outline-none focus:border-primary/40"
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Button size="sm" disabled={connectSaving} onClick={() => connectChannel(ch.id)}>
+                                  {connectSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />}
+                                  {isConnected ? 'Save & Reconnect' : 'Connect'}
+                                </Button>
+                                {resultFor && (
+                                  <span className={`text-[10px] truncate ${resultFor.error ? 'text-red-400' : 'text-emerald-400'}`}>
+                                    {resultFor.error || (resultFor.status === 'connected' ? '✓ Connected!' : JSON.stringify(resultFor))}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </CardContent>
+                </Card>
 
                 <Card className="border-border">
                   <CardHeader className="px-4 py-3 border-b border-border">
