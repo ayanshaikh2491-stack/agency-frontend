@@ -109,6 +109,8 @@ export default function SocialPage() {
   const [connectOpen, setConnectOpen] = useState({})
   const [connectSaving, setConnectSaving] = useState(false)
   const [connectResult, setConnectResult] = useState(null)
+  const [oauthBusy, setOauthBusy] = useState(null)
+  const [oauthResult, setOauthResult] = useState(null)
   const [scheduledAt, setScheduledAt] = useState('')
   const [history, setHistory] = useState([])
   const [historyStats, setHistoryStats] = useState(null)
@@ -223,6 +225,48 @@ export default function SocialPage() {
     }
     setConnectSaving(false)
   }
+
+  // OAuth 3-legged flow: open a popup to the platform authorize URL, then wait
+  // for the popup's postMessage (sent by src/app/api/social/oauth/[...slug]/route.js
+  // after the backend exchanges the code and 302s back).
+  async function startOAuth(channelId) {
+    setOauthResult(null)
+    setOauthBusy(channelId)
+    try {
+      const res = await fetch(`/api/social/organic/oauth/start?channel=${encodeURIComponent(channelId)}&workspace_id=${encodeURIComponent(wsId)}`)
+      const data = await res.json().catch(() => ({ ok: res.ok, status: res.status }))
+      if (data.status === 'ok' && data.auth_url) {
+        const popup = window.open(data.auth_url, 'oauth-popup', 'width=520,height=700')
+        if (!popup) {
+          setOauthResult({ channel: channelId, error: 'Popup blocked. Allow popups and retry.' })
+        }
+      } else {
+        setOauthResult({ channel: channelId, error: data.error || 'OAuth start failed' })
+      }
+    } catch (e) {
+      setOauthResult({ channel: channelId, error: e.message })
+    }
+    setOauthBusy(null)
+  }
+
+  useEffect(() => {
+    function onOauthMessage(e) {
+      if (!e || e.data?.type !== 'oauth-result') return
+      const msg = e.data
+      const channelId = msg.platform || 'linkedin'
+      if (msg.success) {
+        setOauthResult({ channel: channelId, status: 'connected', user: msg.platform || '' })
+      } else {
+        setOauthResult({ channel: channelId, error: msg.error || 'OAuth failed' })
+      }
+      refreshSetup()
+      refreshHistory()
+      refreshScheduled()
+    }
+    window.addEventListener('message', onOauthMessage)
+    return () => window.removeEventListener('message', onOauthMessage)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wsId])
 
   function handlePostChannelChange(e) {
     const ch = e.target.value
@@ -924,6 +968,28 @@ export default function SocialPage() {
                                 <ol className="list-decimal pl-4 space-y-0.5 text-[10px] text-muted-foreground">
                                   {ch.instructions.map((s, i) => <li key={i}>{s}</li>)}
                                 </ol>
+                              )}
+                              {ch.oauth && (
+                                <div className="space-y-1.5">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={oauthBusy !== null}
+                                    onClick={() => startOAuth(ch.id)}
+                                    className="w-full border-primary/30 text-primary hover:bg-primary/5">
+                                    {oauthBusy === ch.id
+                                      ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> Opening {ch.name}...</>
+                                      : <><ExternalLink className="h-3.5 w-3.5 mr-1.5" /> Connect via OAuth</>}
+                                  </Button>
+                                  {oauthResult && oauthResult.channel === ch.id && (
+                                    <span className={`block text-[10px] truncate ${oauthResult.error ? 'text-red-400' : 'text-emerald-400'}`}>
+                                      {oauthResult.error || (oauthResult.status === 'connected' ? `✓ ${oauthResult.user ? oauthResult.user + ' ' : ''}Connected via OAuth!` : JSON.stringify(oauthResult))}
+                                    </span>
+                                  )}
+                                  <p className="text-[10px] text-muted-foreground">
+                                    Or paste credentials manually below (advanced):
+                                  </p>
+                                </div>
                               )}
                               <div className="grid gap-2">
                                 {(ch.fields || []).map(f => (
