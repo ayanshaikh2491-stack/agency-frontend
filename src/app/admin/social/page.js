@@ -137,6 +137,10 @@ export default function SocialPage() {
   const [connectOpen, setConnectOpen] = useState({})
   const [connectSaving, setConnectSaving] = useState(false)
   const [connectResult, setConnectResult] = useState(null)
+  const [scheduledAt, setScheduledAt] = useState('')
+  const [history, setHistory] = useState([])
+  const [historyStats, setHistoryStats] = useState(null)
+  const [scheduledList, setScheduledList] = useState([])
 
   useEffect(() => {
     fetch('/api/social/organic/channels?workspace_id=default')
@@ -155,7 +159,55 @@ export default function SocialPage() {
       .then(r => r.json())
       .then(d => setSetup(d))
       .catch(() => {})
+    refreshHistory()
+    refreshScheduled()
   }, [])
+
+  async function refreshHistory() {
+    try {
+      const r = await fetch('/api/social/organic/history?workspace_id=default')
+      const d = await r.json()
+      if (d) {
+        setHistory(d.posts || [])
+        setHistoryStats(d.stats || null)
+      }
+    } catch (e) { /* keep stale */ }
+  }
+
+  async function refreshScheduled() {
+    try {
+      const r = await fetch('/api/social/organic/schedule?workspace_id=default')
+      const d = await r.json()
+      if (d) setScheduledList(d.scheduled || [])
+    } catch (e) { /* keep stale */ }
+  }
+
+  async function schedulePostNow() {
+    if (!scheduledAt) return
+    setPostResult(null)
+    try {
+      const res = await fetch('/api/social/organic/schedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channel: postChannel, workspace_id: 'default', payload: JSON.parse(postPayload), run_at: new Date(scheduledAt).toISOString() }),
+      })
+      const data = await res.json().catch(() => ({ ok: res.ok, status: res.status }))
+      setPostResult(data)
+      if (data.status === 'scheduled') {
+        setScheduledAt('')
+        refreshScheduled()
+      }
+    } catch (e) {
+      setPostResult({ error: e.message })
+    }
+  }
+
+  async function cancelScheduled(id) {
+    try {
+      await fetch(`/api/social/organic/schedule/${id}?workspace_id=default`, { method: 'DELETE' })
+      refreshScheduled()
+    } catch (e) { /* ignore */ }
+  }
 
   async function refreshSetup() {
     try {
@@ -220,6 +272,7 @@ export default function SocialPage() {
       })
       const data = await res.json().catch(() => ({ ok: res.ok, status: res.status }))
       setPostResult(data)
+      refreshHistory()
     } catch (e) {
       setPostResult({ error: e.message })
     }
@@ -903,6 +956,79 @@ export default function SocialPage() {
                       <span className="text-[10px] text-muted-foreground">Payload template for <span className="font-medium text-foreground">{postChannel}</span></span>
                       <Button size="sm" onClick={organicPostNow}><Send className="h-3.5 w-3.5 mr-1.5" /> Post Now</Button>
                     </div>
+                    <div className="flex items-center gap-2 pt-1 border-t border-border">
+                      <input
+                        type="datetime-local"
+                        value={scheduledAt}
+                        onChange={e => setScheduledAt(e.target.value)}
+                        className="flex-1 rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs text-foreground outline-none focus:border-primary/40"
+                      />
+                      <Button size="sm" variant="outline" disabled={!scheduledAt} onClick={schedulePostNow}>
+                        <Calendar className="h-3.5 w-3.5 mr-1.5" /> Schedule
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* ─── Scheduled queue ─── */}
+                <Card className="border-border">
+                  <CardHeader className="px-4 py-3 border-b border-border">
+                    <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Scheduled ({scheduledList.filter(s => s.status === 'pending').length})
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-3 space-y-1.5">
+                    {scheduledList.filter(s => s.status === 'pending').length === 0 && (
+                      <p className="text-[10px] text-muted-foreground">No posts scheduled. Pick a time above and hit Schedule.</p>
+                    )}
+                    {scheduledList.filter(s => s.status === 'pending').map(s => (
+                      <div key={s.id} className="flex items-center gap-2 rounded-lg border border-border px-2.5 py-1.5">
+                        <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        <div className="min-w-0">
+                          <div className="text-xs font-medium text-foreground">{s.channel}</div>
+                          <div className="text-[10px] text-muted-foreground truncate">{new Date(s.run_at).toLocaleString()}</div>
+                        </div>
+                        <button onClick={() => cancelScheduled(s.id)} className="ml-auto rounded border border-border px-1.5 py-0.5 text-[9px] text-muted-foreground hover:bg-accent">
+                          Cancel
+                        </button>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+
+                {/* ─── Post History (real, from organic_data) ─── */}
+                <Card className="border-border">
+                  <CardHeader className="px-4 py-3 border-b border-border">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Post History</CardTitle>
+                      {historyStats && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">
+                          {historyStats.published}/{historyStats.total} published
+                        </Badge>
+                      )}
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-3 space-y-1.5">
+                    {history.length === 0 && (
+                      <p className="text-[10px] text-muted-foreground">No posts yet. Posts you publish will appear here.</p>
+                    )}
+                    {history.slice(0, 10).map(h => (
+                      <div key={h.id} className="flex items-center gap-2 rounded-lg border border-border px-2.5 py-1.5">
+                        {h.status === 'published'
+                          ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                          : h.status === 'error'
+                            ? <AlertCircle className="h-3.5 w-3.5 text-red-400 shrink-0" />
+                            : <Clock className="h-3.5 w-3.5 text-amber-400 shrink-0" />}
+                        <div className="min-w-0">
+                          <div className="text-xs font-medium text-foreground capitalize">{h.channel}</div>
+                          <div className="text-[10px] text-muted-foreground truncate">
+                            {new Date(h.ts).toLocaleString()}
+                            {h.post_url && <span className="text-emerald-400/80"> · {h.post_url}</span>}
+                            {h.error && <span className="text-red-400/80"> · {h.error}</span>}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </CardContent>
                 </Card>
 
