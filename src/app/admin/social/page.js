@@ -53,6 +53,16 @@ const SUGGESTIONS = [
 
 const PLATFORM_ICONS = { Instagram: Camera, Facebook: Globe, LinkedIn: Users, Twitter: Hash, TikTok: Video, YouTube: Play }
 
+const POST_TEMPLATES = {
+  reddit: { subreddit: 'r/test', title: '', body: '' },
+  telegram: { text: '' },
+  twitter: { text: '' },
+  linkedin: { text: '' },
+  pinterest: { title: '', image_url: '', board_id: '' },
+  gbp: { summary: '' },
+  facebook: { target: '', message: '' },
+}
+
 function StatusPill({ color, text }) {
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-medium"
@@ -114,6 +124,68 @@ export default function SocialPage() {
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
 
+  // ─── Organic Channels (Phase 1) ───
+  const [organicChannels, setOrganicChannels] = useState([])
+  const [organicConfigs, setOrganicConfigs] = useState({})
+  const [configDraft, setConfigDraft] = useState('{}')
+  const [postChannel, setPostChannel] = useState('reddit')
+  const [postPayload, setPostPayload] = useState(JSON.stringify(POST_TEMPLATES.reddit, null, 2))
+  const [postResult, setPostResult] = useState(null)
+  const [organicLoading, setOrganicLoading] = useState(true)
+
+  useEffect(() => {
+    fetch('/api/social/organic/channels?workspace_id=default')
+      .then(r => r.json())
+      .then(d => {
+        const channels = d.channels || []
+        const configs = d.configs || {}
+        setOrganicChannels(channels)
+        setOrganicConfigs(configs)
+        if (channels.length > 0) setPostChannel(channels[0].id || channels[0].name || 'reddit')
+        if (configs && configs[postChannel]) setConfigDraft(JSON.stringify(configs[postChannel], null, 2))
+      })
+      .catch(() => {})
+      .finally(() => setOrganicLoading(false))
+  }, [])
+
+  function handlePostChannelChange(e) {
+    const ch = e.target.value
+    setPostChannel(ch)
+    setPostPayload(JSON.stringify(POST_TEMPLATES[ch] || POST_TEMPLATES.reddit, null, 2))
+    setConfigDraft(organicConfigs[ch] ? JSON.stringify(organicConfigs[ch], null, 2) : '{}')
+    setPostResult(null)
+  }
+
+  async function saveOrganicConfig() {
+    setPostResult(null)
+    try {
+      const res = await fetch('/api/social/organic/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channel: postChannel, workspace_id: 'default', config: JSON.parse(configDraft) }),
+      })
+      const data = await res.json().catch(() => ({ ok: res.ok, status: res.status }))
+      setPostResult(data)
+    } catch (e) {
+      setPostResult({ error: e.message })
+    }
+  }
+
+  async function organicPostNow() {
+    setPostResult(null)
+    try {
+      const res = await fetch('/api/social/organic/post', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channel: postChannel, workspace_id: 'default', payload: JSON.parse(postPayload) }),
+      })
+      const data = await res.json().catch(() => ({ ok: res.ok, status: res.status }))
+      setPostResult(data)
+    } catch (e) {
+      setPostResult({ error: e.message })
+    }
+  }
+
   // Filter data by selected client
   const filteredPosts = useMemo(() => {
     if (selectedClient === 'All Clients') return SAMPLE_POSTS
@@ -149,7 +221,7 @@ export default function SocialPage() {
     const icons = {
       chat: MessageCircle, overview: BarChart3, platforms: Globe,
       content: Image, schedule: Calendar, audience: Users,
-      analytics: TrendingUp, sba: Bot, settings: SettingsIcon
+      analytics: TrendingUp, sba: Bot, organic: Upload, settings: SettingsIcon
     }
     const Icon = icons[tabId] || MessageCircle
     return <Icon className="h-4 w-4" />
@@ -190,6 +262,7 @@ export default function SocialPage() {
     { id: 'audience', label: 'Audience' },
     { id: 'analytics', label: 'Analytics' },
     { id: 'sba', label: 'SBA' },
+    { id: 'organic', label: 'Organic' },
     { id: 'settings', label: 'Settings' },
   ]
 
@@ -611,6 +684,106 @@ export default function SocialPage() {
               </div>
             )}
 
+            {/* ═══ ORGANIC ═══ */}
+            {tab === 'organic' && (
+              <div className="p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-xs font-medium text-muted-foreground">Organic Channels · Phase 1</div>
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 text-muted-foreground">{organicChannels.length} channels</Badge>
+                </div>
+
+                {organicLoading && (
+                  <div className="flex items-center justify-center gap-2 py-10 text-xs text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Loading organic channels...
+                  </div>
+                )}
+                {!organicLoading && organicChannels.length === 0 && (
+                  <div className="text-center py-10 rounded-lg border border-dashed border-border">
+                    <Globe className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
+                    <p className="text-sm text-muted-foreground">No organic channels connected yet.</p>
+                  </div>
+                )}
+                {organicChannels.map(ch => (
+                  <Card key={ch.id || ch.name} className="border-border">
+                    <CardHeader className="px-4 py-2.5 border-b border-border">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Globe className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <CardTitle className="text-xs font-semibold text-foreground truncate">{ch.name || ch.id}</CardTitle>
+                        {ch.type && <Badge variant="outline" className="text-[9px] px-1 h-3.5">{ch.type}</Badge>}
+                        <div className="ml-auto flex items-center gap-1.5 shrink-0">
+                          {Array.isArray(ch.capabilities) && ch.capabilities.slice(0, 3).map(c => (
+                            <Badge key={c} variant="secondary" className="text-[9px] px-1 h-3.5">{c}</Badge>
+                          ))}
+                          <StatusPill color={ch.auth ? '#10b981' : '#f59e0b'} text={ch.auth ? 'authed' : 'no auth'} />
+                        </div>
+                      </div>
+                    </CardHeader>
+                    {ch.auth && (
+                      <CardContent className="p-3">
+                        <pre className="whitespace-pre-wrap rounded-lg bg-muted/50 p-2 font-mono text-[10px] text-muted-foreground max-h-24 overflow-y-auto">{JSON.stringify(ch.auth, null, 2)}</pre>
+                      </CardContent>
+                    )}
+                  </Card>
+                ))}
+
+                <Card className="border-border">
+                  <CardHeader className="px-4 py-3 border-b border-border">
+                    <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Channel Config</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-3 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-foreground shrink-0">Channel</span>
+                      <select value={postChannel} onChange={handlePostChannelChange}
+                        className="flex-1 rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs text-foreground outline-none">
+                        {(organicChannels.length > 0 ? organicChannels.map(ch => ({ id: ch.id || ch.name, name: ch.name || ch.id })) : Object.keys(POST_TEMPLATES).map(ch => ({ id: ch, name: ch }))).map(ch => (
+                          <option key={ch.id} value={ch.id}>{ch.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <textarea value={configDraft} onChange={e => setConfigDraft(e.target.value)} rows={4} spellCheck={false}
+                      placeholder='{ "api_key": "..." }'
+                      className="w-full resize-y rounded-lg border border-border bg-background px-3 py-2 font-mono text-[11px] text-foreground outline-none focus:border-primary/40" />
+                    <div className="flex items-center justify-end gap-2">
+                      <Button size="sm" variant="outline" onClick={() => setConfigDraft(organicConfigs[postChannel] ? JSON.stringify(organicConfigs[postChannel], null, 2) : '{}')}>Reset</Button>
+                      <Button size="sm" onClick={saveOrganicConfig}>Save config</Button>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-border">
+                  <CardHeader className="px-4 py-3 border-b border-border">
+                    <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Post Composer</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-3 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-foreground shrink-0">Channel</span>
+                      <select value={postChannel} onChange={handlePostChannelChange}
+                        className="flex-1 rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs text-foreground outline-none">
+                        {Object.keys(POST_TEMPLATES).map(ch => <option key={ch} value={ch}>{ch}</option>)}
+                      </select>
+                    </div>
+                    <textarea value={postPayload} onChange={e => setPostPayload(e.target.value)} rows={6} spellCheck={false}
+                      className="w-full resize-y rounded-lg border border-border bg-background px-3 py-2 font-mono text-[11px] text-foreground outline-none focus:border-primary/40" />
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10px] text-muted-foreground">Payload template for <span className="font-medium text-foreground">{postChannel}</span></span>
+                      <Button size="sm" onClick={organicPostNow}><Send className="h-3.5 w-3.5 mr-1.5" /> Post Now</Button>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {postResult && (
+                  <Card className="border-border">
+                    <CardHeader className="px-4 py-2.5 border-b border-border">
+                      <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Result</CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-3">
+                      <pre className="max-h-48 overflow-y-auto whitespace-pre-wrap rounded-lg bg-muted/50 p-2.5 font-mono text-[10px] text-foreground">{JSON.stringify(postResult, null, 2)}</pre>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            )}
+
             {/* ═══ SETTINGS ═══ */}
             {tab === 'settings' && (
               <div className="p-4 space-y-3">
@@ -767,6 +940,11 @@ export default function SocialPage() {
                   className="flex items-center gap-2 rounded-lg border border-border p-2.5 text-left hover:border-primary/30 hover:bg-primary/5 transition-colors group">
                   <Bot className="h-4 w-4 text-orange-500" />
                   <div className="text-xs font-medium text-foreground group-hover:text-primary">SBA Insights</div>
+                </button>
+                <button onClick={() => { setTab('organic') }}
+                  className="flex items-center gap-2 rounded-lg border border-border p-2.5 text-left hover:border-primary/30 hover:bg-primary/5 transition-colors group">
+                  <Upload className="h-4 w-4 text-teal-500" />
+                  <div className="text-xs font-medium text-foreground group-hover:text-primary">Organic Post</div>
                 </button>
               </CardContent>
             </Card>
