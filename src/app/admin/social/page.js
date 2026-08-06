@@ -16,34 +16,6 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import PageShell from '@/components/PageShell'
 
-/* ─── Sample data ─── */
-const SAMPLE_POSTS = [
-  { id: 'pst_001', content: 'Summer collection launch! 🔥 Get 20% off today', client: 'Client A', platform: 'Instagram', type: 'feed', status: 'published', engagement: 4.2, likes: 1240, comments: 83, shares: 45, scheduled: '2025-06-15', posted: '2025-06-15', reach: 18200 },
-  { id: 'pst_002', content: 'Behind the scenes: Product shoot', client: 'Client A', platform: 'Instagram', type: 'story', status: 'published', engagement: 3.8, likes: 890, comments: 42, shares: 28, scheduled: '2025-06-16', posted: '2025-06-16', reach: 12400 },
-  { id: 'pst_003', content: 'New blog post: Industry trends 2025', client: 'Client B', platform: 'LinkedIn', type: 'article', status: 'scheduled', engagement: 0, likes: 0, comments: 0, shares: 0, scheduled: '2025-06-22', posted: null, reach: 0 },
-  { id: 'pst_004', content: 'Customer testimonial video', client: 'Client B', platform: 'Facebook', type: 'video', status: 'draft', engagement: 0, likes: 0, comments: 0, shares: 0, scheduled: '2025-06-25', posted: null, reach: 0 },
-  { id: 'pst_005', content: 'Flash sale this weekend!', client: 'Client A', platform: 'Facebook', type: 'feed', status: 'scheduled', engagement: 0, likes: 0, comments: 0, shares: 0, scheduled: '2025-06-20', posted: null, reach: 0 },
-  { id: 'pst_006', content: 'Wellness Wednesday tip: Morning routine', client: 'Client C', platform: 'Instagram', type: 'reel', status: 'published', engagement: 6.7, likes: 3200, comments: 156, shares: 420, scheduled: '2025-06-14', posted: '2025-06-14', reach: 45200 },
-  { id: 'pst_007', content: 'Product demo: See it in action', client: 'Client C', platform: 'YouTube', type: 'video', status: 'scheduled', engagement: 0, likes: 0, comments: 0, shares: 0, scheduled: '2025-06-28', posted: null, reach: 0 },
-]
-
-const SAMPLE_PLATFORMS = [
-  { id: 'plt_001', name: '@client_a_insta', client: 'Client A', platform: 'Instagram', followers: 45200, following: 1240, posts: 342, engagement_rate: 3.8, status: 'connected' },
-  { id: 'plt_002', name: 'Client A Page', client: 'Client A', platform: 'Facebook', followers: 28100, following: 0, posts: 189, engagement_rate: 2.4, status: 'connected' },
-  { id: 'plt_003', name: '@client_a_tiktok', client: 'Client A', platform: 'TikTok', followers: 12500, following: 320, posts: 67, engagement_rate: 5.1, status: 'pending' },
-  { id: 'plt_004', name: 'Client B Business', client: 'Client B', platform: 'LinkedIn', followers: 8500, following: 0, posts: 156, engagement_rate: 4.6, status: 'connected' },
-  { id: 'plt_005', name: '@client_b_twitter', client: 'Client B', platform: 'Twitter', followers: 3200, following: 450, posts: 892, engagement_rate: 2.1, status: 'connected' },
-  { id: 'plt_006', name: '@client_c_health', client: 'Client C', platform: 'Instagram', followers: 78500, following: 890, posts: 423, engagement_rate: 5.8, status: 'connected' },
-  { id: 'plt_007', name: 'Client C Channel', client: 'Client C', platform: 'YouTube', followers: 12400, following: 0, posts: 89, engagement_rate: 3.2, status: 'connected' },
-]
-
-const SAMPLE_AUDIENCES = [
-  { id: 'aud_001', client: 'Client A', platform: 'Instagram', followers: 45200, growth_rate: 3.2, top_age: '25-34', top_gender: 'Female 58%', top_city: 'Mumbai', best_time: '7PM-9PM', best_day: 'Sunday' },
-  { id: 'aud_002', client: 'Client A', platform: 'Facebook', followers: 28100, growth_rate: 1.8, top_age: '35-44', top_gender: 'Male 52%', top_city: 'Delhi', best_time: '8PM-10PM', best_day: 'Saturday' },
-  { id: 'aud_003', client: 'Client B', platform: 'LinkedIn', followers: 8500, growth_rate: 5.4, top_age: '25-34', top_gender: 'Male 65%', top_city: 'Bangalore', best_time: '12PM-2PM', best_day: 'Tuesday' },
-  { id: 'aud_004', client: 'Client C', platform: 'Instagram', followers: 78500, growth_rate: 8.1, top_age: '18-24', top_gender: 'Female 72%', top_city: 'Mumbai', best_time: '9PM-11PM', best_day: 'Friday' },
-]
-
 const SUGGESTIONS = [
   { label: '📊 Social Overview', prompt: 'show social overview all clients' },
   { label: '📅 Scheduled Posts', prompt: 'show scheduled posts' },
@@ -142,8 +114,17 @@ export default function SocialPage() {
   const [historyStats, setHistoryStats] = useState(null)
   const [scheduledList, setScheduledList] = useState([])
 
+  // Real workspace-scoped data: selectedCompany -> organic workspace_id
+  const wsId = selectedCompany?.id || 'default'
+  const clientNameDisplay = selectedCompany?.name || 'Client'
+
   useEffect(() => {
-    fetch('/api/social/organic/channels?workspace_id=default')
+    if (!wsId) return
+    setOrganicLoading(true)
+    setHistory([])
+    setHistoryStats(null)
+    setScheduledList([])
+    fetch(`/api/social/organic/channels?workspace_id=${encodeURIComponent(wsId)}`)
       .then(r => r.json())
       .then(d => {
         const channels = d.channels || []
@@ -155,17 +136,19 @@ export default function SocialPage() {
       })
       .catch(() => {})
       .finally(() => setOrganicLoading(false))
-    fetch('/api/social/organic/setup?workspace_id=default')
+    fetch(`/api/social/organic/setup?workspace_id=${encodeURIComponent(wsId)}`)
       .then(r => r.json())
       .then(d => setSetup(d))
       .catch(() => {})
     refreshHistory()
     refreshScheduled()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wsId])
 
   async function refreshHistory() {
+    if (!wsId) return
     try {
-      const r = await fetch('/api/social/organic/history?workspace_id=default')
+      const r = await fetch(`/api/social/organic/history?workspace_id=${encodeURIComponent(wsId)}`)
       const d = await r.json()
       if (d) {
         setHistory(d.posts || [])
@@ -175,8 +158,9 @@ export default function SocialPage() {
   }
 
   async function refreshScheduled() {
+    if (!wsId) return
     try {
-      const r = await fetch('/api/social/organic/schedule?workspace_id=default')
+      const r = await fetch(`/api/social/organic/schedule?workspace_id=${encodeURIComponent(wsId)}`)
       const d = await r.json()
       if (d) setScheduledList(d.scheduled || [])
     } catch (e) { /* keep stale */ }
@@ -189,7 +173,7 @@ export default function SocialPage() {
       const res = await fetch('/api/social/organic/schedule', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ channel: postChannel, workspace_id: 'default', payload: JSON.parse(postPayload), run_at: new Date(scheduledAt).toISOString() }),
+        body: JSON.stringify({ channel: postChannel, workspace_id: wsId, payload: JSON.parse(postPayload), run_at: new Date(scheduledAt).toISOString() }),
       })
       const data = await res.json().catch(() => ({ ok: res.ok, status: res.status }))
       setPostResult(data)
@@ -204,14 +188,15 @@ export default function SocialPage() {
 
   async function cancelScheduled(id) {
     try {
-      await fetch(`/api/social/organic/schedule/${id}?workspace_id=default`, { method: 'DELETE' })
+      await fetch(`/api/social/organic/schedule/${id}?workspace_id=${encodeURIComponent(wsId)}`, { method: 'DELETE' })
       refreshScheduled()
     } catch (e) { /* ignore */ }
   }
 
   async function refreshSetup() {
+    if (!wsId) return
     try {
-      const r = await fetch('/api/social/organic/setup?workspace_id=default')
+      const r = await fetch(`/api/social/organic/setup?workspace_id=${encodeURIComponent(wsId)}`)
       const d = await r.json()
       if (d) setSetup(d)
     } catch (e) { /* keep stale setup */ }
@@ -228,7 +213,7 @@ export default function SocialPage() {
       const res = await fetch('/api/social/organic/connect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ channel: channelId, workspace_id: 'default', config: connectForm[channelId] || {} }),
+        body: JSON.stringify({ channel: channelId, workspace_id: wsId, config: connectForm[channelId] || {} }),
       })
       const data = await res.json().catch(() => ({ ok: res.ok, status: res.status }))
       setConnectResult({ channel: channelId, ...data })
@@ -253,7 +238,7 @@ export default function SocialPage() {
       const res = await fetch('/api/social/organic/config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ channel: postChannel, workspace_id: 'default', config: JSON.parse(configDraft) }),
+        body: JSON.stringify({ channel: postChannel, workspace_id: wsId, config: JSON.parse(configDraft) }),
       })
       const data = await res.json().catch(() => ({ ok: res.ok, status: res.status }))
       setPostResult(data)
@@ -268,7 +253,7 @@ export default function SocialPage() {
       const res = await fetch('/api/social/organic/post', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ channel: postChannel, workspace_id: 'default', payload: JSON.parse(postPayload) }),
+        body: JSON.stringify({ channel: postChannel, workspace_id: wsId, payload: JSON.parse(postPayload) }),
       })
       const data = await res.json().catch(() => ({ ok: res.ok, status: res.status }))
       setPostResult(data)
@@ -278,21 +263,84 @@ export default function SocialPage() {
     }
   }
 
+  // Real data feeds (workspace-scoped, no sample data)
+  const feedPosts = useMemo(() => {
+    return history.map(h => ({
+      id: h.id,
+      content: h.payload?.text || h.payload?.body || h.payload?.message || h.payload?.summary || h.payload?.title || (h.error ? `⚠ ${h.error}` : '(no content)'),
+      client: clientNameDisplay,
+      platform: h.channel,
+      type: 'post',
+      status: h.status,
+      scheduled: h.scheduled_for || h.ts,
+      posted: h.status === 'published' ? h.ts : null,
+      likes: 0, comments: 0, shares: 0, reach: 0, engagement: 0,
+      post_url: h.post_url,
+    }))
+  }, [history, clientNameDisplay])
+
+  const connectedPlatforms = useMemo(() => {
+    const byChannel = historyStats?.by_channel || {}
+    return organicChannels.map(ch => ({
+      id: ch.id,
+      name: ch.name || ch.id,
+      client: clientNameDisplay,
+      platform: ch.name || ch.id,
+      followers: 0,
+      following: 0,
+      posts: byChannel[ch.id] || 0,
+      engagement_rate: 0,
+      status: organicConfigs && organicConfigs[ch.id] ? 'connected' : 'not_connected',
+    }))
+  }, [organicChannels, organicConfigs, historyStats, clientNameDisplay])
+
+  // Channel activity (real history stats) replaces the old fake audience cards
+  const channelActivity = useMemo(() => {
+    const byChannel = historyStats?.by_channel || {}
+    const byStatus = historyStats?.by_status || {}
+    const published = byStatus.published || 0
+    return Object.entries(byChannel).map(([channel, count]) => ({
+      id: channel,
+      client: clientNameDisplay,
+      platform: channel,
+      followers: 0,
+      growth_rate: 0,
+      top_age: '—', top_gender: '—', top_city: '—', best_time: '—', best_day: '—',
+      total: count,
+      published,
+      errors: Math.max(0, count - published),
+    }))
+  }, [historyStats, clientNameDisplay])
+
+  // Pending scheduled posts from the real queue (for the Schedule tab)
+  const scheduledFeed = useMemo(() => {
+    return scheduledList.filter(s => s.status === 'pending').map(s => ({
+      id: s.id,
+      content: s.payload?.text || s.payload?.body || s.payload?.message || s.payload?.summary || s.payload?.title || '(no content)',
+      client: clientNameDisplay,
+      platform: s.channel,
+      status: 'scheduled',
+      scheduled: new Date(s.run_at).toISOString().slice(0, 10),
+      posted: null,
+      likes: 0, comments: 0, shares: 0, reach: 0, engagement: 0,
+    }))
+  }, [scheduledList, clientNameDisplay])
+
   // Filter data by selected client
   const filteredPosts = useMemo(() => {
-    if (selectedClient === 'All Clients') return SAMPLE_POSTS
-    return SAMPLE_POSTS.filter(p => p.client === selectedClient)
-  }, [selectedClient])
+    if (selectedClient === 'All Clients') return feedPosts
+    return feedPosts.filter(p => p.client === selectedClient)
+  }, [feedPosts, selectedClient])
 
   const filteredPlatforms = useMemo(() => {
-    if (selectedClient === 'All Clients') return SAMPLE_PLATFORMS
-    return SAMPLE_PLATFORMS.filter(p => p.client === selectedClient)
-  }, [selectedClient])
+    if (selectedClient === 'All Clients') return connectedPlatforms
+    return connectedPlatforms.filter(p => p.client === selectedClient)
+  }, [connectedPlatforms, selectedClient])
 
   const filteredAudiences = useMemo(() => {
-    if (selectedClient === 'All Clients') return SAMPLE_AUDIENCES
-    return SAMPLE_AUDIENCES.filter(a => a.client === selectedClient)
-  }, [selectedClient])
+    if (selectedClient === 'All Clients') return channelActivity
+    return channelActivity.filter(a => a.client === selectedClient)
+  }, [channelActivity, selectedClient])
 
   // KPIs
   const kpis = useMemo(() => {
@@ -377,9 +425,9 @@ export default function SocialPage() {
                 <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="text-sm font-semibold text-foreground">Social Media Manager</h3>
                   <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 text-muted-foreground">{filteredPlatforms.length} platforms</Badge>
-                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 text-muted-foreground">{kpis.totalFollowers.toLocaleString()} followers</Badge>
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 text-muted-foreground">{filteredPlatforms.filter(p => p.status === 'connected').length} connected</Badge>
                 </div>
-                <p className="text-xs text-muted-foreground">All clients · Instagram, Facebook, LinkedIn, Twitter</p>
+                <p className="text-xs text-muted-foreground">{clientNameDisplay} · Organic channels</p>
               </div>
             </div>
             <div className="relative shrink-0">
@@ -602,13 +650,13 @@ export default function SocialPage() {
                     <Calendar className="h-3.5 w-3.5" /> Calendar View
                   </button>
                 </div>
-                {filteredPosts.filter(p => p.status === 'scheduled').length === 0 && (
+                {scheduledFeed.length === 0 && (
                   <div className="text-center py-8 rounded-lg border border-dashed border-border">
                     <Calendar className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
-                    <p className="text-sm text-muted-foreground">No scheduled posts for {selectedClient}</p>
+                    <p className="text-sm text-muted-foreground">No scheduled posts for {selectedClient}. Use the Organic tab to schedule one.</p>
                   </div>
                 )}
-                {filteredPosts.filter(p => p.status === 'scheduled').map(p => (
+                {scheduledFeed.map(p => (
                   <div key={p.id} className="flex items-start gap-3 rounded-lg border border-border bg-card p-3">
                     <div className="flex flex-col items-center justify-center w-10 h-10 rounded-lg bg-blue-50 shrink-0">
                       <span className="text-[9px] font-medium text-blue-600 leading-none">{p.scheduled.split('-')[2]}</span>
@@ -638,12 +686,12 @@ export default function SocialPage() {
             {tab === 'audience' && (
               <div className="p-4 space-y-3">
                 <div className="text-xs font-medium text-muted-foreground mb-1">
-                  Audience insights for {selectedClient}
+                  Channel activity for {selectedClient}
                 </div>
                 {filteredAudiences.length === 0 && (
                   <div className="text-center py-12">
                     <Users className="h-10 w-10 text-muted-foreground/30 mx-auto mb-2" />
-                    <p className="text-sm text-muted-foreground">No audience data available for {selectedClient}</p>
+                    <p className="text-sm text-muted-foreground">No channel activity yet for {selectedClient}. Publish a post from the Organic tab.</p>
                   </div>
                 )}
                 {filteredAudiences.map(a => {
@@ -656,18 +704,16 @@ export default function SocialPage() {
                         <div className="flex items-center gap-2">
                           <Icon className="h-4 w-4" style={{ color }} />
                           <CardTitle className="text-xs font-semibold text-foreground">{a.platform} — {a.client}</CardTitle>
-                          <Badge variant="outline" className="text-[9px] px-1 h-3.5">{a.followers.toLocaleString()} followers</Badge>
+                          <Badge variant="outline" className="text-[9px] px-1 h-3.5">{a.total} posts</Badge>
                         </div>
                       </CardHeader>
                       <CardContent className="p-3">
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                           {[
-                            { label: 'Growth Rate', value: `${a.growth_rate}%`, color: 'text-emerald-600' },
-                            { label: 'Top Age', value: a.top_age, color: 'text-blue-600' },
-                            { label: 'Top Gender', value: a.top_gender, color: 'text-purple-600' },
-                            { label: 'Top City', value: a.top_city, color: 'text-orange-600' },
-                            { label: 'Best Time', value: a.best_time, color: 'text-green-600' },
-                            { label: 'Best Day', value: a.best_day, color: 'text-rose-600' },
+                            { label: 'Total Posts', value: a.total, color: 'text-emerald-600' },
+                            { label: 'Published', value: a.published, color: 'text-blue-600' },
+                            { label: 'Errors', value: a.errors, color: 'text-red-600' },
+                            { label: 'Workspace', value: wsId, color: 'text-purple-600' },
                           ].map((k, i) => (
                             <div key={i} className="rounded-lg bg-muted/50 p-2">
                               <div className={`text-xs font-semibold ${k.color}`}>{k.value}</div>
@@ -1152,17 +1198,18 @@ export default function SocialPage() {
               </CardHeader>
               <CardContent className="p-3 space-y-2">
                 {selectedClient === 'All Clients' ? (
-                  [...new Set(SAMPLE_PLATFORMS.map(p => p.client))].map(client => {
-                    const platforms = SAMPLE_PLATFORMS.filter(p => p.client === client)
+                  [clientNameDisplay].map(client => {
+                    const platforms = connectedPlatforms.filter(p => p.client === client)
+                    const connected = platforms.filter(p => p.status === 'connected').length
                     return (
                       <div key={client} className="flex items-center justify-between rounded-lg border border-border p-2.5">
                         <div>
                           <div className="text-xs font-medium text-foreground">{client}</div>
-                          <div className="text-[10px] text-muted-foreground">{platforms.length} platforms · {platforms.reduce((s, p) => s + p.followers, 0).toLocaleString()} followers</div>
+                          <div className="text-[10px] text-muted-foreground">{platforms.length} platforms · {platforms.reduce((s, p) => s + p.posts, 0)} posts</div>
                         </div>
                         <div className="flex gap-1">
-                          {platforms.filter(p => p.status === 'connected').length > 0 && (
-                            <Badge variant="default" className="text-[9px] px-1 h-3.5 bg-emerald-500">{platforms.filter(p => p.status === 'connected').length} active</Badge>
+                          {connected > 0 && (
+                            <Badge variant="default" className="text-[9px] px-1 h-3.5 bg-emerald-500">{connected} active</Badge>
                           )}
                         </div>
                       </div>
