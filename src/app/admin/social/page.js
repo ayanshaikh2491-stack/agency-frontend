@@ -233,7 +233,7 @@ export default function SocialPage() {
     setOauthResult(null)
     setOauthBusy(channelId)
     try {
-      const res = await fetch(`/api/social/organic/oauth/start?channel=${encodeURIComponent(channelId)}&workspace_id=${encodeURIComponent(wsId)}`)
+      const res = await fetch(`/api/social/oauth/start?channel=${encodeURIComponent(channelId)}&workspace_id=${encodeURIComponent(wsId)}`)
       const data = await res.json().catch(() => ({ ok: res.ok, status: res.status }))
       if (data.status === 'ok' && data.auth_url) {
         const popup = window.open(data.auth_url, 'oauth-popup', 'width=520,height=700')
@@ -255,7 +255,7 @@ export default function SocialPage() {
       const msg = e.data
       const channelId = msg.platform || 'linkedin'
       if (msg.success) {
-        setOauthResult({ channel: channelId, status: 'connected', user: msg.platform || '' })
+        setOauthResult({ channel: channelId, status: 'connected', user: msg.user || '' })
       } else {
         setOauthResult({ channel: channelId, error: msg.error || 'OAuth failed' })
       }

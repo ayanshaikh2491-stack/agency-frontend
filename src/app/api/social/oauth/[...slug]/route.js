@@ -31,21 +31,26 @@ export async function GET(request, { params }) {
     // parent window and closes itself.
     if (path.includes('callback') && (resp.status >= 300 && resp.status < 400)) {
       const location = resp.headers.get('location') || ''
-      const success = location.includes('success=') ? location.match(/success=(\w+)/)?.[1] : null
-      const error = location.includes('error=') ? location.match(/error=([^&]+)/)?.[1] : null
-      const platform = path.split('/')[0] || 'facebook'
+      const channel = decodeURIComponent(location.match(/[?&]oauth=([^&]+)/)?.[1] || 'linkedin')
+      const success = location.includes('success=1')
+      const error = location.match(/error=([^&]+)/)?.[1] || null
+      const userMatch = location.match(/user=([^&]+)/)
+      const user = userMatch ? decodeURIComponent(userMatch[1]) : null
+
+      const msgFields = [
+        `type: 'oauth-result'`,
+        `platform: '${String(channel).replace(/'/g, "\\'")}'`,
+        `success: ${success}`,
+      ]
+      if (user) msgFields.push(`user: '${String(user).replace(/'/g, "\\'")}'`)
+      if (error) msgFields.push(`error: '${String(error).replace(/'/g, "\\'")}'`)
 
       const html = `<!DOCTYPE html>
 <html><head><title>OAuth Complete</title></head>
 <body>
 <script>
   (function() {
-    const msg = {
-      type: 'oauth-result',
-      platform: '${platform}',
-      success: ${success ? 'true' : 'false'},
-      ${success ? `platform: '${success}'` : `error: '${error || 'unknown'}'`}
-    };
+    const msg = { ${msgFields.join(', ')} };
     if (window.opener) {
       window.opener.postMessage(msg, '*');
     }
