@@ -3,27 +3,19 @@ import { useState, useEffect } from 'react'
 import { normalizeList } from '@/lib/api-lists'
 
 const AGENT_EMOJIS = {
-  'intake-researcher': '🔍',
   'content-creator': '✍️',
   'social-manager': '📱',
   'ads-runner': '📢',
   'seo-engine': '🔎',
   'analytics-bot': '📊',
-  'sales-closer': '🤝',
-  'client-success': '⭐',
-  'review-qc': '✅',
 }
 
 const AGENT_LABELS = {
-  'intake-researcher': 'Research & Discovery',
   'content-creator': 'Content Writing',
   'social-manager': 'Social Media',
   'ads-runner': 'Paid Ads',
   'seo-engine': 'SEO & AEO',
   'analytics-bot': 'Analytics & Reports',
-  'sales-closer': 'Sales & Proposals',
-  'client-success': 'Client Success',
-  'review-qc': 'Quality Control',
 }
 
 export default function OrgChart({ agents: propAgents }) {

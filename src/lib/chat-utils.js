@@ -52,8 +52,5 @@ export function detectWorker(text) {
   if (l.includes('blog') || l.includes('content') || l.includes('write') || l.includes('post') || l.includes('copy') || l.includes('draft')) return { id: 'content-creator', emoji: '✍️', name: 'Content Creator' }
   if (l.includes('seo') || l.includes('rank') || l.includes('keyword') || l.includes('search') || l.includes('google')) return { id: 'seo-engine', emoji: '📈', name: 'SEO Engine' }
   if (l.includes('analytics') || l.includes('report') || l.includes('metric') || l.includes('kpi') || l.includes('data')) return { id: 'analytics-bot', emoji: '📊', name: 'Analytics Bot' }
-  if (l.includes('sale') || l.includes('close') || l.includes('convert') || l.includes('lead') || l.includes('find') || l.includes('research')) return { id: 'sales-closer', emoji: '💼', name: 'Sales Closer' }
-  if (l.includes('client') || l.includes('succes') || l.includes('support') || l.includes('onboard') || l.includes('care')) return { id: 'client-success', emoji: '🤝', name: 'Client Success' }
-  if (l.includes('review') || l.includes('qc') || l.includes('quality') || l.includes('check') || l.includes('audit') || l.includes('proof')) return { id: 'review-qc', emoji: '✅', name: 'Review QC' }
   return null
 }

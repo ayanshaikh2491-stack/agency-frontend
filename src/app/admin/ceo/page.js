@@ -41,10 +41,8 @@ const WORKER_LABELS = [
   { slug: 'content-creator', label: 'Content Creator', emoji: '✍️', color: 'text-purple-500', bg: 'bg-purple-500/10', tasks: 8, status: 'active', lastAction: 'Drafted 2 blog posts' },
   { slug: 'seo-engine', label: 'SEO Engine', emoji: '📈', color: 'text-emerald-500', bg: 'bg-emerald-500/10', tasks: 6, status: 'active', lastAction: '5 keywords now ranking page 1' },
   { slug: 'ads-runner', label: 'Ads Runner', emoji: '📢', color: 'text-orange-500', bg: 'bg-orange-500/10', tasks: 12, status: 'active', lastAction: 'Meta Ads ROAS: 3.2x' },
-  { slug: 'sales-closer', label: 'Sales Closer', emoji: '💼', color: 'text-rose-500', bg: 'bg-rose-500/10', tasks: 9, status: 'active', lastAction: 'Closed 2 new retainers' },
   { slug: 'analytics-bot', label: 'Analytics Bot', emoji: '📊', color: 'text-cyan-500', bg: 'bg-cyan-500/10', tasks: 5, status: 'active', lastAction: 'Reports generated hourly' },
-  { slug: 'intake-researcher', label: 'Intake Researcher', emoji: '🔍', color: 'text-indigo-500', bg: 'bg-indigo-500/10', tasks: 34, status: 'active', lastAction: '127 leads qualified this week' },
-  { slug: 'review-qc', label: 'Review QC', emoji: '✅', color: 'text-amber-500', bg: 'bg-amber-500/10', tasks: 15, status: 'active', lastAction: '100% content QC pass rate' },
+  { slug: 'website-builder', label: 'Website Agent', emoji: '🌐', color: 'text-teal-500', bg: 'bg-teal-500/10', tasks: 3, status: 'active', lastAction: 'Landing page deployed' },
 ]
 
 // Real service delivery metrics
@@ -63,8 +61,8 @@ const RECENT_ACTIVITY = [
   { id: 2, agent: 'Ads Runner', action: 'Campaign live', detail: 'Retargeting campaign - 2x budget', time: '3h ago', icon: Megaphone },
   { id: 3, agent: 'Content Creator', action: 'Blog published', detail: 'AI in Marketing trends - 4.1K views', time: '4h ago', icon: FileText },
   { id: 4, agent: 'SEO Engine', action: 'Ranking surge', detail: '3 new keywords hit position 1', time: '6h ago', icon: TrendingUp },
-  { id: 5, agent: 'Sales Closer', action: 'Deal closed', detail: 'Enterprise plan - $9,999/mo contract', time: '8h ago', icon: DollarSign },
-  { id: 6, agent: 'Intake Researcher', action: 'Leads found', detail: '47 qualified B2B leads (SaaS vertical)', time: '12h ago', icon: Search },
+  { id: 5, agent: 'SBA Agent', action: 'Lead qualified', detail: '12 new pipeline leads (real estate vertical)', time: '8h ago', icon: Search },
+  { id: 6, agent: 'Analytics Bot', action: 'Report ready', detail: 'Weekly dashboard - ROAS 3.1x', time: '12h ago', icon: BarChart3 },
 ]
 
 // Smart suggestions based on agency capabilities

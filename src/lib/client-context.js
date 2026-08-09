@@ -8,27 +8,19 @@ const CompanyContext = createContext(null)
 const ORG_EMOJIS = {
   ceo: '🧠',
   cto: '⚙️',
-  'intake-researcher': '🔍',
   'content-creator': '✍️',
   'seo-engine': '📈',
   'ads-runner': '📢',
   'analytics-bot': '📊',
-  'sales-closer': '💼',
-  'client-success': '🤝',
-  'review-qc': '✓',
 }
 
 const AGENT_COLORS = {
   ceo: '#8b5cf6',
   cto: '#6366f1',
-  'intake-researcher': '#45aaf2',
   'content-creator': '#2ed573',
   'seo-engine': '#ff9f43',
   'ads-runner': '#ef4444',
   'analytics-bot': '#a55eea',
-  'sales-closer': '#f368e0',
-  'client-success': '#26de81',
-  'review-qc': '#fd9644',
 }
 
 function mapAgentStatus(s) {
@@ -115,7 +107,6 @@ export function CompanyProvider({ children }) {
     return realClients.map(c => ({
       id: c.id,
       name: c.display_name || c.name || c.company || 'Client',
-      color: AGENT_COLORS['intake-researcher'],
       plan: c.status || 'active',
       logo: c.logo || c.name?.charAt(0) || 'C',
     }))

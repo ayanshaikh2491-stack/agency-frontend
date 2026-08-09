@@ -30,8 +30,17 @@ function useCEOOOrchestrators() {
           return `👑 **CEO**: I'm routing this to **${label}**.\n\n${data?.data?.response || data?.response || data?.data?.content || JSON.stringify(data)}`
         }
 
+        const routeSBA = async (label) => {
+          const res = await fetch(`/api/sba/chat`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: msg, session_id: 'ceo_agents' }),
+          })
+          const data = await res.json()
+          return `👑 **CEO**: I'm routing this to **${label}**.\n\n${data?.response || data?.message || data?.data?.response || data?.data?.content || JSON.stringify(data)}`
+        }
+
         if (l.includes('lead') || l.includes('research') || l.includes('find') || l.includes('prospect') || l.includes('real estate')) {
-          return route('intake-researcher', 'Intake Researcher')
+          return routeSBA('SBA Agent (leads & pipeline)')
         }
         if (l.includes('content') || l.includes('blog') || l.includes('write') || l.includes('article') || l.includes('post')) {
           return route('content-creator', 'Content Creator')
@@ -46,16 +55,16 @@ function useCEOOOrchestrators() {
           return route('analytics-bot', 'Analytics Bot')
         }
         if (l.includes('sale') || l.includes('close') || l.includes('convert') || l.includes('pitch')) {
-          return route('sales-closer', 'Sales Closer')
+          return routeSBA('SBA Agent (sales pipeline)')
         }
         if (l.includes('social') || l.includes('instagram') || l.includes('tweet') || l.includes('linkedin')) {
           return route('social-manager', 'Social Manager')
         }
-        if (l.includes('review') || l.includes('qc') || l.includes('quality') || l.includes('check')) {
-          return route('review-qc', 'Review & QC')
+        if (l.includes('website') || l.includes('site') || l.includes('landing page')) {
+          return route('website-builder', 'Website Agent')
         }
-        if (l.includes('client') || l.includes('success')) {
-          return route('client-success', 'Client Success')
+        if (l.includes('memory') || l.includes('remember')) {
+          return route('memory-agent', 'Memory Agent')
         }
         if (l.includes('status') || l.includes('all') || l.includes('agency') || l.includes('health')) {
           const agentRes = await fetch('/api/agents').then(r => r.json())
@@ -87,15 +96,12 @@ export default function AgentsPage() {
   }
 
   const BACKEND_AGENTS = [
-    { id: 'intake-researcher', name: 'Intake Researcher', emoji: '🔍', desc: 'Finds & qualifies leads' },
     { id: 'content-creator', name: 'Content Creator', emoji: '✍️', desc: 'Creates blog posts & content' },
     { id: 'seo-engine', name: 'SEO Engine', emoji: '📈', desc: 'Optimizes rankings & keywords' },
     { id: 'website-builder', name: 'Website Agent', emoji: '🌐', desc: 'Designs & builds websites' },
     { id: 'ads-runner', name: 'Ads Runner', emoji: '📢', desc: 'Runs Facebook/Google campaigns' },
     { id: 'analytics-bot', name: 'Analytics Bot', emoji: '📊', desc: 'Reports & data analysis' },
-    { id: 'sales-closer', name: 'Sales Closer', emoji: '💼', desc: 'Converts leads to clients' },
-    { id: 'client-success', name: 'Client Success', emoji: '🤝', desc: 'Manages client relationships' },
-    { id: 'review-qc', name: 'Review & QC', emoji: '✓', desc: 'Quality checks deliverables' },
+    { id: 'social-manager', name: 'Social Manager', emoji: '📱', desc: 'Manages social media' },
   ]
 
   // Merge backend agents with live status

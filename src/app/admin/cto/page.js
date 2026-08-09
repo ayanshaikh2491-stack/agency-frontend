@@ -46,16 +46,14 @@ function renderMD(text) {
 }
 
 var AGENT_EMOJIS = {
-  'intake-researcher': '🔍', 'content-creator': '✍️', 'seo-engine': '📈',
-  'ads-runner': '📢', 'analytics-bot': '📊', 'sales-closer': '💼',
-  'client-success': '🤝', 'review-qc': '✅',
+  'content-creator': '✍️', 'seo-engine': '📈',
+  'ads-runner': '📢', 'analytics-bot': '📊',
 }
 
 var WORKER_LABELS = {
-  'intake-researcher': 'Intake Researcher', 'content-creator': 'Content Creator',
+  'content-creator': 'Content Creator',
   'seo-engine': 'SEO Engine', 'ads-runner': 'Ads Runner',
-  'analytics-bot': 'Analytics Bot', 'sales-closer': 'Sales Closer',
-  'client-success': 'Client Success', 'review-qc': 'Review QC',
+  'analytics-bot': 'Analytics Bot',
 }
 
 var CTO_COMMANDS = [
@@ -153,10 +151,10 @@ export default function CTOPage() {
     switch (cmd) {
       case 'pipeline': {
         try {
-          var res = await fetch('/api/agents/intake-researcher/chat', {
+          var res = await fetch('/api/sba/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: 'status' }),
+            body: JSON.stringify({ message: 'Give me the current pipeline status: leads, meetings, deals.', session_id: 'cto_pipeline' }),
           })
           var data = await res.json()
           var reply = data.response || data.reply || data.content || ''

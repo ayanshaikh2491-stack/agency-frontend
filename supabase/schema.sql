@@ -256,12 +256,10 @@ ON CONFLICT (client_id, slug) DO NOTHING;
 
 -- Worker agents
 INSERT INTO agents (client_id, slug, name, role, emoji, color, status, api_endpoint) VALUES
-  ('00000000-0000-0000-0000-000000000001', 'intake-researcher', 'Intake Researcher', 'worker', '🔍', '#45aaf2', 'active', 'http://18.213.66.136:8000/api/agents/intake-researcher/chat'),
   ('00000000-0000-0000-0000-000000000001', 'content-creator', 'Content Creator', 'worker', '✍️', '#2ed573', 'active', 'http://18.213.66.136:8000/api/agents/content-creator/chat'),
   ('00000000-0000-0000-0000-000000000001', 'seo-engine', 'SEO Engine', 'worker', '📈', '#ff9f43', 'active', 'http://18.213.66.136:8000/api/agents/seo-engine/chat'),
   ('00000000-0000-0000-0000-000000000001', 'ads-runner', 'Ads Runner', 'worker', '📢', '#ef4444', 'active', 'http://18.213.66.136:8000/api/agents/ads-runner/chat'),
   ('00000000-0000-0000-0000-000000000001', 'analytics-bot', 'Analytics Bot', 'worker', '📊', '#a55eea', 'active', 'http://18.213.66.136:8000/api/agents/analytics-bot/chat'),
-  ('00000000-0000-0000-0000-000000000001', 'sales-closer', 'Sales Closer', 'worker', '💼', '#f368e0', 'active', 'http://18.213.66.136:8000/api/agents/sales-closer/chat'),
-  ('00000000-0000-0000-0000-000000000001', 'client-success', 'Client Success', 'worker', '🤝', '#26de81', 'active', 'http://18.213.66.136:8000/api/agents/client-success/chat'),
-  ('00000000-0000-0000-0000-000000000001', 'review-qc', 'Review & QC', 'worker', '✓', '#fd9644', 'active', 'http://18.213.66.136:8000/api/agents/review-qc/chat')
+  ('00000000-0000-0000-0000-000000000001', 'website-builder', 'Website Agent', 'worker', '🌐', '#26de81', 'active', 'http://18.213.66.136:8000/api/agents/website-builder/chat'),
+  ('00000000-0000-0000-0000-000000000001', 'social-manager', 'Social Manager', 'worker', '📱', '#45aaf2', 'active', 'http://18.213.66.136:8000/api/agents/social-manager/chat')
 ON CONFLICT (client_id, slug) DO NOTHING;

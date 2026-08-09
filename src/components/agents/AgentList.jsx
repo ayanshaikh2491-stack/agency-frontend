@@ -5,14 +5,10 @@ const ORCHESTRATORS = {
 }
 
 const BACKEND_AGENTS = [
-  { id: 'intake-researcher', name: 'Intake Researcher', emoji: '🔍', color: 'var(--primary)', desc: 'Finds & qualifies leads' },
   { id: 'content-creator',    name: 'Content Creator',    emoji: '✍️', color: 'var(--success)', desc: 'Creates blog posts & content' },
   { id: 'seo-engine',         name: 'SEO Engine',         emoji: '📈', color: 'var(--warning)', desc: 'Optimizes rankings & keywords' },
   { id: 'ads-runner',         name: 'Ads Runner',         emoji: '📢', color: 'var(--error)', desc: 'Runs Facebook/Google campaigns' },
   { id: 'analytics-bot',      name: 'Analytics Bot',      emoji: '📊', color: 'var(--primary)', desc: 'Reports & data analysis' },
-  { id: 'sales-closer',       name: 'Sales Closer',       emoji: '💼', color: 'var(--primary)', desc: 'Converts leads to clients' },
-  { id: 'client-success',     name: 'Client Success',     emoji: '🤝', color: 'var(--success)', desc: 'Manages client relationships' },
-  { id: 'review-qc',          name: 'Review & QC',        emoji: '✓',  color: 'var(--warning)', desc: 'Quality checks deliverables' },
 ]
 
 export { ORCHESTRATORS, BACKEND_AGENTS }

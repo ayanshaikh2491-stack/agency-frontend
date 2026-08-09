@@ -126,7 +126,7 @@ export default function CEODecisionLog() {
           id: '2',
           action: 'Scale Lead Capacity',
           reasoning: 'Pipeline at 87% capacity with strong demand',
-          action_taken: 'Increased intake-researcher worker thread count from 4 to 6',
+          action_taken: 'Increased SBA pipeline worker capacity from 4 to 6',
           outcome: 'Lead processing time decreased 23%, maintained quality',
           status: 'success',
           insight: 'Dynamic scaling based on queue depth is more effective than static limits',
