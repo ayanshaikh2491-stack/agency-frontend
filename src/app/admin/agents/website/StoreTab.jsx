@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import {
   Store, ShoppingBag, Plus, Trash2, RefreshCw, ExternalLink,
   Copy, CheckCircle2, Loader2, Rocket, Link2, KeyRound, TrendingUp,
-  Save, Pencil, X, ClipboardList,
+  Save, Pencil, X, ClipboardList, Bell, Truck, Globe, MapPin,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -68,6 +68,8 @@ export default function StoreTab() {
   const [ordersLoading, setOrdersLoading] = useState(false)
   const [ordersError, setOrdersError] = useState('')
   const [orderUpdating, setOrderUpdating] = useState(null)
+  const [newCount, setNewCount] = useState(0)
+  const [dispatchDraft, setDispatchDraft] = useState(null) // { oid, carrier, tracking, note }
 
   const storeLink = `${typeof window !== 'undefined' ? window.location.origin : ''}/store/${workspace.replace(/^ws_/, '')}`
 
@@ -225,7 +227,13 @@ export default function StoreTab() {
       const res = await fetch(`/api/store/orders?${q}`)
       const d = await res.json()
       if (!res.ok) throw new Error(d?.detail || 'Orders load failed')
-      setOrders(Array.isArray(d) ? d : [])
+      const list = Array.isArray(d) ? d : []
+      setOrders(list)
+      try {
+        const lastSeen = Number(sessionStorage.getItem(`storetab_lastseen_${workspace}_${client}`) || 0)
+        const fresh = list.filter(o => new Date(o.created_at || 0).getTime() > lastSeen)
+        setNewCount(fresh.length)
+      } catch { setNewCount(0) }
     } catch (e) {
       setOrdersError(e.message)
     } finally {
@@ -235,13 +243,46 @@ export default function StoreTab() {
 
   useEffect(() => { loadOrders() }, [loadOrders])
 
+  // Poll every 30s so agency sees new client orders arrive live
+  useEffect(() => {
+    const t = setInterval(loadOrders, 30000)
+    return () => clearInterval(t)
+  }, [loadOrders])
+
+  function markOrdersSeen() {
+    try { sessionStorage.setItem(`storetab_lastseen_${workspace}_${client}`, String(Date.now())) } catch { /* ignore */ }
+    setNewCount(0)
+  }
+
+  function onStatusChange(o, status) {
+    if (status === 'shipped') {
+      setDispatchDraft({ oid: o.id, carrier: o.carrier || '', tracking: o.tracking_number || '', note: o.dispatch_note || '' })
+    } else {
+      setDispatchDraft(null)
+      updateOrderStatus(o.id, status)
+    }
+  }
+
+  async function saveDispatch() {
+    if (!dispatchDraft) return
+    const { oid, carrier, tracking, note } = dispatchDraft
+    setOrderUpdating(oid); setOrdersError('')
+    try {
+      await api(`/api/store/orders/${oid}?workspace=${encodeURIComponent(workspace)}&client=${encodeURIComponent(client)}`, {
+        method: 'PATCH', body: JSON.stringify({ status: 'shipped', carrier, tracking_number: tracking, dispatch_note: note }),
+      })
+      setDispatchDraft(null)
+      await loadOrders(); await load(); markOrdersSeen()
+    } catch (e) { setOrdersError(e.message) } finally { setOrderUpdating(null) }
+  }
+
   async function updateOrderStatus(oid, status) {
     setOrderUpdating(oid); setOrdersError('')
     try {
       await api(`/api/store/orders/${oid}?workspace=${encodeURIComponent(workspace)}&client=${encodeURIComponent(client)}`, {
         method: 'PATCH', body: JSON.stringify({ status }),
       })
-      await loadOrders(); await load()
+      await loadOrders(); await load(); markOrdersSeen()
     } catch (e) { setOrdersError(e.message) } finally { setOrderUpdating(null) }
   }
 
@@ -403,10 +444,29 @@ export default function StoreTab() {
         {/* Orders */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm flex items-center gap-2"><ClipboardList className="size-4 text-accent" /> Orders ({orders.length})</CardTitle>
-            <CardDescription className="text-xs">Store ke real orders — customer, items, total, status. Status yahin update kar sakte ho.</CardDescription>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <ClipboardList className="size-4 text-accent" /> Orders ({orders.length})
+                {newCount > 0 && (
+                  <button onClick={markOrdersSeen}
+                    className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold text-white animate-pulse"
+                    style={{ backgroundColor: '#dc2626' }}>
+                    <Bell className="size-3" /> {newCount} naya
+                  </button>
+                )}
+              </CardTitle>
+              <Button size="sm" variant="outline" onClick={() => { loadOrders(); markOrdersSeen() }}>
+                <RefreshCw className="size-3 mr-1" /> Refresh
+              </Button>
+            </div>
+            <CardDescription className="text-xs">Client ke real orders — customer, location (kaha se), source, status + dispatch. Har 30s auto-refresh hota hai, naya order dikhte hi badge aata hai.</CardDescription>
           </CardHeader>
           <CardContent>
+            {newCount > 0 && (
+              <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-600 flex items-center gap-2 mb-3">
+                <Bell className="size-3.5 shrink-0" /> {newCount} naya order aaya hai! Client ko batane se pehle status update karo.
+              </div>
+            )}
             {ordersError && <div className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-500 mb-3">{ordersError}</div>}
             {ordersLoading && <div className="text-center py-6 text-sm text-muted-foreground">Loading...</div>}
             {!ordersLoading && orders.length === 0 && (
@@ -419,19 +479,46 @@ export default function StoreTab() {
                     <tr className="border-b border-border text-[10px] uppercase tracking-wider text-muted-foreground">
                       <th className="py-2 pr-3 font-semibold">Order</th>
                       <th className="py-2 pr-3 font-semibold">Customer</th>
+                      <th className="py-2 pr-3 font-semibold">Kaha se</th>
+                      <th className="py-2 pr-3 font-semibold">Source</th>
                       <th className="py-2 pr-3 font-semibold">Items</th>
                       <th className="py-2 pr-3 font-semibold">Total</th>
-                      <th className="py-2 pr-3 font-semibold">Status</th>
+                      <th className="py-2 pr-3 font-semibold">Status / Dispatch</th>
                       <th className="py-2 font-semibold">Placed</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {orders.map(o => (
+                    {orders.map(o => {
+                      const loc = [o.customer_city, o.customer_state].filter(Boolean).join(', ')
+                      const isNew = (() => { try { return new Date(o.created_at || 0).getTime() > Number(sessionStorage.getItem(`storetab_lastseen_${workspace}_${client}`) || 0) } catch { return false } })()
+                      return (
                       <tr key={o.id} className="border-b border-border/50 last:border-0">
-                        <td className="py-2.5 pr-3 font-mono text-accent">{o.order_number || o.id}</td>
+                        <td className="py-2.5 pr-3 font-mono text-accent">
+                          <div className="flex items-center gap-1.5">
+                            {o.order_number || o.id}
+                            {isNew && <span className="px-1.5 py-0.5 rounded-full text-[8px] font-bold text-white" style={{ backgroundColor: '#dc2626' }}>NEW</span>}
+                          </div>
+                        </td>
                         <td className="py-2.5 pr-3">
                           <div className="font-medium">{o.customer_name || '—'}</div>
                           <div className="text-[10px] text-muted-foreground">{o.customer_email || ''}{o.customer_phone ? ` · ${o.customer_phone}` : ''}</div>
+                          {o.customer_address && <div className="text-[10px] text-muted-foreground/70 truncate max-w-40">{o.customer_address}</div>}
+                        </td>
+                        <td className="py-2.5 pr-3">
+                          {loc ? (
+                            <div className="flex items-start gap-1">
+                              <MapPin className="size-3 text-muted-foreground/50 mt-0.5 shrink-0" />
+                              <div>
+                                <div className="font-medium">{loc}</div>
+                                {o.customer_pincode && <div className="text-[10px] text-muted-foreground/70">PIN {o.customer_pincode}</div>}
+                              </div>
+                            </div>
+                          ) : <span className="text-muted-foreground/50">—</span>}
+                        </td>
+                        <td className="py-2.5 pr-3">
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold border border-border bg-muted/30">
+                            <Globe className="size-2.5 text-muted-foreground/60" /> {o.source || 'Direct'}
+                          </span>
                         </td>
                         <td className="py-2.5 pr-3 text-muted-foreground">
                           {(o.items || []).map((it, i) => <div key={i}>{it.name} × {it.quantity}</div>)}
@@ -439,20 +526,45 @@ export default function StoreTab() {
                         </td>
                         <td className="py-2.5 pr-3 font-bold">{cur}{Number(o.total || 0).toLocaleString('en-IN')}</td>
                         <td className="py-2.5 pr-3">
-                          <div className="flex items-center gap-1.5">
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${statusColor(o.status)}`}>{statusLabel(o.status)}</span>
-                            <select value={o.status || 'placed'} disabled={orderUpdating === o.id}
-                              onChange={e => updateOrderStatus(o.id, e.target.value)}
-                              className="px-1 py-0.5 rounded border border-border bg-transparent text-[10px] outline-none focus:border-accent">
-                              {orderStatuses.map(s => <option key={s} value={s}>{statusLabel(s)}</option>)}
-                            </select>
-                          </div>
+                          {dispatchDraft?.oid === o.id ? (
+                            <div className="flex flex-col gap-1 min-w-40">
+                              <input className="px-1.5 py-1 rounded border border-border bg-transparent text-[10px] outline-none focus:border-accent" value={dispatchDraft.carrier} onChange={e => setDispatchDraft({ ...dispatchDraft, carrier: e.target.value })} placeholder="Carrier (DTDC/Delhivery)" />
+                              <input className="px-1.5 py-1 rounded border border-border bg-transparent text-[10px] outline-none focus:border-accent" value={dispatchDraft.tracking} onChange={e => setDispatchDraft({ ...dispatchDraft, tracking: e.target.value })} placeholder="Tracking number" />
+                              <div className="flex gap-1">
+                                <Button size="sm" onClick={saveDispatch} disabled={orderUpdating === o.id} className="text-[10px] px-2 py-1 h-auto">
+                                  {orderUpdating === o.id ? <Loader2 className="size-3 animate-spin" /> : <Truck className="size-3 mr-1" />} Ship
+                                </Button>
+                                <Button size="sm" variant="ghost" onClick={() => setDispatchDraft(null)} className="text-[10px] px-2 py-1 h-auto">Cancel</Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-1.5">
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${statusColor(o.status)}`}>{statusLabel(o.status)}</span>
+                                <select value={o.status || 'placed'} disabled={orderUpdating === o.id}
+                                  onChange={e => onStatusChange(o, e.target.value)}
+                                  className="px-1 py-0.5 rounded border border-border bg-transparent text-[10px] outline-none focus:border-accent">
+                                  {orderStatuses.map(s => <option key={s} value={s}>{statusLabel(s)}</option>)}
+                                </select>
+                                {orderUpdating === o.id && <Loader2 className="size-3 animate-spin text-accent" />}
+                              </div>
+                              {(o.tracking_number || o.carrier) && (
+                                <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                  <Truck className="size-3 text-accent" />
+                                  <span className="font-medium">{o.carrier || 'Carrier'}</span>
+                                  <span className="font-mono">{o.tracking_number}</span>
+                                </div>
+                              )}
+                              {o.dispatch_note && <div className="text-[10px] text-muted-foreground/70">{o.dispatch_note}</div>}
+                            </div>
+                          )}
                         </td>
                         <td className="py-2.5 text-muted-foreground/70">
                           {o.created_at ? new Date(o.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—'}
                         </td>
                       </tr>
-                    ))}
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -472,8 +584,9 @@ export default function StoreTab() {
                 <div className="text-[10px] font-semibold uppercase tracking-wider text-foreground/70">Client ko kya milega</div>
                 <div>• Store link pe email/password se login</div>
                 <div>• Products add / edit / delete</div>
-                <div>• SBA sales stats dekhega</div>
-                <div>• Live site publish ka button</div>
+                <div>• Real orders + kaha se aaye (city/source)</div>
+                <div>• Naye order ka notification + status/dispatch update</div>
+                <div>• SBA sales stats + live site publish</div>
               </div>
               <div><span className={labelCls}>Email</span><input className={inputCls + ' mt-1'} type="email" value={account.email} onChange={e => setAccount({ ...account, email: e.target.value })} placeholder="client@example.com" /></div>
               <div><span className={labelCls}>Password</span><input className={inputCls + ' mt-1'} type="password" value={account.password} onChange={e => setAccount({ ...account, password: e.target.value })} placeholder="Password" /></div>
