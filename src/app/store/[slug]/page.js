@@ -371,12 +371,10 @@ export default function StorefrontPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {!account && (
-              <button onClick={() => { setTrackOpen(true); setTrackResult(null); setTrackError('') }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium border border-border hover:bg-muted hover:text-foreground transition-colors">
-                <PackageSearch className="size-3" /> Track Order
-              </button>
-            )}
+            <button onClick={() => { setTrackOpen(true); setTrackResult(null); setTrackError('') }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium border border-border hover:bg-muted hover:text-foreground transition-colors">
+              <PackageSearch className="size-3" /> Track Order
+            </button>
             {account ? (
               <>
                 <span className="text-[11px] font-medium text-muted-foreground hidden sm:inline">{account.name || account.email}</span>
@@ -920,6 +918,13 @@ export default function StorefrontPage() {
               </button>
             )}
           </div>
+
+          {!account && (
+            <div className="rounded-xl border border-accent/20 bg-accent/5 px-4 py-3 text-[11px] text-muted-foreground flex items-start gap-2 mb-4">
+              <KeyRound className="size-3.5 text-accent shrink-0 mt-0.5" />
+              <span><span className="font-semibold text-foreground">Store owner?</span> Login karke products add/edit kar sakte ho, orders dekho (kaha se aaya, status), aur dispatch/tracking update karo.</span>
+            </div>
+          )}
 
           {/* Category filter */}
           {cats.length > 0 && (
