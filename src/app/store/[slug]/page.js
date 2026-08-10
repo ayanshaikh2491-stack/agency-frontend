@@ -4,8 +4,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import {
   Store, ShoppingBag, LogIn, LogOut, Plus, Trash2, Save, Pencil, X,
-  Loader2, Rocket, TrendingUp, KeyRound,
-  Eye, EyeOff, Mail, Lock, Package, AlertCircle, CheckCircle2,
+  Loader2, Rocket, TrendingUp, KeyRound, Package2, Phone, MapPin,
+  Eye, EyeOff, Mail, Lock, Package, AlertCircle, CheckCircle2, ClipboardList,
 } from 'lucide-react'
 
 /* ─── Client Storefront ─────────────────────────────────────────────────────
@@ -66,6 +66,21 @@ export default function StorefrontPage() {
 
   // category filter
   const [catFilter, setCatFilter] = useState('')
+
+  // checkout / buy flow
+  const [buying, setBuying] = useState(null) // product being purchased
+  const [buyQty, setBuyQty] = useState(1)
+  const [cust, setCust] = useState({ name: '', email: '', phone: '', address: '' })
+  const [ordering, setOrdering] = useState(false)
+  const [orderMsg, setOrderMsg] = useState('')
+  const [orderOk, setOrderOk] = useState(false)
+
+  // owner orders management
+  const [orders, setOrders] = useState([])
+  const [ordersLoading, setOrdersLoading] = useState(false)
+  const [ordersError, setOrdersError] = useState('')
+  const [orderUpdating, setOrderUpdating] = useState(null)
+  const [statusFilter, setStatusFilter] = useState('')
 
   const authHeaders = token ? { 'X-Store-Token': token } : {}
 
@@ -183,6 +198,67 @@ export default function StorefrontPage() {
       setPublishOk(true)
     } catch (e) { setPublishMsg(e.message); setPublishOk(false) } finally { setPublishing(false) }
   }
+
+  async function placeOrder() {
+    if (!buying) return
+    setOrdering(true); setOrderMsg(''); setOrderOk(false)
+    try {
+      const d = await api('/api/store/orders', {
+        method: 'POST',
+        body: JSON.stringify({ workspace, client, product_id: buying.id, quantity: buyQty, customer: { name: cust.name, email: cust.email, phone: cust.phone, address: cust.address } }),
+      })
+      const unit = Number(String(buying.price || '').replace(/[^0-9.]/g, '')) || 0
+      const total = d?.total ?? unit * buyQty
+      const orderNo = d?.order_number || d?.id || ''
+      setOrderOk(true)
+      setOrderMsg(`Order ${orderNo} placed! Total ${fmtMoney(total)}. Confirmation email bhej diya gaya hai.`)
+      await load()
+    } catch (e) { setOrderMsg(e.message); setOrderOk(false) } finally { setOrdering(false) }
+  }
+
+  const loadOrders = useCallback(async () => {
+    if (!account) return
+    setOrdersLoading(true); setOrdersError('')
+    try {
+      const q = `workspace=${encodeURIComponent(workspace)}&client=${encodeURIComponent(client)}`
+      const res = await fetch(`/api/store/orders?${q}`, { headers: { 'X-Store-Token': token } })
+      const d = await res.json()
+      if (!res.ok) throw new Error(d?.detail || 'Orders load failed')
+      setOrders(Array.isArray(d) ? d : [])
+    } catch (e) {
+      setOrdersError(e.message)
+    } finally {
+      setOrdersLoading(false)
+    }
+  }, [workspace, client, account, token])
+
+  useEffect(() => { loadOrders() }, [loadOrders])
+
+  async function updateStatus(oid, status) {
+    setOrderUpdating(oid); setOrdersError('')
+    try {
+      await api(`/api/store/orders/${oid}?workspace=${encodeURIComponent(workspace)}&client=${encodeURIComponent(client)}`, {
+        method: 'PATCH', body: JSON.stringify({ status }),
+      })
+      await loadOrders(); await load()
+    } catch (e) { setOrdersError(e.message) } finally { setOrderUpdating(null) }
+  }
+
+  const orderStatuses = ['placed', 'processing', 'shipped', 'delivered', 'cancelled']
+  const statusColor = s => ({
+    placed: 'bg-blue-50 text-blue-700 border-blue-200',
+    processing: 'bg-amber-50 text-amber-700 border-amber-200',
+    shipped: 'bg-violet-50 text-violet-700 border-violet-200',
+    delivered: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    cancelled: 'bg-red-50 text-red-700 border-red-200',
+  }[s] || 'bg-muted text-muted-foreground border-border')
+  const statusLabel = s => ({
+    placed: 'Placed', processing: 'Processing', shipped: 'Shipped', delivered: 'Delivered', cancelled: 'Cancelled',
+  }[s] || s || '—')
+  const visibleOrders = statusFilter ? orders.filter(o => (o.status || 'placed') === statusFilter) : orders
+
+  const filteredCounts = orders.reduce((acc, o) => { const k = o.status || 'placed'; acc[k] = (acc[k] || 0) + 1; return acc }, {})
+  const statusTabs = [{ k: '', label: 'All' }].concat(orderStatuses.filter(s => filteredCounts[s]).map(s => ({ k: s, label: statusLabel(s) })))
 
   const storeName = settings?.store_name || settings?.name || 'My Store'
   const tagline = settings?.tagline || 'Shop our latest collection'
@@ -366,7 +442,213 @@ export default function StorefrontPage() {
                 </button>
               </div>
             </section>
+
+            {/* Orders management */}
+            <section>
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                <div>
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                    <ClipboardList className="size-4 text-accent" /> Orders ({orders.length})
+                  </h2>
+                  <p className="text-[11px] text-muted-foreground/70 mt-0.5">Customer orders + status update — placed → processing → shipped → delivered</p>
+                </div>
+              </div>
+
+              {ordersError && (
+                <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs text-red-500 flex items-center gap-2 mb-3">
+                  <AlertCircle className="size-4 shrink-0" /> {ordersError}
+                </div>
+              )}
+
+              {ordersLoading && (
+                <div className={`${cardCls} p-6 text-center text-xs text-muted-foreground animate-pulse`}>Orders load ho rahe hain...</div>
+              )}
+
+              {!ordersLoading && orders.length === 0 && (
+                <div className={`${cardCls} p-8 text-center`}>
+                  <div className="size-12 rounded-2xl bg-muted/40 flex items-center justify-center mx-auto mb-3"><ClipboardList className="size-5 text-muted-foreground/40" /></div>
+                  <div className="text-sm font-medium">Abhi koi order nahi hai</div>
+                  <div className="text-xs text-muted-foreground mt-1">Jab customer koi product kharidega, order yahan dikhega.</div>
+                </div>
+              )}
+
+              {!ordersLoading && orders.length > 0 && (
+                <>
+                  {/* Status filter tabs */}
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {statusTabs.map(t => (
+                      <button key={t.k} onClick={() => setStatusFilter(t.k)}
+                        className={`px-3 py-1.5 rounded-full text-[11px] font-medium border transition-colors ${statusFilter === t.k ? 'text-white border-transparent' : 'border-border text-muted-foreground hover:text-foreground'}`}
+                        style={statusFilter === t.k ? { backgroundColor: accent } : {}}>
+                        {t.label} {t.k ? `(${filteredCounts[t.k]})` : `(${orders.length})`}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className={`${cardCls} overflow-hidden`}>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="border-b border-border bg-muted/20 text-[10px] uppercase tracking-wider text-muted-foreground">
+                            <th className="px-4 py-2.5 font-semibold">Order</th>
+                            <th className="px-4 py-2.5 font-semibold">Customer</th>
+                            <th className="px-4 py-2.5 font-semibold">Items</th>
+                            <th className="px-4 py-2.5 font-semibold">Total</th>
+                            <th className="px-4 py-2.5 font-semibold">Status</th>
+                            <th className="px-4 py-2.5 font-semibold">Placed</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {visibleOrders.map(o => (
+                            <tr key={o.id} className="border-b border-border/50 last:border-0 hover:bg-muted/10">
+                              <td className="px-4 py-3 font-mono font-medium text-accent">{o.order_number || o.id}</td>
+                              <td className="px-4 py-3">
+                                <div className="font-medium">{o.customer_name || '—'}</div>
+                                <div className="text-[10px] text-muted-foreground">{o.customer_email || ''}{o.customer_phone ? ` · ${o.customer_phone}` : ''}</div>
+                                {o.customer_address && <div className="text-[10px] text-muted-foreground/70 truncate max-w-40">{o.customer_address}</div>}
+                              </td>
+                              <td className="px-4 py-3">
+                                {(o.items || []).map((it, i) => (
+                                  <div key={i} className="text-muted-foreground">{it.name} × {it.quantity}</div>
+                                ))}
+                                {(o.items || []).length === 0 && <div className="text-muted-foreground">{o.product_name} × {o.quantity}</div>}
+                              </td>
+                              <td className="px-4 py-3 font-bold">{fmtMoney(o.total)}</td>
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-2">
+                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${statusColor(o.status)}`}>
+                                    {statusLabel(o.status)}
+                                  </span>
+                                  <select
+                                    value={o.status || 'placed'}
+                                    disabled={orderUpdating === o.id}
+                                    onChange={e => updateStatus(o.id, e.target.value)}
+                                    className="px-1.5 py-1 rounded-md border border-border bg-transparent text-[10px] font-medium outline-none focus:border-accent"
+                                  >
+                                    {orderStatuses.map(s => <option key={s} value={s}>{statusLabel(s)}</option>)}
+                                  </select>
+                                  {orderUpdating === o.id && <Loader2 className="size-3 animate-spin text-accent" />}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-muted-foreground/70">
+                                {o.created_at ? new Date(o.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) + ' ' + new Date(o.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {visibleOrders.length === 0 && (
+                      <div className="p-6 text-center text-xs text-muted-foreground">Is status mein koi order nahi.</div>
+                    )}
+                  </div>
+                </>
+              )}
+            </section>
           </>
+        )}
+
+        {/* ── Checkout modal (visitors only) ── */}
+        {!account && buying && (
+          <section className={`${cardCls} max-w-md mx-auto p-6 sm:p-8 border-accent/40`}>
+            {orderOk ? (
+              /* ── Success state ── */
+              <div className="text-center py-4">
+                <div className="size-14 rounded-2xl bg-emerald-500/10 flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle2 className="size-7 text-emerald-500" />
+                </div>
+                <h2 className="text-lg font-bold">Order Placed! 🎉</h2>
+                <p className="text-xs text-muted-foreground mt-2 max-w-xs mx-auto">
+                  {buying.name} (x{buyQty}) — {orderMsg}. Store owner ko order mil gaya, stock update ho gaya.
+                </p>
+                <button onClick={() => { setBuying(null); setBuyQty(1); setCust({ name: '', email: '', phone: '', address: '' }); setOrderMsg(''); setOrderOk(false) }}
+                  className="mt-5 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white hover:opacity-90 transition-opacity shadow-sm"
+                  style={{ backgroundColor: accent }}>
+                  <ShoppingBag className="size-4" /> Continue Shopping
+                </button>
+              </div>
+            ) : (
+              <>
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-bold flex items-center gap-2"><ShoppingBag className="size-4.5 text-accent" /> Checkout</h2>
+                <p className="text-xs text-muted-foreground mt-1">Apna naam + email daalo, order confirm ho jayega.</p>
+              </div>
+              <button onClick={() => setBuying(null)} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
+            </div>
+
+            <div className="flex items-center gap-3 rounded-xl bg-muted/30 border border-border p-3 mb-4">
+              {buying.image_url ? (
+                <img src={buying.image_url} alt={buying.name} className="size-14 rounded-lg object-cover bg-muted" onError={e => { e.currentTarget.style.display = 'none' }} />
+              ) : (
+                <div className="size-14 rounded-lg bg-muted/40 flex items-center justify-center"><ShoppingBag className="size-5 text-muted-foreground/40" /></div>
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-bold truncate">{buying.name}</div>
+                <div className="text-xs text-muted-foreground">
+                  {currency(buying.price)}{buying.compare_at && <span className="line-through ml-1.5 opacity-60">{currency(buying.compare_at)}</span>}
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-[9px] text-muted-foreground uppercase tracking-wide">Qty</div>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <button onClick={() => setBuyQty(q => Math.max(1, q - 1))} className="size-7 rounded-lg border border-border hover:bg-muted text-sm font-bold">−</button>
+                  <span className="w-8 text-center text-sm font-bold">{buyQty}</span>
+                  <button onClick={() => setBuyQty(q => Math.min(Number(buying.stock) || 99, q + 1))} className="size-7 rounded-lg border border-border hover:bg-muted text-sm font-bold">+</button>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <span className={labelCls}>Name</span>
+                <div className="relative mt-1.5">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground/50" />
+                  <input className={inputCls} value={cust.name} onChange={e => setCust({ ...cust, name: e.target.value })} placeholder="Aapka naam" />
+                </div>
+              </div>
+              <div>
+                <span className={labelCls}>Email</span>
+                <div className="relative mt-1.5">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground/50" />
+                  <input className={inputCls} type="email" value={cust.email} onChange={e => setCust({ ...cust, email: e.target.value })} placeholder="you@example.com" />
+                </div>
+              </div>
+              <div>
+                <span className={labelCls}>Phone</span>
+                <div className="relative mt-1.5">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground/50" />
+                  <input className={inputCls} type="tel" value={cust.phone} onChange={e => setCust({ ...cust, phone: e.target.value })} placeholder="+91 98765 43210" />
+                </div>
+              </div>
+              <div>
+                <span className={labelCls}>Address</span>
+                <div className="relative mt-1.5">
+                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground/50" />
+                  <textarea className={inputCls + ' min-h-16 resize-none'} value={cust.address} onChange={e => setCust({ ...cust, address: e.target.value })} placeholder="Delivery address" />
+                </div>
+              </div>
+            </div>
+
+            {orderMsg && !orderOk && (
+              <div className={`flex items-center gap-2 text-xs px-3 py-2 rounded-lg mt-3 ${orderOk ? 'text-emerald-500 bg-emerald-500/10' : 'text-red-500 bg-red-500/10'}`}>
+                {orderOk ? <CheckCircle2 className="size-3.5 shrink-0" /> : <AlertCircle className="size-3.5 shrink-0" />}
+                {orderMsg}
+              </div>
+            )}
+
+            <button onClick={placeOrder} disabled={ordering || !cust.name.trim() || !cust.email.trim()}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-opacity shadow-sm mt-4"
+              style={{ backgroundColor: accent }}>
+              {ordering ? <Loader2 className="size-4 animate-spin" /> : <ShoppingBag className="size-4" />}
+              {ordering ? 'Placing order...' : `Order Now · ${fmtMoney((Number(String(buying.price || '').replace(/[^0-9.]/g, '')) || 0) * buyQty)}`}
+            </button>
+            <button type="button" onClick={() => setBuying(null)} className="w-full text-[11px] text-muted-foreground/60 hover:text-muted-foreground transition-colors mt-2">
+              Cancel
+            </button>
+              </>
+            )}
+          </section>
         )}
 
         {/* ── Products ── */}
@@ -507,6 +789,16 @@ export default function StorefrontPage() {
                         <span className="text-[9px] text-muted-foreground/60">{p.stock} left</span>
                       )}
                     </div>
+                    {!account && inStock && (
+                      <button onClick={() => { setBuying(p); setBuyQty(1); setCust({ name: '', email: '', phone: '', address: '' }); setOrderMsg(''); setOrderOk(false) }}
+                        className="mt-3 w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold text-white hover:opacity-90 transition-opacity shadow-sm"
+                        style={{ backgroundColor: accent }}>
+                        <ShoppingBag className="size-3.5" /> Buy Now
+                      </button>
+                    )}
+                    {!account && !inStock && (
+                      <div className="mt-3 w-full text-center py-2 rounded-xl text-xs font-medium text-muted-foreground/50 border border-border/50">Sold out</div>
+                    )}
                   </div>
                 </div>
               )

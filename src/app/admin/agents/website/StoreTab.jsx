@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import {
   Store, ShoppingBag, Plus, Trash2, RefreshCw, ExternalLink,
   Copy, CheckCircle2, Loader2, Rocket, Link2, KeyRound, TrendingUp,
-  Save, Pencil, X,
+  Save, Pencil, X, ClipboardList,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -62,6 +62,12 @@ export default function StoreTab() {
   // publish
   const [publishing, setPublishing] = useState(false)
   const [publishMsg, setPublishMsg] = useState('')
+
+  // orders
+  const [orders, setOrders] = useState([])
+  const [ordersLoading, setOrdersLoading] = useState(false)
+  const [ordersError, setOrdersError] = useState('')
+  const [orderUpdating, setOrderUpdating] = useState(null)
 
   const storeLink = `${typeof window !== 'undefined' ? window.location.origin : ''}/store/${workspace.replace(/^ws_/, '')}`
 
@@ -212,6 +218,45 @@ export default function StoreTab() {
     }
   }
 
+  const loadOrders = useCallback(async () => {
+    setOrdersLoading(true); setOrdersError('')
+    try {
+      const q = `workspace=${encodeURIComponent(workspace)}&client=${encodeURIComponent(client)}`
+      const res = await fetch(`/api/store/orders?${q}`)
+      const d = await res.json()
+      if (!res.ok) throw new Error(d?.detail || 'Orders load failed')
+      setOrders(Array.isArray(d) ? d : [])
+    } catch (e) {
+      setOrdersError(e.message)
+    } finally {
+      setOrdersLoading(false)
+    }
+  }, [workspace, client])
+
+  useEffect(() => { loadOrders() }, [loadOrders])
+
+  async function updateOrderStatus(oid, status) {
+    setOrderUpdating(oid); setOrdersError('')
+    try {
+      await api(`/api/store/orders/${oid}?workspace=${encodeURIComponent(workspace)}&client=${encodeURIComponent(client)}`, {
+        method: 'PATCH', body: JSON.stringify({ status }),
+      })
+      await loadOrders(); await load()
+    } catch (e) { setOrdersError(e.message) } finally { setOrderUpdating(null) }
+  }
+
+  const orderStatuses = ['placed', 'processing', 'shipped', 'delivered', 'cancelled']
+  const statusColor = s => ({
+    placed: 'bg-blue-50 text-blue-700 border-blue-200',
+    processing: 'bg-amber-50 text-amber-700 border-amber-200',
+    shipped: 'bg-violet-50 text-violet-700 border-violet-200',
+    delivered: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    cancelled: 'bg-red-50 text-red-700 border-red-200',
+  }[s] || 'bg-muted text-muted-foreground border-border')
+  const statusLabel = s => ({
+    placed: 'Placed', processing: 'Processing', shipped: 'Shipped', delivered: 'Delivered', cancelled: 'Cancelled',
+  }[s] || s || '—')
+
   const cur = s.currency || '₹'
   const stats = [
     { label: 'Products', value: products.length, icon: ShoppingBag },
@@ -352,6 +397,66 @@ export default function StoreTab() {
                 <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-500" onClick={() => deleteProduct(p.id)}><Trash2 className="size-3.5" /></Button>
               </div>
             ))}
+          </CardContent>
+        </Card>
+
+        {/* Orders */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2"><ClipboardList className="size-4 text-accent" /> Orders ({orders.length})</CardTitle>
+            <CardDescription className="text-xs">Store ke real orders — customer, items, total, status. Status yahin update kar sakte ho.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {ordersError && <div className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-500 mb-3">{ordersError}</div>}
+            {ordersLoading && <div className="text-center py-6 text-sm text-muted-foreground">Loading...</div>}
+            {!ordersLoading && orders.length === 0 && (
+              <div className="text-center py-6 text-sm text-muted-foreground">Abhi koi order nahi hai.</div>
+            )}
+            {!ordersLoading && orders.length > 0 && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-border text-[10px] uppercase tracking-wider text-muted-foreground">
+                      <th className="py-2 pr-3 font-semibold">Order</th>
+                      <th className="py-2 pr-3 font-semibold">Customer</th>
+                      <th className="py-2 pr-3 font-semibold">Items</th>
+                      <th className="py-2 pr-3 font-semibold">Total</th>
+                      <th className="py-2 pr-3 font-semibold">Status</th>
+                      <th className="py-2 font-semibold">Placed</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {orders.map(o => (
+                      <tr key={o.id} className="border-b border-border/50 last:border-0">
+                        <td className="py-2.5 pr-3 font-mono text-accent">{o.order_number || o.id}</td>
+                        <td className="py-2.5 pr-3">
+                          <div className="font-medium">{o.customer_name || '—'}</div>
+                          <div className="text-[10px] text-muted-foreground">{o.customer_email || ''}{o.customer_phone ? ` · ${o.customer_phone}` : ''}</div>
+                        </td>
+                        <td className="py-2.5 pr-3 text-muted-foreground">
+                          {(o.items || []).map((it, i) => <div key={i}>{it.name} × {it.quantity}</div>)}
+                          {(o.items || []).length === 0 && <div>{o.product_name} × {o.quantity}</div>}
+                        </td>
+                        <td className="py-2.5 pr-3 font-bold">{cur}{Number(o.total || 0).toLocaleString('en-IN')}</td>
+                        <td className="py-2.5 pr-3">
+                          <div className="flex items-center gap-1.5">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${statusColor(o.status)}`}>{statusLabel(o.status)}</span>
+                            <select value={o.status || 'placed'} disabled={orderUpdating === o.id}
+                              onChange={e => updateOrderStatus(o.id, e.target.value)}
+                              className="px-1 py-0.5 rounded border border-border bg-transparent text-[10px] outline-none focus:border-accent">
+                              {orderStatuses.map(s => <option key={s} value={s}>{statusLabel(s)}</option>)}
+                            </select>
+                          </div>
+                        </td>
+                        <td className="py-2.5 text-muted-foreground/70">
+                          {o.created_at ? new Date(o.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </CardContent>
         </Card>
 
