@@ -4,14 +4,15 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import {
   Store, ShoppingBag, LogIn, LogOut, Plus, Trash2, Save, Pencil, X,
-  Loader2, Rocket, TrendingUp, Users, CalendarCheck, KeyRound,
+  Loader2, Rocket, TrendingUp, KeyRound,
   Eye, EyeOff, Mail, Lock, Package, AlertCircle, CheckCircle2,
 } from 'lucide-react'
 
 /* ─── Client Storefront ─────────────────────────────────────────────────────
    Public page at /store/[slug]. Visitors see a clean storefront. The store
    owner logs in (account created by the agency) to manage products, view
-   SBA sales stats, and publish to the live website. No agency UI.      */
+   real sales stats (revenue, orders, units), and publish to the live
+   website. No agency UI.                                               */
 
 const cardCls = 'rounded-2xl border border-border bg-card shadow-sm'
 const inputCls = 'w-full pl-9 pr-3 py-2.5 text-sm bg-muted/30 border border-border rounded-xl text-foreground placeholder:text-muted-foreground/40 outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition-all'
@@ -190,11 +191,13 @@ export default function StorefrontPage() {
   const cats = [...new Set(products.map(p => p.category).filter(Boolean))]
   const visible = catFilter ? products.filter(p => p.category === catFilter) : products
 
+  const cur = settings?.currency || '₹'
+  const fmtMoney = v => `${cur}${Number(v || 0).toLocaleString('en-IN')}`
   const stats = [
-    { label: 'Total Leads', value: sales?.leads ?? 0, icon: Users },
-    { label: 'Contacted', value: sales?.contacted ?? 0, icon: Mail },
-    { label: 'Hot Leads', value: sales?.hot ?? 0, icon: TrendingUp },
-    { label: 'Meetings Booked', value: sales?.meetings ?? 0, icon: CalendarCheck },
+    { label: 'Revenue', value: fmtMoney(sales?.revenue ?? 0), icon: TrendingUp },
+    { label: 'Orders', value: sales?.orders ?? 0, icon: ShoppingBag },
+    { label: 'Units Sold', value: sales?.units ?? 0, icon: Package },
+    { label: 'Top Product', value: sales?.top_product?.name || '—', icon: Rocket, small: true },
   ]
 
   return (
@@ -243,8 +246,8 @@ export default function StorefrontPage() {
             <span className="px-3 py-1 rounded-full text-[11px] font-medium border border-border bg-card/60">{products.length} Products</span>
             {sales && (
               <>
-                <span className="px-3 py-1 rounded-full text-[11px] font-medium border border-border bg-card/60">{sales.leads ?? 0} Leads</span>
-                <span className="px-3 py-1 rounded-full text-[11px] font-medium border border-border bg-card/60">{sales.meetings ?? 0} Meetings</span>
+                <span className="px-3 py-1 rounded-full text-[11px] font-medium border border-border bg-card/60">{sales.orders ?? 0} Orders</span>
+                <span className="px-3 py-1 rounded-full text-[11px] font-medium border border-border bg-card/60">{fmtMoney(sales.revenue ?? 0)} Revenue</span>
               </>
             )}
           </div>
@@ -336,7 +339,7 @@ export default function StorefrontPage() {
                       <s.icon className="size-4 text-accent" />
                       <span className="text-[9px] text-muted-foreground uppercase tracking-wide">{s.label}</span>
                     </div>
-                    <div className="text-2xl font-extrabold leading-none">{s.value}</div>
+                    <div className={`leading-none truncate ${s.small ? 'text-sm font-bold pt-1' : 'text-2xl font-extrabold'}`}>{s.value}</div>
                   </div>
                 ))}
               </div>

@@ -212,10 +212,11 @@ export default function StoreTab() {
     }
   }
 
+  const cur = s.currency || '₹'
   const stats = [
     { label: 'Products', value: products.length, icon: ShoppingBag },
-    { label: 'Leads', value: sales?.leads ?? '—', icon: TrendingUp },
-    { label: 'Meetings', value: sales?.meetings ?? '—', icon: Rocket },
+    { label: 'Revenue', value: sales?.revenue != null ? `${cur}${Number(sales.revenue).toLocaleString('en-IN')}` : '—', icon: TrendingUp },
+    { label: 'Orders', value: sales?.orders ?? '—', icon: Rocket },
   ]
 
   return (
