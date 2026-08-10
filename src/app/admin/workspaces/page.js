@@ -79,10 +79,13 @@ export default function WorkspacesPage() {
   }
 
   const statsFor = (ws) => {
-    const agents = ws._agents || []
+    // /api/workspaces returns `agents` as a list of agent-type strings
+    // (e.g. ["sba","seo",...]); per-agent live status is not exposed here.
+    const agents = ws.agents || ws._agents || []
+    const list = Array.isArray(agents) ? agents : []
     return {
-      agents: agents.length,
-      running: agents.filter(a => a.status === 'running').length,
+      agents: list.length,
+      running: list.length, // all agents are provisioned/configured for the workspace
     }
   }
 
@@ -243,7 +246,7 @@ export default function WorkspacesPage() {
                         <Bot className="h-3 w-3" /> {st.agents} Agents
                       </Badge>
                       <Badge variant="outline" className="text-[10px] gap-1 text-green-600">
-                        <Brain className="h-3 w-3" /> {st.running} Active
+                        <Brain className="h-3 w-3" /> {st.running} Configured
                       </Badge>
                     </div>
 
