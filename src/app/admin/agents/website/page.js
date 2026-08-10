@@ -6,11 +6,12 @@ import {
   Palette, Sparkles, Loader2, CheckCircle2, XCircle,
   AlertCircle, ExternalLink, RefreshCw, FileCode2,
   Server, Wrench, ChevronRight, Copy, Globe2, Link2,
-  ShieldCheck, Clock, Zap, Eye,
+  ShieldCheck, Clock, Zap, Eye, Store as StoreIcon,
 } from 'lucide-react'
 import PageShell from '@/components/PageShell'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import StoreTab from './StoreTab'
 
 /* ─── Categories (mirror backend WEBSITE_CATEGORIES) ─── */
 const CATEGORIES = [
@@ -721,6 +722,7 @@ export default function WebsitePage() {
     { id: 'publish', label: 'Publish', icon: Rocket },
     { id: 'domain', label: 'Domain', icon: Globe2 },
     { id: 'tools', label: 'Tools', icon: Wrench },
+    { id: 'store', label: 'Store', icon: StoreIcon },
   ]
 
   /* ─── Tools tab ─── */
@@ -819,6 +821,7 @@ export default function WebsitePage() {
         {activeTab === 'publish' && renderPublish()}
         {activeTab === 'domain' && renderDomain()}
         {activeTab === 'tools' && renderTools()}
+        {activeTab === 'store' && <StoreTab />}
       </div>
     </PageShell>
   )
