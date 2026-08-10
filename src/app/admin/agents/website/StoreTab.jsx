@@ -159,6 +159,26 @@ export default function StoreTab() {
     setShowSettingsEditor(true)
   }
 
+  // form-bound settings
+  const s = settings || {}
+  const [form, setForm] = useState({ store_name: '', tagline: '', color_primary: '#2563EB', currency: '₹', show_stock: true, contact_email: '', domain: '', category: 'ecommerce', style: 'modern' })
+  useEffect(() => { if (settings && typeof settings === 'object') setForm({
+    store_name: s.store_name || '', tagline: s.tagline || '', color_primary: s.color_primary || '#2563EB',
+    currency: s.currency || '₹', show_stock: s.show_stock !== false, contact_email: s.contact_email || '',
+    domain: s.domain || '', category: s.category || 'ecommerce', style: s.style || 'modern',
+  }) }, [settings]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function saveSettingsForm() {
+    setSavingSettings(true); setError('')
+    try {
+      await api('/api/store/settings', {
+        method: 'PATCH',
+        body: JSON.stringify({ workspace, client, data: form }),
+      })
+      await load()
+    } catch (e) { setError(e.message) } finally { setSavingSettings(false) }
+  }
+
   async function saveSettings() {
     setSavingSettings(true); setError('')
     try {
@@ -342,6 +362,13 @@ export default function StoreTab() {
               <CardDescription className="text-xs">Client is email/password se store link pe login karta hai, products manage karta hai.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
+              <div className="rounded-lg bg-accent/5 border border-accent/20 p-3 text-[11px] text-muted-foreground space-y-1">
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-foreground/70">Client ko kya milega</div>
+                <div>• Store link pe email/password se login</div>
+                <div>• Products add / edit / delete</div>
+                <div>• SBA sales stats dekhega</div>
+                <div>• Live site publish ka button</div>
+              </div>
               <div><span className={labelCls}>Email</span><input className={inputCls + ' mt-1'} type="email" value={account.email} onChange={e => setAccount({ ...account, email: e.target.value })} placeholder="client@example.com" /></div>
               <div><span className={labelCls}>Password</span><input className={inputCls + ' mt-1'} type="password" value={account.password} onChange={e => setAccount({ ...account, password: e.target.value })} placeholder="Password" /></div>
               <div><span className={labelCls}>Name</span><input className={inputCls + ' mt-1'} value={account.name} onChange={e => setAccount({ ...account, name: e.target.value })} placeholder="Client name (optional)" /></div>
@@ -371,8 +398,23 @@ export default function StoreTab() {
                 </>
               ) : (
                 <>
-                  <pre className="text-[11px] text-muted-foreground bg-muted/40 rounded-md p-3 overflow-x-auto whitespace-pre-wrap break-all">{settings ? JSON.stringify(settings, null, 2) : '{}'}</pre>
-                  <Button size="sm" variant="outline" onClick={openSettingsEditor} className="w-full"><Pencil className="size-3 mr-1" /> Edit Settings</Button>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="col-span-2"><span className={labelCls}>Store Name</span><input className={inputCls + ' mt-1'} value={form.store_name} onChange={e => setForm({ ...form, store_name: e.target.value })} placeholder="Brand / store ka naam" /></div>
+                    <div className="col-span-2"><span className={labelCls}>Tagline</span><input className={inputCls + ' mt-1'} value={form.tagline} onChange={e => setForm({ ...form, tagline: e.target.value })} placeholder="Short tagline" /></div>
+                    <div><span className={labelCls}>Brand Color</span><div className="flex items-center gap-2 mt-1"><input type="color" className="size-9 rounded-lg border border-border cursor-pointer bg-transparent" value={form.color_primary} onChange={e => setForm({ ...form, color_primary: e.target.value })} /><input className={inputCls} value={form.color_primary} onChange={e => setForm({ ...form, color_primary: e.target.value })} /></div></div>
+                    <div><span className={labelCls}>Currency</span><select className={inputCls + ' mt-1'} value={form.currency} onChange={e => setForm({ ...form, currency: e.target.value })}><option>₹</option><option>$</option><option>€</option><option>£</option><option>¥</option></select></div>
+                    <div><span className={labelCls}>Contact Email</span><input type="email" className={inputCls + ' mt-1'} value={form.contact_email} onChange={e => setForm({ ...form, contact_email: e.target.value })} placeholder="client@example.com" /></div>
+                    <div><span className={labelCls}>Domain (optional)</span><input className={inputCls + ' mt-1'} value={form.domain} onChange={e => setForm({ ...form, domain: e.target.value })} placeholder="store.example.com" /></div>
+                    <div className="col-span-2 flex items-center gap-4">
+                      <label className="flex items-center gap-2 text-xs font-medium"><input type="checkbox" checked={!!form.show_stock} onChange={e => setForm({ ...form, show_stock: e.target.checked })} /> Show stock on store</label>
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button size="sm" variant="outline" onClick={openSettingsEditor}><Pencil className="size-3 mr-1" /> JSON</Button>
+                    <Button size="sm" onClick={saveSettingsForm} disabled={savingSettings}>
+                      {savingSettings ? <Loader2 className="size-3 mr-1 animate-spin" /> : <Save className="size-3 mr-1" />} Save
+                    </Button>
+                  </div>
                 </>
               )}
             </CardContent>

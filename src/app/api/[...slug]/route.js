@@ -29,11 +29,14 @@ async function proxy(request, { params }) {
     // Forward session_token from cookie as X-Session-Token header for backend auth
     const sessionCookie = request.cookies.get('session_token')
     const sessionToken = sessionCookie?.value || ''
+    // Forward store client token (storefront owner login) if present
+    const storeToken = request.headers.get('x-store-token') || ''
 
     const fetchHeaders = {
       'Content-Type': request.headers.get('content-type') || 'application/json',
       'Accept': 'application/json',
       ...(sessionToken ? { 'X-Session-Token': sessionToken } : {}),
+      ...(storeToken ? { 'X-Store-Token': storeToken } : {}),
     }
 
     const response = await fetch(targetUrl, {
