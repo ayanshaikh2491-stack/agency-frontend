@@ -6,7 +6,7 @@ import {
   Store, ShoppingBag, LogIn, LogOut, Plus, Trash2, Save, Pencil, X,
   Loader2, Rocket, TrendingUp, KeyRound, Package2, Phone, MapPin,
   Eye, EyeOff, Mail, Lock, Package, AlertCircle, CheckCircle2, ClipboardList,
-  Bell, Truck, PackageSearch, Send, Globe, RefreshCw, Search, Minus, Wallet,
+  Bell, Truck, Globe, RefreshCw, Search, Minus, Wallet,
 } from 'lucide-react'
 
 /* ─── Client Storefront ─────────────────────────────────────────────────────
@@ -87,7 +87,6 @@ export default function StorefrontPage() {
   const [ordering, setOrdering] = useState(false)
   const [orderMsg, setOrderMsg] = useState('')
   const [orderOk, setOrderOk] = useState(false)
-  const [lastOrder, setLastOrder] = useState(null) // { number, email, total }
   // product search
   const [search, setSearch] = useState('')
 
@@ -99,13 +98,6 @@ export default function StorefrontPage() {
   const [statusFilter, setStatusFilter] = useState('')
   const [newOrders, setNewOrders] = useState(0) // orders placed after lastSeen
   const [dispatchDraft, setDispatchDraft] = useState(null) // { oid, carrier, tracking }
-
-  // public order tracking
-  const [trackOpen, setTrackOpen] = useState(false)
-  const [trackQuery, setTrackQuery] = useState({ number: '', email: '' })
-  const [trackResult, setTrackResult] = useState(null)
-  const [trackError, setTrackError] = useState('')
-  const [tracking, setTracking] = useState(false)
 
   const authHeaders = token ? { 'X-Store-Token': token } : {}
 
@@ -291,7 +283,6 @@ export default function StorefrontPage() {
       const orderNo = d?.order_number || d?.id || ''
       setOrderOk(true)
       setOrderMsg(`Order ${orderNo} placed! Total ${fmtMoney(total)}. Confirmation email bhej diya gaya hai.`)
-      setLastOrder({ number: orderNo, email: cust.email, total })
       if (checkout.fromCart) setCart([])
       setCartOpen(false)
       await load()
@@ -357,19 +348,6 @@ export default function StorefrontPage() {
     } catch (e) { setOrdersError(e.message) } finally { setOrderUpdating(null) }
   }
 
-  async function trackOrder(e) {
-    e?.preventDefault()
-    if (!trackQuery.number.trim() || !trackQuery.email.trim()) { setTrackError('Order number + email dono required hain'); return }
-    setTracking(true); setTrackError(''); setTrackResult(null)
-    try {
-      const q = `workspace=${encodeURIComponent(workspace)}&client=${encodeURIComponent(client)}&order_number=${encodeURIComponent(trackQuery.number.trim())}&email=${encodeURIComponent(trackQuery.email.trim())}`
-      const res = await fetch(`/api/store/track?${q}`)
-      const d = await res.json()
-      if (!res.ok) throw new Error(d?.detail || 'Track failed')
-      setTrackResult(d)
-    } catch (e) { setTrackError(e.message) } finally { setTracking(false) }
-  }
-
   async function updateStatus(oid, status) {
     setOrderUpdating(oid); setOrdersError('')
     try {
@@ -430,7 +408,7 @@ export default function StorefrontPage() {
     setCheckout({ items, fromCart })
     setCust({ name: '', email: '', phone: '', address: '' })
     setPayment('COD')
-    setOrderMsg(''); setOrderOk(false); setLastOrder(null)
+    setOrderMsg(''); setOrderOk(false)
     setCartOpen(false)
   }
 
@@ -462,10 +440,6 @@ export default function StorefrontPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => { setTrackOpen(true); setTrackResult(null); setTrackError('') }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium border border-border hover:bg-muted hover:text-foreground transition-colors">
-              <PackageSearch className="size-3" /> Track Order
-            </button>
             {!account && (
               <button onClick={() => setCartOpen(v => !v)}
                 className="relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium border border-border hover:bg-muted hover:text-foreground transition-colors">
@@ -866,12 +840,7 @@ export default function StorefrontPage() {
                 <p className="text-xs text-muted-foreground mt-2 max-w-xs mx-auto">
                   {(checkout.items || []).map(it => `${it.product.name} (x${it.qty})`).join(', ')} — {orderMsg}. Store owner ko order mil gaya, stock update ho gaya.
                 </p>
-                <button onClick={() => { setTrackQuery({ number: lastOrder?.number || '', email: lastOrder?.email || '' }); setTrackResult(null); setTrackError(''); setTrackOpen(true) }}
-                  className="mt-5 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white hover:opacity-90 transition-opacity shadow-sm"
-                  style={{ backgroundColor: accent }}>
-                  <PackageSearch className="size-4" /> Track Order Status
-                </button>
-                <button onClick={() => { setCheckout(null); setCust({ name: '', email: '', phone: '', address: '' }); setOrderMsg(''); setOrderOk(false); setLastOrder(null) }}
+                <button onClick={() => { setCheckout(null); setCust({ name: '', email: '', phone: '', address: '' }); setOrderMsg(''); setOrderOk(false) }}
                   className="mt-3 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold border border-border hover:bg-muted transition-colors">
                   <ShoppingBag className="size-4" /> Continue Shopping
                 </button>
@@ -1046,107 +1015,6 @@ export default function StorefrontPage() {
               )}
             </aside>
           </div>
-        )}
-
-        {/* ── Track Order modal (public) ── */}
-        {trackOpen && (
-          <section className={`${cardCls} max-w-md mx-auto p-6 sm:p-8`}>
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <h2 className="text-lg font-bold flex items-center gap-2"><PackageSearch className="size-4.5 text-accent" /> Track Order</h2>
-                <p className="text-xs text-muted-foreground mt-1">Order number + email daalo, dispatch status dekho.</p>
-              </div>
-              <button onClick={() => setTrackOpen(false)} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
-            </div>
-
-            <form onSubmit={trackOrder} className="space-y-3">
-              <div>
-                <span className={labelCls}>Order Number</span>
-                <div className="relative mt-1.5">
-                  <Package className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground/50" />
-                  <input className={inputCls} value={trackQuery.number} onChange={e => setTrackQuery({ ...trackQuery, number: e.target.value })} placeholder="ORD-12345678" />
-                </div>
-              </div>
-              <div>
-                <span className={labelCls}>Order Email</span>
-                <div className="relative mt-1.5">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground/50" />
-                  <input className={inputCls} type="email" value={trackQuery.email} onChange={e => setTrackQuery({ ...trackQuery, email: e.target.value })} placeholder="you@example.com" />
-                </div>
-              </div>
-              {trackError && (
-                <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg text-red-500 bg-red-500/10">
-                  <AlertCircle className="size-3.5 shrink-0" /> {trackError}
-                </div>
-              )}
-              <button type="submit" disabled={tracking}
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-opacity shadow-sm"
-                style={{ backgroundColor: accent }}>
-                {tracking ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-                {tracking ? 'Tracking...' : 'Track Order'}
-              </button>
-            </form>
-
-            {trackResult && (
-              <div className="mt-5 space-y-4">
-                <div className="rounded-xl bg-muted/30 border border-border p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-xs text-muted-foreground">Order</div>
-                      <div className="font-mono font-bold text-accent">{trackResult.order_number}</div>
-                    </div>
-                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${statusColor(trackResult.status)}`}>{statusLabel(trackResult.status)}</span>
-                  </div>
-                  <div className="mt-2 text-xs text-muted-foreground">
-                    {(trackResult.items || []).map((it, i) => <div key={i}>{it.name} × {it.quantity}</div>)}
-                  </div>
-                  <div className="mt-1 text-sm font-bold">{fmtMoney(trackResult.total)}</div>
-                  {trackResult.payment_method && trackResult.payment_method !== 'COD' && (
-                    <div className="mt-1 text-[10px] text-muted-foreground/70">Payment: {trackResult.payment_method}</div>
-                  )}
-                </div>
-
-                {/* Status timeline */}
-                {trackResult.status === 'cancelled' ? (
-                  <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-xs text-red-600 flex items-center gap-2">
-                    <AlertCircle className="size-4 shrink-0" /> Ye order cancel kar diya gaya hai.
-                  </div>
-                ) : (
-                <div className="flex items-center justify-between px-1">
-                  {['placed', 'processing', 'shipped', 'delivered'].map((s, i) => {
-                    const cur = orderStatuses.indexOf(trackResult.status || 'placed')
-                    const done = cur >= i
-                    const ts = s === 'placed' ? trackResult.created_at : (s === 'shipped' ? trackResult.shipped_at : '')
-                    return (
-                      <div key={s} className="flex flex-col items-center gap-1.5 flex-1 relative">
-                        {i > 0 && <div className={`absolute top-2.5 -left-1/2 w-full h-0.5 ${cur >= i ? 'bg-emerald-500' : 'bg-muted'}`} />}
-                        <div className={`size-5 rounded-full flex items-center justify-center border-2 z-10 ${done ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-border bg-card text-muted-foreground/50'}`}>
-                          {done && <CheckCircle2 className="size-3" />}
-                        </div>
-                        <span className={`text-[9px] font-semibold uppercase tracking-wide ${done ? 'text-emerald-600' : 'text-muted-foreground/50'}`}>{statusLabel(s)}</span>
-                        {ts && <span className="text-[8px] text-muted-foreground/60 leading-tight text-center max-w-16">{new Date(ts).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>}
-                      </div>
-                    )
-                  })}
-                </div>
-                )}
-
-                {(trackResult.tracking_number || trackResult.carrier) && (
-                  <div className="rounded-xl border border-violet-500/30 bg-violet-500/10 p-4">
-                    <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5"><Truck className="size-3.5 text-violet-500" /> Dispatch Info</div>
-                    <div className="mt-2 text-xs space-y-1">
-                      <div><span className="text-muted-foreground">Carrier:</span> <span className="font-semibold">{trackResult.carrier || '—'}</span></div>
-                      <div><span className="text-muted-foreground">Tracking:</span> <span className="font-mono font-semibold">{trackResult.tracking_number || '—'}</span></div>
-                      {trackResult.dispatch_note && <div className="text-muted-foreground">{trackResult.dispatch_note}</div>}
-                    </div>
-                  </div>
-                )}
-                {trackResult.shipped_at && (
-                  <div className="text-[10px] text-muted-foreground/70 text-center">Dispatched: {new Date(trackResult.shipped_at).toLocaleString('en-IN')}</div>
-                )}
-              </div>
-            )}
-          </section>
         )}
 
         {/* ── Products ── */}
