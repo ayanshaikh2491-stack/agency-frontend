@@ -19,6 +19,7 @@ const cardCls = 'rounded-2xl border border-border bg-card shadow-sm'
 const inputCls = 'w-full pl-9 pr-3 py-2.5 text-sm bg-muted/30 border border-border rounded-xl text-foreground placeholder:text-muted-foreground/40 outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition-all'
 const labelCls = 'text-[11px] font-semibold uppercase tracking-wider text-muted-foreground'
 const emptyProduct = { name: '', description: '', price: '', compare_at: '', image_url: '', category: '', sku: '', stock: 0, active: true }
+const emptyService = { name: '', description: '', price: '', active: true, sort_order: 0 }
 
 function discountPct(price, compare) {
   const p = parseFloat(String(price).replace(/[^0-9.]/g, ''))
@@ -51,7 +52,9 @@ export default function StorefrontPage() {
   // data
   const [settings, setSettings] = useState(null)
   const [products, setProducts] = useState([])
+  const [services, setServices] = useState([])
   const [sales, setSales] = useState(null)
+  const [siteUrl, setSiteUrl] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -59,6 +62,13 @@ export default function StorefrontPage() {
   const [editing, setEditing] = useState(null)
   const [draft, setDraft] = useState({ ...emptyProduct })
   const [saving, setSaving] = useState(false)
+
+  // service editor
+  const [svcEditing, setSvcEditing] = useState(null)
+  const [svcDraft, setSvcDraft] = useState({ ...emptyService })
+  const [svcSaving, setSvcSaving] = useState(false)
+  const [svcMsg, setSvcMsg] = useState('')
+  const [svcError, setSvcError] = useState(false)
 
   // publish
   const [publishing, setPublishing] = useState(false)
@@ -119,16 +129,20 @@ export default function StorefrontPage() {
     setLoading(true); setError('')
     try {
       const q = `workspace=${encodeURIComponent(workspace)}&client=${encodeURIComponent(client)}`
-      const [pubRes, salesRes] = await Promise.all([
+      const [pubRes, salesRes, statusRes] = await Promise.all([
         fetch(`/api/store/public?${q}`),
         fetch(`/api/store/sales?${q}`),
+        fetch(`/api/store/status?${q}`),
       ])
       const pub = await pubRes.json()
       if (!pubRes.ok) throw new Error(pub?.detail || 'Store load failed')
       setSettings(pub.settings || null)
       setProducts(pub.products || [])
+      setServices(pub.services || [])
       const sd = await salesRes.json().catch(() => null)
       setSales(sd && !sd.detail ? sd : null)
+      const st = await statusRes.json().catch(() => null)
+      if (st && !st.detail) setSiteUrl(st.site_url || '')
     } catch (e) {
       setError(e.message)
     } finally {
@@ -221,12 +235,42 @@ export default function StorefrontPage() {
     } catch (e) { setError(e.message) }
   }
 
+  // ── Services ──
+  function startSvcEdit(s) {
+    setSvcEditing(s?.id || 'new')
+    setSvcDraft(s ? { ...emptyService, ...s } : { ...emptyService })
+    setSvcMsg(''); setSvcError(false)
+  }
+
+  async function saveService() {
+    setSvcSaving(true); setSvcMsg(''); setSvcError(false)
+    try {
+      if (svcEditing === 'new') {
+        await api('/api/store/services', { method: 'POST', body: JSON.stringify({ workspace, client, service: svcDraft }) })
+      } else {
+        await api(`/api/store/services/${svcEditing}`, { method: 'PATCH', body: JSON.stringify({ workspace, client, data: svcDraft }) })
+      }
+      setSvcEditing(null)
+      setSvcMsg('Service save ho gaya! Publish karke live website update karo.')
+      await load()
+    } catch (e) { setSvcError(true); setSvcMsg(e.message) } finally { setSvcSaving(false) }
+  }
+
+  async function deleteService(sid) {
+    if (!window.confirm('Is service ko delete karna hai?')) return
+    try {
+      await api(`/api/store/services/${sid}?workspace=${encodeURIComponent(workspace)}&client=${encodeURIComponent(client)}`, { method: 'DELETE' })
+      await load()
+    } catch (e) { setSvcError(true); setSvcMsg(e.message) }
+  }
+
   async function publish() {
     setPublishing(true); setPublishMsg(''); setPublishOk(false)
     try {
       const d = await api('/api/store/sync', { method: 'POST', body: JSON.stringify({ workspace, client, deploy: true }) })
       setPublishMsg(d?.url ? `Live: ${d.url}` : (d?.message || 'Store published'))
       setPublishOk(true)
+      if (d?.url) setSiteUrl(d.url)
     } catch (e) { setPublishMsg(e.message); setPublishOk(false) } finally { setPublishing(false) }
   }
 
@@ -570,12 +614,20 @@ export default function StorefrontPage() {
                     </div>
                   )}
                 </div>
-                <button onClick={publish} disabled={publishing}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-opacity shadow-sm"
-                  style={{ backgroundColor: accent }}>
-                  {publishing ? <Loader2 className="size-4 animate-spin" /> : <Rocket className="size-4" />}
-                  {publishing ? 'Publishing...' : 'Publish'}
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  {siteUrl && (
+                    <a href={siteUrl} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border border-accent/40 text-accent hover:bg-accent/5 transition-colors">
+                      <Globe className="size-4" /> Preview Live Site
+                    </a>
+                  )}
+                  <button onClick={publish} disabled={publishing}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-opacity shadow-sm"
+                    style={{ backgroundColor: accent }}>
+                    {publishing ? <Loader2 className="size-4 animate-spin" /> : <Rocket className="size-4" />}
+                    {publishing ? 'Publishing...' : 'Publish'}
+                  </button>
+                </div>
               </div>
             </section>
 
@@ -1227,6 +1279,101 @@ export default function StorefrontPage() {
               )
             })}
           </div>
+        </section>
+
+        {/* ── Services ── */}
+        <section>
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+            <div>
+              <h2 className="text-lg font-extrabold">Our Services</h2>
+              <p className="text-xs text-muted-foreground">{services.length} service{services.length !== 1 ? 's' : ''}</p>
+            </div>
+            {account && (
+              <button onClick={() => startSvcEdit(null)} disabled={!!svcEditing}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
+                style={{ backgroundColor: accent }}>
+                <Plus className="size-3.5" /> Add Service
+              </button>
+            )}
+          </div>
+
+          {!account && services.length > 0 && (
+            <div className="rounded-xl border border-accent/20 bg-accent/5 px-4 py-3 text-[11px] text-muted-foreground flex items-start gap-2 mb-4">
+              <KeyRound className="size-3.5 text-accent shrink-0 mt-0.5" />
+              <span>Store owner login karke services add/edit kar sakte hain. Publish karo to live website pe services bhi update ho jaati hain.</span>
+            </div>
+          )}
+
+          {svcMsg && (
+            <div className={`rounded-xl border px-4 py-3 text-xs flex items-center gap-2 mb-4 ${svcError ? 'border-red-500/30 bg-red-500/10 text-red-500' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600'}`}>
+              {svcError ? <AlertCircle className="size-4 shrink-0" /> : <CheckCircle2 className="size-4 shrink-0" />} {svcMsg}
+            </div>
+          )}
+
+          {/* Service editor */}
+          {svcEditing && account && (
+            <div className={`${cardCls} p-6 mb-6 space-y-4 border-accent/40`}>
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold">{svcEditing === 'new' ? 'New Service' : 'Edit Service'}</h3>
+                <button onClick={() => setSvcEditing(null)} className="text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted"><X className="size-4" /></button>
+              </div>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div className="sm:col-span-2"><span className={labelCls}>Name *</span><input className={inputCls + ' pl-3 mt-1.5'} value={svcDraft.name} onChange={e => setSvcDraft({ ...svcDraft, name: e.target.value })} placeholder="e.g. Bridal Makeup" /></div>
+                <div className="sm:col-span-2"><span className={labelCls}>Description</span><textarea className={inputCls + ' pl-3 mt-1.5 min-h-20'} value={svcDraft.description} onChange={e => setSvcDraft({ ...svcDraft, description: e.target.value })} placeholder="Kya service hai, kaise milti hai" /></div>
+                <div><span className={labelCls}>Price</span><input className={inputCls + ' pl-3 mt-1.5'} value={svcDraft.price} onChange={e => setSvcDraft({ ...svcDraft, price: e.target.value })} placeholder="₹499" /></div>
+                <div><span className={labelCls}>Sort order</span><input type="number" className={inputCls + ' pl-3 mt-1.5'} value={svcDraft.sort_order ?? 0} onChange={e => setSvcDraft({ ...svcDraft, sort_order: parseInt(e.target.value || '0', 10) })} /></div>
+                <div className="sm:col-span-2">
+                  <label className="flex items-center gap-2 text-xs font-medium"><input type="checkbox" checked={!!svcDraft.active} onChange={e => setSvcDraft({ ...svcDraft, active: e.target.checked })} className="accent-[var(--accent)]" /> Active</label>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <button onClick={() => setSvcEditing(null)} className="px-4 py-2 rounded-lg text-xs font-medium border border-border hover:bg-muted transition-colors">Cancel</button>
+                <button onClick={saveService} disabled={svcSaving || !svcDraft.name.trim()}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
+                  style={{ backgroundColor: accent }}>
+                  {svcSaving ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} Save Service
+                </button>
+              </div>
+            </div>
+          )}
+
+          {services.length === 0 && !svcEditing && (
+            <div className={`${cardCls} p-10 text-center`}>
+              <div className="size-14 rounded-2xl bg-muted/40 flex items-center justify-center mx-auto mb-3"><Package2 className="size-6 text-muted-foreground/40" /></div>
+              <div className="text-sm font-medium">Abhi koi service nahi hai</div>
+              <div className="text-xs text-muted-foreground mt-1">{account ? 'Add Service se pehli service add karo.' : 'Store owner login karke services add kar sakte hain.'}</div>
+            </div>
+          )}
+
+          {/* Service grid */}
+          {services.length > 0 && (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {[...services]
+                .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+                .filter(s => account || s.active !== false)
+                .map(s => (
+                  <div key={s.id} className={`${cardCls} p-5 flex flex-col group transition-shadow hover:shadow-md`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/60">Service</div>
+                        <h3 className="text-sm font-bold leading-snug mt-0.5 line-clamp-1">{s.name}</h3>
+                      </div>
+                      {account && (
+                        <div className="flex gap-1 shrink-0">
+                          <button onClick={() => startSvcEdit(s)} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground" title="Edit"><Pencil className="size-3.5" /></button>
+                          <button onClick={() => deleteService(s.id)} className="p-1.5 rounded-md hover:bg-red-50 text-red-400 hover:text-red-600" title="Delete"><Trash2 className="size-3.5" /></button>
+                        </div>
+                      )}
+                    </div>
+                    {s.description && <p className="text-xs text-muted-foreground mt-1.5 line-clamp-3">{s.description}</p>}
+                    <div className="flex items-center justify-between mt-auto pt-4">
+                      <span className="text-base font-extrabold">{currency(s.price)}</span>
+                      {s.active === false && <span className="text-[9px] font-semibold text-muted-foreground/60 border border-border px-1.5 py-0.5 rounded-full">Hidden</span>}
+                    </div>
+                  </div>
+                ))}
+            </div>
+          )}
         </section>
 
         <footer className="text-center text-[10px] text-muted-foreground/50 pb-8">
