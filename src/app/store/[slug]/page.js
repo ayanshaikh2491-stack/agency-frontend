@@ -440,8 +440,12 @@ export default function StorefrontPage() {
     { label: 'Revenue', value: fmtMoney(sales?.revenue ?? 0), icon: TrendingUp },
     { label: 'Orders', value: sales?.orders ?? 0, icon: ShoppingBag },
     { label: 'Units Sold', value: sales?.units ?? 0, icon: Package },
+    { label: 'Views', value: sales?.views ?? 0, icon: Eye },
     { label: 'Top Product', value: sales?.top_product?.name || '—', icon: Rocket, small: true },
   ]
+  const topProducts = sales?.top_products || []
+  const topMaxUnits = Math.max(1, ...topProducts.map(p => Number(p.units) || 0))
+  const pendingDispatch = orders.filter(o => ['placed', 'processing'].includes(o.status || 'placed')).length
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -504,9 +508,17 @@ export default function StorefrontPage() {
               <>
                 <span className="px-3 py-1 rounded-full text-[11px] font-medium border border-border bg-card/60">{sales.orders ?? 0} Orders</span>
                 <span className="px-3 py-1 rounded-full text-[11px] font-medium border border-border bg-card/60">{fmtMoney(sales.revenue ?? 0)} Revenue</span>
+                <span className="px-3 py-1 rounded-full text-[11px] font-medium border border-border bg-card/60">{sales.views ?? 0} Views</span>
               </>
             )}
           </div>
+          {!account && (
+            <button onClick={() => setLoginOpen(v => !v)}
+              className="mt-6 flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold text-white hover:opacity-90 hover:-translate-y-0.5 transition-all shadow-lg"
+              style={{ backgroundColor: accent }}>
+              <LogIn className="size-4" /> Store Owner Login: Orders, Dispatch & Stats
+            </button>
+          )}
         </div>
       </section>
 
@@ -588,7 +600,7 @@ export default function StorefrontPage() {
             {/* Sales stats */}
             <section>
               <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Aapke Sales Stats</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                 {stats.map(s => (
                   <div key={s.label} className={`${cardCls} p-4`}>
                     <div className="flex items-center justify-between mb-2">
@@ -600,6 +612,34 @@ export default function StorefrontPage() {
                 ))}
               </div>
             </section>
+
+            {/* Top selling products */}
+            {topProducts.length > 0 && (
+              <section className={`${cardCls} p-5`}>
+                <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-4 flex items-center gap-2">
+                  <TrendingUp className="size-4 text-accent" /> Top Selling Products
+                </h2>
+                <div className="space-y-3">
+                  {topProducts.map((p, i) => {
+                    const pct = Math.max(4, Math.round((Number(p.units) || 0) / topMaxUnits * 100))
+                    return (
+                      <div key={i} className="flex items-center gap-3">
+                        <span className="text-[10px] font-bold text-muted-foreground w-4 shrink-0">#{i + 1}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            <span className="text-xs font-semibold truncate">{p.name || 'Product'}</span>
+                            <span className="text-[10px] text-muted-foreground shrink-0">{p.units || 0} sold · {fmtMoney(p.revenue ?? 0)}</span>
+                          </div>
+                          <div className="h-2 rounded-full bg-muted/50 overflow-hidden">
+                            <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: accent }} />
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </section>
+            )}
 
             {/* Publish */}
             <section className={`${cardCls} p-5`}>
@@ -644,6 +684,12 @@ export default function StorefrontPage() {
                       style={{ backgroundColor: '#dc2626' }}>
                       <Bell className="size-3" /> {newOrders} naya
                     </button>
+                  )}
+                  {pendingDispatch > 0 && (
+                    <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold text-white shadow-sm"
+                      style={{ backgroundColor: '#d97706' }}>
+                      <Truck className="size-3" /> {pendingDispatch} dispatch pending
+                    </span>
                   )}
                 </div>
                 <button onClick={() => { loadOrders(); markOrdersSeen() }} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-medium border border-border hover:bg-muted transition-colors">
