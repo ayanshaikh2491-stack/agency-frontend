@@ -33,6 +33,38 @@ function currency(s) {
   return `₹${String(s ?? '').replace(/[^0-9.]/g, '') || '—'}`
 }
 
+// Image upload helper: file -> resize (max 900px) -> compressed JPEG data URL.
+// Data URL seedha settings/product me save hota hai, koi server storage nahi.
+function readImageFile(file, cb) {
+  const reader = new FileReader()
+  reader.onload = () => {
+    const img = new Image()
+    img.onload = () => {
+      try {
+        const MAX = 900
+        let { width, height } = img
+        if (width > MAX || height > MAX) {
+          const ratio = Math.min(MAX / width, MAX / height)
+          width = Math.round(width * ratio)
+          height = Math.round(height * ratio)
+        }
+        const canvas = document.createElement('canvas')
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext('2d')
+        ctx.drawImage(img, 0, 0, width, height)
+        cb(canvas.toDataURL('image/jpeg', 0.82))
+      } catch (err) {
+        cb(null)
+      }
+    }
+    img.onerror = () => cb(null)
+    img.src = reader.result
+  }
+  reader.onerror = () => cb(null)
+  reader.readAsDataURL(file)
+}
+
 export default function StorefrontPage() {
   const params = useParams()
   const slug = (params?.slug || '').toString().replace(/^ws_/, '')
@@ -116,6 +148,9 @@ export default function StorefrontPage() {
   const [settingsSaving, setSettingsSaving] = useState(false)
   const [settingsMsg, setSettingsMsg] = useState('')
   const [settingsOk, setSettingsOk] = useState(false)
+
+  // image upload busy state ('logo' | 'product' | null)
+  const [imgBusy, setImgBusy] = useState(null)
 
   // owner dashboard tab (sab kuch ek jagah — scroll nahi)
   const [tab, setTab] = useState('dashboard')
@@ -403,6 +438,22 @@ export default function StorefrontPage() {
       setSettingsMsg('Settings save ho gaye! Publish karke live website update karo.')
       setSettingsOk(true)
     } catch (e) { setSettingsMsg(e.message); setSettingsOk(false) } finally { setSettingsSaving(false) }
+  }
+
+  // Image file select -> resize -> data URL -> draft me save
+  function handleImageFile(e, kind) {
+    const file = e.target.files && e.target.files[0]
+    e.target.value = '' // same file dobara select kar sake
+    if (!file) return
+    if (!file.type.startsWith('image/')) { alert('Sirf image file (JPG/PNG) upload karo'); return }
+    if (file.size > 6 * 1024 * 1024) { alert('Image 6MB se choti honi chahiye'); return }
+    setImgBusy(kind)
+    readImageFile(file, (dataUrl) => {
+      setImgBusy(null)
+      if (!dataUrl) { alert('Image process nahi ho payi, dobara try karo'); return }
+      if (kind === 'logo') setSettingsDraft({ ...settingsDraft, logo_url: dataUrl })
+      else setDraft({ ...draft, image_url: dataUrl })
+    })
   }
 
   // ── Bulk dispatch ──
@@ -867,16 +918,25 @@ export default function StorefrontPage() {
                   <div><span className={labelCls}>Store Name</span><input className={inputCls + ' pl-3 mt-1.5'} value={settingsDraft.store_name || ''} onChange={e => setSettingsDraft({ ...settingsDraft, store_name: e.target.value })} placeholder="My Store" /></div>
                   <div><span className={labelCls}>Tagline</span><input className={inputCls + ' pl-3 mt-1.5'} value={settingsDraft.tagline || ''} onChange={e => setSettingsDraft({ ...settingsDraft, tagline: e.target.value })} placeholder="Shop our latest collection" /></div>
                   <div className="sm:col-span-2">
-                    <span className={labelCls}>Logo URL</span>
+                    <span className={labelCls}>Logo</span>
                     <div className="flex items-center gap-3 mt-1.5">
-                      <input className={inputCls + ' pl-3'} value={settingsDraft.logo_url || ''} onChange={e => setSettingsDraft({ ...settingsDraft, logo_url: e.target.value })} placeholder="https://.../logo.png" />
-                      {settingsDraft.logo_url && (
-                        <div className="size-12 rounded-lg border border-border bg-muted/30 flex items-center justify-center overflow-hidden shrink-0">
-                          <img src={settingsDraft.logo_url} alt="logo preview" className="max-w-full max-h-full object-contain" onError={e => { e.currentTarget.style.display = 'none' }} />
-                          <ImagePlus className="size-4 text-muted-foreground/40" />
-                        </div>
+                      <label className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-white hover:opacity-90 cursor-pointer transition-opacity shrink-0" style={{ backgroundColor: accent }}>
+                        {imgBusy === 'logo' ? <Loader2 className="size-3.5 animate-spin" /> : <ImagePlus className="size-3.5" />}
+                        <input type="file" accept="image/*" className="hidden" onChange={e => handleImageFile(e, 'logo')} />
+                        {imgBusy === 'logo' ? 'Uploading...' : 'Upload Logo'}
+                      </label>
+                      {settingsDraft.logo_url ? (
+                        <>
+                          <div className="size-12 rounded-lg border border-border bg-muted/30 flex items-center justify-center overflow-hidden shrink-0">
+                            <img src={settingsDraft.logo_url} alt="logo preview" className="max-w-full max-h-full object-contain" onError={e => { e.currentTarget.style.display = 'none' }} />
+                          </div>
+                          <button onClick={() => setSettingsDraft({ ...settingsDraft, logo_url: '' })} className="text-xs text-red-500 hover:underline shrink-0">Remove</button>
+                        </>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground/50">Koi logo nahi — button se upload karo</span>
                       )}
                     </div>
+                    <input className={inputCls + ' pl-3 mt-2'} value={settingsDraft.logo_url || ''} onChange={e => setSettingsDraft({ ...settingsDraft, logo_url: e.target.value })} placeholder="Optional: image ka link paste karo" />
                   </div>
                   <div><span className={labelCls}>GSTIN</span><input className={inputCls + ' pl-3 mt-1.5'} value={settingsDraft.gstin || ''} onChange={e => setSettingsDraft({ ...settingsDraft, gstin: e.target.value })} placeholder="22ABCDE1234F1Z5" /></div>
                   <div><span className={labelCls}>Primary Color</span><input type="color" className="w-full h-10 rounded-xl border border-border bg-transparent mt-1.5 cursor-pointer" value={settingsDraft.color_primary || '#2563EB'} onChange={e => setSettingsDraft({ ...settingsDraft, color_primary: e.target.value })} /></div>
@@ -1694,7 +1754,27 @@ export default function StorefrontPage() {
                 <div className="sm:col-span-2"><span className={labelCls}>Description</span><textarea className={inputCls + ' pl-3 mt-1.5 min-h-20'} value={draft.description} onChange={e => setDraft({ ...draft, description: e.target.value })} placeholder="Short description" /></div>
                 <div><span className={labelCls}>Price</span><input className={inputCls + ' pl-3 mt-1.5'} value={draft.price} onChange={e => setDraft({ ...draft, price: e.target.value })} placeholder="₹499" /></div>
                 <div><span className={labelCls}>Compare at (MRP)</span><input className={inputCls + ' pl-3 mt-1.5'} value={draft.compare_at} onChange={e => setDraft({ ...draft, compare_at: e.target.value })} placeholder="₹999" /></div>
-                <div className="sm:col-span-2"><span className={labelCls}>Image URL</span><input className={inputCls + ' pl-3 mt-1.5'} value={draft.image_url} onChange={e => setDraft({ ...draft, image_url: e.target.value })} placeholder="https://..." /></div>
+                <div className="sm:col-span-2">
+                  <span className={labelCls}>Product Image</span>
+                  <div className="flex items-center gap-3 mt-1.5">
+                    <label className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-white hover:opacity-90 cursor-pointer transition-opacity shrink-0" style={{ backgroundColor: accent }}>
+                      {imgBusy === 'product' ? <Loader2 className="size-3.5 animate-spin" /> : <ImagePlus className="size-3.5" />}
+                      <input type="file" accept="image/*" className="hidden" onChange={e => handleImageFile(e, 'product')} />
+                      {imgBusy === 'product' ? 'Uploading...' : 'Upload Image'}
+                    </label>
+                    {draft.image_url ? (
+                      <>
+                        <div className="size-12 rounded-lg border border-border bg-muted/30 overflow-hidden shrink-0">
+                          <img src={draft.image_url} alt="preview" className="w-full h-full object-cover" onError={e => { e.currentTarget.style.display = 'none' }} />
+                        </div>
+                        <button onClick={() => setDraft({ ...draft, image_url: '' })} className="text-xs text-red-500 hover:underline shrink-0">Remove</button>
+                      </>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground/50">Koi image nahi — button se upload karo</span>
+                    )}
+                  </div>
+                  <input className={inputCls + ' pl-3 mt-2'} value={draft.image_url || ''} onChange={e => setDraft({ ...draft, image_url: e.target.value })} placeholder="Optional: image ka link paste karo" />
+                </div>
                 <div><span className={labelCls}>Category</span><input className={inputCls + ' pl-3 mt-1.5'} value={draft.category} onChange={e => setDraft({ ...draft, category: e.target.value })} placeholder="e.g. Menswear" /></div>
                 <div><span className={labelCls}>Stock</span><input type="number" className={inputCls + ' pl-3 mt-1.5'} value={draft.stock ?? 0} onChange={e => setDraft({ ...draft, stock: parseInt(e.target.value || '0', 10) })} /></div>
                 <div><span className={labelCls}>GST %</span><input type="number" className={inputCls + ' pl-3 mt-1.5'} value={draft.gst ?? ''} onChange={e => setDraft({ ...draft, gst: e.target.value })} placeholder="e.g. 18" /></div>
