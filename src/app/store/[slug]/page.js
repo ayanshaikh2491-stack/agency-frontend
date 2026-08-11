@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams } from 'next/navigation'
 import {
   Store, ShoppingBag, LogIn, LogOut, Plus, Trash2, Save, Pencil, X,
   Loader2, Rocket, TrendingUp, KeyRound, Package2, Phone, MapPin,
   Eye, EyeOff, Mail, Lock, Package, AlertCircle, CheckCircle2, ClipboardList,
-  Bell, Truck, Globe, RefreshCw, Search, Minus, Wallet,
+  Bell, Truck, Globe, RefreshCw, Search, Minus, Wallet, Settings,
+  Download, Printer, BarChart3, Users, Receipt, PackageCheck, ImagePlus,
 } from 'lucide-react'
 
 /* ─── Client Storefront ─────────────────────────────────────────────────────
@@ -18,7 +19,7 @@ import {
 const cardCls = 'rounded-2xl border border-border bg-card shadow-sm'
 const inputCls = 'w-full pl-9 pr-3 py-2.5 text-sm bg-muted/30 border border-border rounded-xl text-foreground placeholder:text-muted-foreground/40 outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition-all'
 const labelCls = 'text-[11px] font-semibold uppercase tracking-wider text-muted-foreground'
-const emptyProduct = { name: '', description: '', price: '', compare_at: '', image_url: '', category: '', sku: '', stock: 0, active: true }
+const emptyProduct = { name: '', description: '', price: '', compare_at: '', image_url: '', category: '', sku: '', gst: '', hsn: '', stock: 0, active: true }
 const emptyService = { name: '', description: '', price: '', active: true, sort_order: 0 }
 
 function discountPct(price, compare) {
@@ -98,6 +99,23 @@ export default function StorefrontPage() {
   const [statusFilter, setStatusFilter] = useState('')
   const [newOrders, setNewOrders] = useState(0) // orders placed after lastSeen
   const [dispatchDraft, setDispatchDraft] = useState(null) // { oid, carrier, tracking }
+
+  // order detail modal (label, invoice, timeline)
+  const [detailOrder, setDetailOrder] = useState(null)
+
+  // bulk dispatch
+  const [selOrders, setSelOrders] = useState([]) // selected order ids
+  const [bulkCarrier, setBulkCarrier] = useState('')
+  const [bulkTracking, setBulkTracking] = useState('')
+  const [bulkNote, setBulkNote] = useState('')
+  const [bulkBusy, setBulkBusy] = useState(false)
+
+  // settings editor
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settingsDraft, setSettingsDraft] = useState({})
+  const [settingsSaving, setSettingsSaving] = useState(false)
+  const [settingsMsg, setSettingsMsg] = useState('')
+  const [settingsOk, setSettingsOk] = useState(false)
 
   const authHeaders = token ? { 'X-Store-Token': token } : {}
 
@@ -358,16 +376,194 @@ export default function StorefrontPage() {
     } catch (e) { setOrdersError(e.message) } finally { setOrderUpdating(null) }
   }
 
-  const orderStatuses = ['placed', 'processing', 'shipped', 'delivered', 'cancelled']
+  // ── Settings editor ──
+  function openSettings() {
+    setSettingsDraft({ ...(settings || {}) })
+    setSettingsOpen(true); setSettingsMsg(''); setSettingsOk(false)
+  }
+
+  async function saveSettings() {
+    setSettingsSaving(true); setSettingsMsg(''); setSettingsOk(false)
+    try {
+      const data = { ...settingsDraft }
+      // payments object ko clean karo
+      if (data.payments && typeof data.payments === 'object') {
+        data.payments = {
+          cod: !!data.payments.cod, upi: !!data.payments.upi,
+          card: !!data.payments.card, bank: !!data.payments.bank,
+        }
+      }
+      const saved = await api('/api/store/settings', {
+        method: 'PATCH', body: JSON.stringify({ workspace, client, data }),
+      })
+      setSettings(saved)
+      setSettingsMsg('Settings save ho gaye! Publish karke live website update karo.')
+      setSettingsOk(true)
+    } catch (e) { setSettingsMsg(e.message); setSettingsOk(false) } finally { setSettingsSaving(false) }
+  }
+
+  // ── Bulk dispatch ──
+  function toggleSel(oid) {
+    setSelOrders(prev => prev.includes(oid) ? prev.filter(x => x !== oid) : [...prev, oid])
+  }
+  function toggleSelAll(ids) {
+    const allSel = ids.every(id => selOrders.includes(id))
+    setSelOrders(allSel ? selOrders.filter(x => !ids.includes(x)) : [...new Set([...selOrders, ...ids])])
+  }
+  async function bulkDispatch() {
+    if (!selOrders.length) return
+    setBulkBusy(true); setOrdersError('')
+    try {
+      const body = { status: 'shipped', carrier: bulkCarrier, tracking_number: bulkTracking, dispatch_note: bulkNote }
+      for (const oid of selOrders) {
+        await api(`/api/store/orders/${oid}?workspace=${encodeURIComponent(workspace)}&client=${encodeURIComponent(client)}`, {
+          method: 'PATCH', body: JSON.stringify(body),
+        })
+      }
+      setSelOrders([]); setBulkCarrier(''); setBulkTracking(''); setBulkNote('')
+      await loadOrders(); await load(); markOrdersSeen()
+    } catch (e) { setOrdersError(e.message) } finally { setBulkBusy(false) }
+  }
+
+  // ── CSV export ──
+  function exportCSV() {
+    if (!orders.length) return
+    const esc = v => `"${String(v ?? '').replace(/"/g, '""')}"`
+    const header = ['Order ID', 'Placed', 'Customer', 'Email', 'Phone', 'City', 'State', 'Pincode', 'Source', 'Items', 'Payment', 'Total', 'Status', 'Carrier', 'Tracking']
+    const rows = orders.map(o => [
+      o.order_number || o.id, o.created_at || '',
+      o.customer_name || '', o.customer_email || '', o.customer_phone || '',
+      o.customer_city || '', o.customer_state || '', o.customer_pincode || '',
+      o.source || '',
+      (o.items || []).map(i => `${i.name} x${i.quantity}`).join('; ') || `${o.product_name || ''} x${o.quantity || ''}`,
+      o.payment_method || '', o.total ?? '', o.status || '', o.carrier || '', o.tracking_number || '',
+    ])
+    const csv = [header, ...rows].map(r => r.map(esc).join(',')).join('\n')
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `${storeName.replace(/[^a-z0-9]+/gi, '-')}-orders.csv`
+    document.body.appendChild(a); a.click(); document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  // ── Print label / invoice ──
+  function printHTML(title, bodyHTML) {
+    const w = window.open('', '_blank', 'width=800,height=900')
+    if (!w) return
+    w.document.write(`<!doctype html><html><head><title>${title}</title><style>
+      body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:32px;font-size:13px}
+      h1{font-size:20px;margin:0 0 4px}h2{font-size:14px;margin:0 0 2px}
+      .brand{display:flex;align-items:center;gap:10px;border-bottom:2px solid #111;padding-bottom:12px;margin-bottom:16px}
+      .brand img{max-height:48px;max-width:140px;object-fit:contain}
+      .muted{color:#555}.right{text-align:right}.row{display:flex;justify-content:space-between;margin:2px 0}
+      table{width:100%;border-collapse:collapse;margin:12px 0}
+      th,td{border:1px solid #ccc;padding:6px 8px;text-align:left;font-size:12px}
+      th{background:#f3f3f3}.totals{margin-top:8px}.box{border:1px solid #ccc;border-radius:8px;padding:12px;margin:10px 0}
+      .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+      .badge{display:inline-block;border:1px solid #999;border-radius:999px;padding:2px 10px;font-size:11px;font-weight:bold}
+      @media print{body{margin:16px}}
+    </style></head><body>${bodyHTML}
+    <script>window.onload=function(){setTimeout(function(){window.print()},250)}<\/script>
+    </body></html>`)
+    w.document.close()
+  }
+
+  function orderItems(o) {
+    return (o.items && o.items.length) ? o.items : (o.product_name ? [{ name: o.product_name, quantity: o.quantity, price: o.total }] : [])
+  }
+
+  function printLabel(o) {
+    const items = orderItems(o)
+    const loc = [o.customer_city, o.customer_state].filter(Boolean).join(', ')
+    const html = `
+      <div class="brand">
+        ${settings?.logo_url ? `<img src="${settings.logo_url}" alt="logo">` : ''}
+        <div><h1>${storeName}</h1>${settings?.tagline ? `<div class="muted">${settings.tagline}</div>` : ''}</div>
+      </div>
+      <div class="row"><span class="muted">Order</span><strong>#${o.order_number || o.id}</strong></div>
+      <div class="row"><span class="muted">Placed</span><span>${o.created_at ? new Date(o.created_at).toLocaleString('en-IN') : '—'}</span></div>
+      <div class="row"><span class="muted">Payment</span><span>${o.payment_method || '—'}</span></div>
+      <div class="row"><span class="muted">Status</span><span class="badge">${statusLabel(o.status)}</span></div>
+      <h2 style="margin-top:18px">Ship To</h2>
+      <div class="box">
+        <div style="font-size:16px;font-weight:bold">${o.customer_name || ''}</div>
+        <div>${o.customer_phone || ''}</div>
+        <div>${o.customer_email || ''}</div>
+        ${o.customer_address ? `<div style="margin-top:4px">${o.customer_address}</div>` : ''}
+        ${loc ? `<div>${loc}${o.customer_pincode ? ' - ' + o.customer_pincode : ''}</div>` : ''}
+      </div>
+      <h2>Items (${items.length})</h2>
+      <table><thead><tr><th>Item</th><th>Qty</th></tr></thead><tbody>
+        ${items.map(i => `<tr><td>${i.name}</td><td>${i.quantity}</td></tr>`).join('')}
+      </tbody></table>
+      ${(o.carrier || o.tracking_number) ? `<div class="box"><div class="row"><span class="muted">Carrier</span><strong>${o.carrier || '—'}</strong></div><div class="row"><span class="muted">Tracking</span><strong>${o.tracking_number || '—'}</strong></div></div>` : ''}
+    `
+    printHTML(`Label ${o.order_number || o.id}`, html)
+  }
+
+  function printInvoice(o) {
+    const items = orderItems(o)
+    const sub = items.reduce((s, i) => s + (Number(i.price) || 0) * (Number(i.quantity) || 1), 0)
+    const delivery = Number(settings?.delivery_charge || 0) || 0
+    const total = o.total ?? (sub + delivery)
+    const itemsHtml = items.map((i, idx) => `
+      <tr>
+        <td>${idx + 1}</td>
+        <td>${i.name}${i.hsn ? `<br><span class="muted">HSN: ${i.hsn}</span>` : ''}</td>
+        <td class="right">${Number(i.quantity) || 1}</td>
+        <td class="right">${fmtMoney(i.price)}</td>
+        <td class="right">${fmtMoney((Number(i.price) || 0) * (Number(i.quantity) || 1))}</td>
+      </tr>`).join('')
+    const html = `
+      <div class="brand">
+        ${settings?.logo_url ? `<img src="${settings.logo_url}" alt="logo">` : ''}
+        <div><h1>INVOICE</h1><div style="font-size:15px;font-weight:bold">${storeName}</div>
+          ${settings?.contact_address ? `<div class="muted">${settings.contact_address}</div>` : ''}
+          ${settings?.contact_phone ? `<div class="muted">Ph: ${settings.contact_phone}</div>` : ''}
+          ${settings?.contact_email ? `<div class="muted">${settings.contact_email}</div>` : ''}
+          ${settings?.gstin ? `<div class="muted">GSTIN: ${settings.gstin}</div>` : ''}
+        </div>
+      </div>
+      <div class="grid">
+        <div><div class="muted">Billed To</div><div style="font-weight:bold">${o.customer_name || ''}</div>
+          <div>${o.customer_phone || ''}</div><div>${o.customer_email || ''}</div>
+          ${o.customer_address ? `<div>${o.customer_address}</div>` : ''}
+          ${[o.customer_city, o.customer_state].filter(Boolean).join(', ') ? `<div>${[o.customer_city, o.customer_state].filter(Boolean).join(', ')}${o.customer_pincode ? ' - ' + o.customer_pincode : ''}</div>` : ''}
+        </div>
+        <div class="right">
+          <div class="row"><span class="muted">Invoice #</span><strong>${o.order_number || o.id}</strong></div>
+          <div class="row"><span class="muted">Date</span><span>${o.created_at ? new Date(o.created_at).toLocaleDateString('en-IN') : '—'}</span></div>
+          <div class="row"><span class="muted">Payment</span><span>${o.payment_method || '—'}</span></div>
+          <div class="row"><span class="muted">Status</span><span class="badge">${statusLabel(o.status)}</span></div>
+        </div>
+      </div>
+      <table><thead><tr><th>#</th><th>Item</th><th class="right">Qty</th><th class="right">Rate</th><th class="right">Amount</th></tr></thead>
+        <tbody>${itemsHtml}</tbody></table>
+      <div class="totals">
+        <div class="row"><span class="muted">Subtotal</span><span>${fmtMoney(sub)}</span></div>
+        ${delivery > 0 ? `<div class="row"><span class="muted">Delivery</span><span>${fmtMoney(delivery)}</span></div>` : ''}
+        <div class="row" style="font-size:16px;font-weight:bold"><span>Total</span><span>${fmtMoney(total)}</span></div>
+      </div>
+      ${settings?.whatsapp ? `<div class="muted" style="margin-top:16px">Questions? WhatsApp: ${settings.whatsapp}</div>` : ''}
+      <div class="muted" style="margin-top:24px">Thank you for your order!</div>
+    `
+    printHTML(`Invoice ${o.order_number || o.id}`, html)
+  }
+
+  const orderStatuses = ['placed', 'processing', 'shipped', 'delivered', 'cancelled', 'returned', 'refunded']
   const statusColor = s => ({
     placed: 'bg-blue-50 text-blue-700 border-blue-200',
     processing: 'bg-amber-50 text-amber-700 border-amber-200',
     shipped: 'bg-violet-50 text-violet-700 border-violet-200',
     delivered: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     cancelled: 'bg-red-50 text-red-700 border-red-200',
+    returned: 'bg-orange-50 text-orange-700 border-orange-200',
+    refunded: 'bg-slate-100 text-slate-700 border-slate-300',
   }[s] || 'bg-muted text-muted-foreground border-border')
   const statusLabel = s => ({
     placed: 'Placed', processing: 'Processing', shipped: 'Shipped', delivered: 'Delivered', cancelled: 'Cancelled',
+    returned: 'Returned', refunded: 'Refunded',
   }[s] || s || '—')
   const visibleOrders = statusFilter ? orders.filter(o => (o.status || 'placed') === statusFilter) : orders
 
@@ -424,6 +620,57 @@ export default function StorefrontPage() {
   const topProducts = sales?.top_products || []
   const topMaxUnits = Math.max(1, ...topProducts.map(p => Number(p.units) || 0))
   const pendingDispatch = orders.filter(o => ['placed', 'processing'].includes(o.status || 'placed')).length
+
+  // ── Derived analytics (from real orders) ──
+  const salesByDay = useMemo(() => {
+    const days = 14
+    const out = []
+    const now = new Date()
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(now); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - i)
+      out.push({ label: d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }), revenue: 0, orders: 0 })
+    }
+    for (const o of orders) {
+      const t = new Date(o.created_at || 0).getTime()
+      const day = new Date(); day.setHours(0, 0, 0, 0); day.setDate(day.getDate() - (days - 1))
+      if (t < day.getTime() || t > now.getTime() + 86400000) continue
+      const idx = Math.floor((t - day.getTime()) / 86400000)
+      if (idx >= 0 && idx < days) {
+        out[idx].revenue += Number(o.total) || 0
+        out[idx].orders += 1
+      }
+    }
+    return out
+  }, [orders])
+  const graphMax = Math.max(1, ...salesByDay.map(d => d.revenue))
+  const graphTotals = salesByDay.reduce((a, d) => ({ revenue: a.revenue + d.revenue, orders: a.orders + d.orders }), { revenue: 0, orders: 0 })
+
+  const customers = useMemo(() => {
+    const m = new Map()
+    for (const o of orders) {
+      const key = o.customer_email || o.customer_phone || o.customer_name || 'Unknown'
+      const c = m.get(key) || { name: o.customer_name || '—', email: o.customer_email || '', phone: o.customer_phone || '', orders: 0, total: 0, last: '' }
+      c.orders += 1
+      c.total += Number(o.total) || 0
+      if (!c.last || new Date(o.created_at || 0) > new Date(c.last)) c.last = o.created_at || ''
+      m.set(key, c)
+    }
+    return [...m.values()].sort((a, b) => b.total - a.total)
+  }, [orders])
+
+  const payBreakdown = useMemo(() => {
+    const m = new Map()
+    for (const o of orders) {
+      const k = o.payment_method || 'Other'
+      const p = m.get(k) || { method: k, orders: 0, total: 0 }
+      p.orders += 1; p.total += Number(o.total) || 0
+      m.set(k, p)
+    }
+    return [...m.values()].sort((a, b) => b.total - a.total)
+  }, [orders])
+  const payMax = Math.max(1, ...payBreakdown.map(p => p.total))
+
+  const lowStock = products.filter(p => Number(p.stock) >= 0 && Number(p.stock) <= 5)
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -564,12 +811,82 @@ export default function StorefrontPage() {
                 <div className="text-xs text-muted-foreground mt-0.5">Products manage karo, sales dekho, aur live site publish karo.</div>
               </div>
               <div className="flex items-center gap-2">
+                <button onClick={openSettings}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-medium border border-border hover:bg-muted transition-colors">
+                  <Settings className="size-3.5" /> Settings
+                </button>
                 <button onClick={logout}
                   className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-medium border border-border hover:bg-muted transition-colors">
                   <LogOut className="size-3.5" /> Logout
                 </button>
               </div>
             </div>
+
+            {/* Settings editor */}
+            {settingsOpen && (
+              <section className={`${cardCls} p-6 space-y-4 border-accent/40`}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-sm font-bold flex items-center gap-2"><Settings className="size-4 text-accent" /> Store Settings</h2>
+                    <p className="text-xs text-muted-foreground mt-0.5">Store ka naam, logo, GSTIN, delivery aur payment options. Save karo + Publish karo.</p>
+                  </div>
+                  <button onClick={() => setSettingsOpen(false)} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
+                </div>
+
+                {settingsMsg && (
+                  <div className={`flex items-center gap-2 text-xs px-3 py-2 rounded-lg ${settingsOk ? 'text-emerald-500 bg-emerald-500/10' : 'text-red-500 bg-red-500/10'}`}>
+                    {settingsOk ? <CheckCircle2 className="size-3.5 shrink-0" /> : <AlertCircle className="size-3.5 shrink-0" />}
+                    {settingsMsg}
+                  </div>
+                )}
+
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div><span className={labelCls}>Store Name</span><input className={inputCls + ' pl-3 mt-1.5'} value={settingsDraft.store_name || ''} onChange={e => setSettingsDraft({ ...settingsDraft, store_name: e.target.value })} placeholder="My Store" /></div>
+                  <div><span className={labelCls}>Tagline</span><input className={inputCls + ' pl-3 mt-1.5'} value={settingsDraft.tagline || ''} onChange={e => setSettingsDraft({ ...settingsDraft, tagline: e.target.value })} placeholder="Shop our latest collection" /></div>
+                  <div className="sm:col-span-2">
+                    <span className={labelCls}>Logo URL</span>
+                    <div className="flex items-center gap-3 mt-1.5">
+                      <input className={inputCls + ' pl-3'} value={settingsDraft.logo_url || ''} onChange={e => setSettingsDraft({ ...settingsDraft, logo_url: e.target.value })} placeholder="https://.../logo.png" />
+                      {settingsDraft.logo_url && (
+                        <div className="size-12 rounded-lg border border-border bg-muted/30 flex items-center justify-center overflow-hidden shrink-0">
+                          <img src={settingsDraft.logo_url} alt="logo preview" className="max-w-full max-h-full object-contain" onError={e => { e.currentTarget.style.display = 'none' }} />
+                          <ImagePlus className="size-4 text-muted-foreground/40" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div><span className={labelCls}>GSTIN</span><input className={inputCls + ' pl-3 mt-1.5'} value={settingsDraft.gstin || ''} onChange={e => setSettingsDraft({ ...settingsDraft, gstin: e.target.value })} placeholder="22ABCDE1234F1Z5" /></div>
+                  <div><span className={labelCls}>Primary Color</span><input type="color" className="w-full h-10 rounded-xl border border-border bg-transparent mt-1.5 cursor-pointer" value={settingsDraft.color_primary || '#2563EB'} onChange={e => setSettingsDraft({ ...settingsDraft, color_primary: e.target.value })} /></div>
+                  <div><span className={labelCls}>Contact Email</span><input className={inputCls + ' pl-3 mt-1.5'} value={settingsDraft.contact_email || ''} onChange={e => setSettingsDraft({ ...settingsDraft, contact_email: e.target.value })} placeholder="owner@store.com" /></div>
+                  <div><span className={labelCls}>Contact Phone</span><input className={inputCls + ' pl-3 mt-1.5'} value={settingsDraft.contact_phone || ''} onChange={e => setSettingsDraft({ ...settingsDraft, contact_phone: e.target.value })} placeholder="+91 98765 43210" /></div>
+                  <div className="sm:col-span-2"><span className={labelCls}>Contact Address</span><input className={inputCls + ' pl-3 mt-1.5'} value={settingsDraft.contact_address || ''} onChange={e => setSettingsDraft({ ...settingsDraft, contact_address: e.target.value })} placeholder="Shop address (invoice pe dikhega)" /></div>
+                  <div><span className={labelCls}>WhatsApp Number</span><input className={inputCls + ' pl-3 mt-1.5'} value={settingsDraft.whatsapp || ''} onChange={e => setSettingsDraft({ ...settingsDraft, whatsapp: e.target.value })} placeholder="+91 98765 43210" /></div>
+                  <div><span className={labelCls}>Delivery Charge (₹)</span><input className={inputCls + ' pl-3 mt-1.5'} value={settingsDraft.delivery_charge || ''} onChange={e => setSettingsDraft({ ...settingsDraft, delivery_charge: e.target.value })} placeholder="e.g. 49" /></div>
+                  <div><span className={labelCls}>Free Delivery Above (₹)</span><input className={inputCls + ' pl-3 mt-1.5'} value={settingsDraft.free_delivery_min || ''} onChange={e => setSettingsDraft({ ...settingsDraft, free_delivery_min: e.target.value })} placeholder="e.g. 499" /></div>
+                </div>
+
+                <div>
+                  <span className={labelCls}>Payment Methods (checkout pe dikhenge)</span>
+                  <div className="flex flex-wrap gap-3 mt-2">
+                    {['cod', 'upi', 'card', 'bank'].map(k => (
+                      <label key={k} className="flex items-center gap-2 text-xs font-medium px-3 py-2 rounded-lg border border-border bg-muted/20 cursor-pointer">
+                        <input type="checkbox" checked={!!(settingsDraft.payments || {})[k]} onChange={e => setSettingsDraft({ ...settingsDraft, payments: { ...(settingsDraft.payments || {}), [k]: e.target.checked } })} className="accent-[var(--accent)]" />
+                        {k === 'cod' ? 'COD' : k === 'upi' ? 'UPI' : k === 'card' ? 'Card' : 'Bank Transfer'}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2">
+                  <button onClick={() => setSettingsOpen(false)} className="px-4 py-2 rounded-lg text-xs font-medium border border-border hover:bg-muted transition-colors">Cancel</button>
+                  <button onClick={saveSettings} disabled={settingsSaving}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
+                    style={{ backgroundColor: accent }}>
+                    {settingsSaving ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} Save Settings
+                  </button>
+                </div>
+              </section>
+            )}
 
             {/* Sales stats */}
             <section>
@@ -614,6 +931,104 @@ export default function StorefrontPage() {
                 </div>
               </section>
             )}
+
+            {/* Sales graph + payment breakdown + customers + low stock */}
+            <div className="grid lg:grid-cols-2 gap-4">
+              {/* Sales graph */}
+              <section className={`${cardCls} p-5`}>
+                <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1 flex items-center gap-2">
+                  <BarChart3 className="size-4 text-accent" /> Sales Last 14 Days
+                </h2>
+                <p className="text-[10px] text-muted-foreground/70 mb-3">{graphTotals.orders} orders · {fmtMoney(graphTotals.revenue)} in 14 din</p>
+                <div className="flex items-end gap-1 h-32">
+                  {salesByDay.map((d, i) => (
+                    <div key={i} className="flex-1 flex flex-col items-center gap-1 group" title={`${d.label}: ${d.orders} order(s), ${fmtMoney(d.revenue)}`}>
+                      <div className="w-full rounded-t bg-accent/80 hover:bg-accent transition-colors" style={{ height: `${Math.max(2, (d.revenue / graphMax) * 100)}%` }} />
+                      {i % 2 === 0 && <span className="text-[8px] text-muted-foreground/50">{d.label}</span>}
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              {/* Payment breakdown */}
+              <section className={`${cardCls} p-5`}>
+                <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+                  <Wallet className="size-4 text-accent" /> Payment Breakdown
+                </h2>
+                {payBreakdown.length === 0 ? (
+                  <p className="text-xs text-muted-foreground/60">Abhi koi payment data nahi.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {payBreakdown.map(p => (
+                      <div key={p.method}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-semibold">{p.method}</span>
+                          <span className="text-[10px] text-muted-foreground">{p.orders} order(s) · {fmtMoney(p.total)}</span>
+                        </div>
+                        <div className="h-2 rounded-full bg-muted/50 overflow-hidden">
+                          <div className="h-full rounded-full" style={{ width: `${Math.max(3, (p.total / payMax) * 100)}%`, backgroundColor: accent }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            </div>
+
+            <div className="grid lg:grid-cols-2 gap-4">
+              {/* Customers */}
+              <section className={`${cardCls} p-5`}>
+                <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+                  <Users className="size-4 text-accent" /> Customers ({customers.length})
+                </h2>
+                {customers.length === 0 ? (
+                  <p className="text-xs text-muted-foreground/60">Abhi koi customer nahi.</p>
+                ) : (
+                  <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
+                    {customers.map((c, i) => (
+                      <div key={i} className="flex items-center gap-3 rounded-xl border border-border/60 bg-muted/10 px-3 py-2">
+                        <div className="size-8 rounded-full bg-accent/10 flex items-center justify-center text-xs font-bold text-accent shrink-0">
+                          {(c.name || '?').charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-semibold truncate">{c.name}</div>
+                          <div className="text-[10px] text-muted-foreground truncate">{c.email || c.phone || '—'}</div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <div className="text-xs font-bold">{fmtMoney(c.total)}</div>
+                          <div className="text-[9px] text-muted-foreground">{c.orders} order(s)</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              {/* Low stock */}
+              <section className={`${cardCls} p-5`}>
+                <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+                  <PackageCheck className="size-4 text-accent" /> Low Stock Alert
+                  {lowStock.length > 0 && <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold text-white" style={{ backgroundColor: '#d97706' }}>{lowStock.length}</span>}
+                </h2>
+                {lowStock.length === 0 ? (
+                  <p className="text-xs text-muted-foreground/60">Sab products ka stock thik hai ✅</p>
+                ) : (
+                  <div className="space-y-2">
+                    {lowStock.map(p => (
+                      <div key={p.id} className="flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
+                        <div className="min-w-0">
+                          <div className="text-xs font-semibold truncate">{p.name}</div>
+                          <div className="text-[10px] text-amber-700">
+                            {Number(p.stock) === 0 ? 'Out of stock!' : `Sirf ${p.stock} left!`}
+                          </div>
+                        </div>
+                        <button onClick={() => startEdit(p)} className="text-[10px] font-semibold text-amber-700 border border-amber-300 rounded-lg px-2 py-1 hover:bg-amber-100 shrink-0">Update Stock</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            </div>
 
             {/* Publish */}
             <section className={`${cardCls} p-5`}>
@@ -666,10 +1081,38 @@ export default function StorefrontPage() {
                     </span>
                   )}
                 </div>
-                <button onClick={() => { loadOrders(); markOrdersSeen() }} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-medium border border-border hover:bg-muted transition-colors">
-                  <RefreshCw className="size-3" /> Refresh
-                </button>
+                <div className="flex items-center gap-2">
+                  {orders.length > 0 && (
+                    <button onClick={exportCSV} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-medium border border-border hover:bg-muted transition-colors">
+                      <Download className="size-3" /> CSV
+                    </button>
+                  )}
+                  <button onClick={() => { loadOrders(); markOrdersSeen() }} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-medium border border-border hover:bg-muted transition-colors">
+                    <RefreshCw className="size-3" /> Refresh
+                  </button>
+                </div>
               </div>
+
+              {/* Bulk dispatch bar */}
+              {orders.length > 0 && (
+                <div className={`${cardCls} p-3 mb-3 flex flex-wrap items-center gap-2 border-accent/30`}>
+                  <span className="text-[10px] font-semibold text-muted-foreground flex items-center gap-1">
+                    <PackageCheck className="size-3.5 text-accent" /> Bulk Dispatch
+                  </span>
+                  <input className="px-2 py-1.5 rounded-lg border border-border bg-transparent text-[10px] outline-none focus:border-accent w-32" value={bulkCarrier} onChange={e => setBulkCarrier(e.target.value)} placeholder="Carrier" />
+                  <input className="px-2 py-1.5 rounded-lg border border-border bg-transparent text-[10px] outline-none focus:border-accent w-36" value={bulkTracking} onChange={e => setBulkTracking(e.target.value)} placeholder="Tracking no." />
+                  <input className="px-2 py-1.5 rounded-lg border border-border bg-transparent text-[10px] outline-none focus:border-accent w-40" value={bulkNote} onChange={e => setBulkNote(e.target.value)} placeholder="Note (optional)" />
+                  <button onClick={bulkDispatch} disabled={bulkBusy || selOrders.length === 0}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-semibold text-white hover:opacity-90 disabled:opacity-40 transition-opacity"
+                    style={{ backgroundColor: accent }}>
+                    {bulkBusy ? <Loader2 className="size-3 animate-spin" /> : <Truck className="size-3" />}
+                    Ship {selOrders.length > 0 ? `${selOrders.length} selected` : 'selected'}
+                  </button>
+                  {selOrders.length > 0 && (
+                    <button onClick={() => setSelOrders([])} className="px-2 py-1.5 rounded-lg text-[10px] font-medium border border-border hover:bg-muted transition-colors">Clear</button>
+                  )}
+                </div>
+              )}
 
               {newOrders > 0 && (
                 <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-xs text-emerald-600 flex items-center gap-2 mb-3">
@@ -715,7 +1158,12 @@ export default function StorefrontPage() {
                       <table className="w-full text-left text-xs">
                         <thead>
                           <tr className="border-b border-border bg-muted/20 text-[10px] uppercase tracking-wider text-muted-foreground">
-                            <th className="px-4 py-2.5 font-semibold">Order</th>
+                            <th className="px-3 py-2.5 font-semibold w-8">
+                              <input type="checkbox" checked={visibleOrders.length > 0 && visibleOrders.every(o => selOrders.includes(o.id))}
+                                onChange={() => toggleSelAll(visibleOrders.map(o => o.id))}
+                                className="accent-[var(--accent)]" title="Select all" />
+                            </th>
+                            <th className="px-3 py-2.5 font-semibold">Order</th>
                             <th className="px-4 py-2.5 font-semibold">Customer</th>
                             <th className="px-4 py-2.5 font-semibold">Kaha se (Location)</th>
                             <th className="px-4 py-2.5 font-semibold">Source</th>
@@ -723,6 +1171,7 @@ export default function StorefrontPage() {
                             <th className="px-4 py-2.5 font-semibold">Total</th>
                             <th className="px-4 py-2.5 font-semibold">Status / Dispatch</th>
                             <th className="px-4 py-2.5 font-semibold">Placed</th>
+                            <th className="px-3 py-2.5 font-semibold">Actions</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -731,11 +1180,13 @@ export default function StorefrontPage() {
                             const loc = [o.customer_city, o.customer_state].filter(Boolean).join(', ')
                             return (
                             <tr key={o.id} className="border-b border-border/50 last:border-0 hover:bg-muted/10">
-                              <td className="px-4 py-3 font-mono font-medium text-accent">
-                                <div className="flex items-center gap-1.5">
-                                  {o.order_number || o.id}
-                                  {isNew && <span className="px-1.5 py-0.5 rounded-full text-[8px] font-bold text-white" style={{ backgroundColor: '#dc2626' }}>NEW</span>}
-                                </div>
+                              <td className="px-3 py-3">
+                                <input type="checkbox" checked={selOrders.includes(o.id)} onChange={() => toggleSel(o.id)}
+                                  className="accent-[var(--accent)]" title="Select for bulk dispatch" />
+                              </td>
+                              <td className="px-3 py-3 font-mono font-medium text-accent">
+                                <button onClick={() => setDetailOrder(o)} className="hover:underline text-left">{o.order_number || o.id}</button>
+                                {isNew && <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[8px] font-bold text-white" style={{ backgroundColor: '#dc2626' }}>NEW</span>}
                               </td>
                               <td className="px-4 py-3">
                                 <div className="font-medium">{o.customer_name || '—'}</div>
@@ -811,6 +1262,17 @@ export default function StorefrontPage() {
                               <td className="px-4 py-3 text-muted-foreground/70">
                                 {o.created_at ? new Date(o.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) + ' ' + new Date(o.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—'}
                               </td>
+                              <td className="px-3 py-3">
+                                <div className="flex flex-col gap-1">
+                                  <button onClick={() => setDetailOrder(o)} className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold border border-border hover:bg-muted transition-colors">
+                                    <Eye className="size-3" /> View
+                                  </button>
+                                  <div className="flex gap-1">
+                                    <button onClick={() => printLabel(o)} title="Print shipping label" className="p-1 rounded-md border border-border text-muted-foreground hover:bg-muted hover:text-foreground"><Printer className="size-3" /></button>
+                                    <button onClick={() => printInvoice(o)} title="Print invoice" className="p-1 rounded-md border border-border text-muted-foreground hover:bg-muted hover:text-foreground"><Receipt className="size-3" /></button>
+                                  </div>
+                                </div>
+                              </td>
                             </tr>
                             )
                           })}
@@ -824,6 +1286,101 @@ export default function StorefrontPage() {
                 </>
               )}
             </section>
+
+            {/* ── Order detail modal ── */}
+            {detailOrder && (
+              <div className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-8 overflow-y-auto">
+                <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setDetailOrder(null)} />
+                <div className={`relative w-full max-w-2xl ${cardCls} p-6`}>
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <h2 className="text-base font-bold flex items-center gap-2">
+                        <ClipboardList className="size-4 text-accent" /> Order #{detailOrder.order_number || detailOrder.id}
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${statusColor(detailOrder.status)}`}>{statusLabel(detailOrder.status)}</span>
+                      </h2>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        {detailOrder.created_at ? new Date(detailOrder.created_at).toLocaleString('en-IN') : '—'} · {detailOrder.payment_method || '—'} · {fmtMoney(detailOrder.total)}
+                      </p>
+                    </div>
+                    <button onClick={() => setDetailOrder(null)} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    <button onClick={() => printLabel(detailOrder)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-semibold border border-border hover:bg-muted transition-colors">
+                      <Printer className="size-3.5" /> Print Label
+                    </button>
+                    <button onClick={() => printInvoice(detailOrder)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-semibold border border-border hover:bg-muted transition-colors">
+                      <Receipt className="size-3.5" /> Print Invoice
+                    </button>
+                  </div>
+
+                  <div className="grid sm:grid-cols-2 gap-4 mb-4">
+                    <div className="rounded-xl bg-muted/20 border border-border p-3">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Customer</div>
+                      <div className="text-sm font-semibold">{detailOrder.customer_name || '—'}</div>
+                      <div className="text-[11px] text-muted-foreground">{detailOrder.customer_email}</div>
+                      <div className="text-[11px] text-muted-foreground">{detailOrder.customer_phone}</div>
+                      {detailOrder.customer_address && <div className="text-[11px] text-muted-foreground mt-1">{detailOrder.customer_address}</div>}
+                      {[detailOrder.customer_city, detailOrder.customer_state].filter(Boolean).join(', ') && (
+                        <div className="text-[11px] text-muted-foreground flex items-center gap-1 mt-1">
+                          <MapPin className="size-3 text-muted-foreground/50" /> {[detailOrder.customer_city, detailOrder.customer_state].filter(Boolean).join(', ')}{detailOrder.customer_pincode ? ` - ${detailOrder.customer_pincode}` : ''}
+                        </div>
+                      )}
+                    </div>
+                    <div className="rounded-xl bg-muted/20 border border-border p-3">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Dispatch</div>
+                      <div className="text-[11px] text-muted-foreground">
+                        <div className="flex items-center gap-1.5"><Truck className="size-3 text-accent" /> Carrier: <span className="text-foreground font-medium">{detailOrder.carrier || '—'}</span></div>
+                        <div className="mt-1">Tracking: <span className="text-foreground font-medium font-mono">{detailOrder.tracking_number || '—'}</span></div>
+                        {detailOrder.dispatch_note && <div className="mt-1">{detailOrder.dispatch_note}</div>}
+                      </div>
+                      <div className="mt-2 flex items-center gap-1.5">
+                        <Globe className="size-3 text-muted-foreground/50" />
+                        <span className="text-[11px]">Source: {detailOrder.source || 'Direct'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-border overflow-hidden mb-4">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="border-b border-border bg-muted/20 text-[10px] uppercase tracking-wider text-muted-foreground">
+                          <th className="px-3 py-2 font-semibold">Item</th>
+                          <th className="px-3 py-2 font-semibold">HSN</th>
+                          <th className="px-3 py-2 font-semibold text-right">Qty</th>
+                          <th className="px-3 py-2 font-semibold text-right">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {orderItems(detailOrder).map((it, i) => (
+                          <tr key={i} className="border-b border-border/50 last:border-0">
+                            <td className="px-3 py-2 font-medium">{it.name}</td>
+                            <td className="px-3 py-2 text-muted-foreground">{it.hsn || '—'}</td>
+                            <td className="px-3 py-2 text-right">{it.quantity}</td>
+                            <td className="px-3 py-2 text-right font-semibold">{fmtMoney((Number(it.price) || 0) * (Number(it.quantity) || 1))}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="flex items-center justify-between rounded-xl bg-muted/20 border border-border px-4 py-3">
+                    <span className="text-xs font-semibold text-muted-foreground">Order Total</span>
+                    <span className="text-lg font-extrabold">{fmtMoney(detailOrder.total)}</span>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 mt-4">
+                    {orderStatuses.filter(s => s !== (detailOrder.status || 'placed')).map(s => (
+                      <button key={s} onClick={() => { updateStatus(detailOrder.id, s); setDetailOrder(null) }}
+                        disabled={orderUpdating === detailOrder.id}
+                        className="px-3 py-1.5 rounded-lg text-[11px] font-medium border border-border hover:bg-muted transition-colors">
+                        Mark {statusLabel(s)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </>
         )}
 
@@ -1106,6 +1663,8 @@ export default function StorefrontPage() {
                 <div className="sm:col-span-2"><span className={labelCls}>Image URL</span><input className={inputCls + ' pl-3 mt-1.5'} value={draft.image_url} onChange={e => setDraft({ ...draft, image_url: e.target.value })} placeholder="https://..." /></div>
                 <div><span className={labelCls}>Category</span><input className={inputCls + ' pl-3 mt-1.5'} value={draft.category} onChange={e => setDraft({ ...draft, category: e.target.value })} placeholder="e.g. Menswear" /></div>
                 <div><span className={labelCls}>Stock</span><input type="number" className={inputCls + ' pl-3 mt-1.5'} value={draft.stock ?? 0} onChange={e => setDraft({ ...draft, stock: parseInt(e.target.value || '0', 10) })} /></div>
+                <div><span className={labelCls}>GST %</span><input type="number" className={inputCls + ' pl-3 mt-1.5'} value={draft.gst ?? ''} onChange={e => setDraft({ ...draft, gst: e.target.value })} placeholder="e.g. 18" /></div>
+                <div><span className={labelCls}>HSN Code</span><input className={inputCls + ' pl-3 mt-1.5'} value={draft.hsn ?? ''} onChange={e => setDraft({ ...draft, hsn: e.target.value })} placeholder="e.g. 6204" /></div>
                 <div className="sm:col-span-2 flex items-center gap-6">
                   <label className="flex items-center gap-2 text-xs font-medium"><input type="checkbox" checked={!!draft.active} onChange={e => setDraft({ ...draft, active: e.target.checked })} className="accent-[var(--accent)]" /> Active</label>
                   <label className="flex items-center gap-2 text-xs font-medium"><input type="checkbox" checked={!!draft.featured} onChange={e => setDraft({ ...draft, featured: e.target.checked })} className="accent-[var(--accent)]" /> Featured</label>
@@ -1148,6 +1707,11 @@ export default function StorefrontPage() {
                     <span className={`absolute bottom-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-semibold shadow-sm ${inStock ? 'text-emerald-700 bg-emerald-50 border border-emerald-200' : 'text-red-700 bg-red-50 border border-red-200'}`}>
                       {inStock ? 'In stock' : 'Out of stock'}
                     </span>
+                    {inStock && Number(p.stock) <= 5 && (
+                      <span className="absolute bottom-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 shadow-sm">
+                        Low stock
+                      </span>
+                    )}
                   </div>
                   <div className="p-4 flex-1 flex flex-col">
                     <div className="flex items-start justify-between gap-2">
