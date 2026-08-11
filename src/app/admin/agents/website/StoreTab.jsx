@@ -524,7 +524,10 @@ export default function StoreTab() {
                           {(o.items || []).map((it, i) => <div key={i}>{it.name} × {it.quantity}</div>)}
                           {(o.items || []).length === 0 && <div>{o.product_name} × {o.quantity}</div>}
                         </td>
-                        <td className="py-2.5 pr-3 font-bold">{cur}{Number(o.total || 0).toLocaleString('en-IN')}</td>
+                        <td className="py-2.5 pr-3">
+                          <div className="font-bold">{cur}{Number(o.total || 0).toLocaleString('en-IN')}</div>
+                          {o.payment_method && <div className="text-[8px] text-muted-foreground/60 uppercase tracking-wide mt-0.5">{o.payment_method}</div>}
+                        </td>
                         <td className="py-2.5 pr-3">
                           {dispatchDraft?.oid === o.id ? (
                             <div className="flex flex-col gap-1 min-w-40">

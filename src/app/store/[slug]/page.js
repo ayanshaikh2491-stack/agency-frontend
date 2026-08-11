@@ -6,7 +6,7 @@ import {
   Store, ShoppingBag, LogIn, LogOut, Plus, Trash2, Save, Pencil, X,
   Loader2, Rocket, TrendingUp, KeyRound, Package2, Phone, MapPin,
   Eye, EyeOff, Mail, Lock, Package, AlertCircle, CheckCircle2, ClipboardList,
-  Bell, Truck, PackageSearch, Send, Globe, RefreshCw,
+  Bell, Truck, PackageSearch, Send, Globe, RefreshCw, Search, Minus, Wallet,
 } from 'lucide-react'
 
 /* ─── Client Storefront ─────────────────────────────────────────────────────
@@ -68,13 +68,18 @@ export default function StorefrontPage() {
   // category filter
   const [catFilter, setCatFilter] = useState('')
 
-  // checkout / buy flow
-  const [buying, setBuying] = useState(null) // product being purchased
-  const [buyQty, setBuyQty] = useState(1)
+  // checkout / cart flow
+  const [cart, setCart] = useState([]) // [{ product, qty }]
+  const [cartOpen, setCartOpen] = useState(false)
+  const [checkout, setCheckout] = useState(null) // { items: [{product, qty}], fromCart }
   const [cust, setCust] = useState({ name: '', email: '', phone: '', address: '' })
+  const [payment, setPayment] = useState('COD')
   const [ordering, setOrdering] = useState(false)
   const [orderMsg, setOrderMsg] = useState('')
   const [orderOk, setOrderOk] = useState(false)
+  const [lastOrder, setLastOrder] = useState(null) // { number, email, total }
+  // product search
+  const [search, setSearch] = useState('')
 
   // owner orders management
   const [orders, setOrders] = useState([])
@@ -226,18 +231,25 @@ export default function StorefrontPage() {
   }
 
   async function placeOrder() {
-    if (!buying) return
+    if (!checkout || !checkout.items.length) return
     setOrdering(true); setOrderMsg(''); setOrderOk(false)
     try {
       const d = await api('/api/store/orders', {
         method: 'POST',
-        body: JSON.stringify({ workspace, client, product_id: buying.id, quantity: buyQty, customer: { name: cust.name, email: cust.email, phone: cust.phone, address: cust.address, source: detectSource() } }),
+        body: JSON.stringify({
+          workspace, client,
+          items: checkout.items.map(({ product, qty }) => ({ product_id: product.id, quantity: qty })),
+          customer: { name: cust.name, email: cust.email, phone: cust.phone, address: cust.address, source: detectSource() },
+          payment_method: payment,
+        }),
       })
-      const unit = Number(String(buying.price || '').replace(/[^0-9.]/g, '')) || 0
-      const total = d?.total ?? unit * buyQty
+      const total = d?.total ?? 0
       const orderNo = d?.order_number || d?.id || ''
       setOrderOk(true)
       setOrderMsg(`Order ${orderNo} placed! Total ${fmtMoney(total)}. Confirmation email bhej diya gaya hai.`)
+      setLastOrder({ number: orderNo, email: cust.email, total })
+      if (checkout.fromCart) setCart([])
+      setCartOpen(false)
       await load()
     } catch (e) { setOrderMsg(e.message); setOrderOk(false) } finally { setOrdering(false) }
   }
@@ -345,7 +357,38 @@ export default function StorefrontPage() {
   const accent = settings?.color_primary || '#2563EB'
 
   const cats = [...new Set(products.map(p => p.category).filter(Boolean))]
-  const visible = catFilter ? products.filter(p => p.category === catFilter) : products
+  const q = search.trim().toLowerCase()
+  const visible = products.filter(p =>
+    (!catFilter || p.category === catFilter) &&
+    (!q || [p.name, p.category, p.description, p.sku].filter(Boolean).some(v => String(v).toLowerCase().includes(q)))
+  )
+
+  // ── cart helpers ──
+  const priceNum = p => Number(String(p?.price || '').replace(/[^0-9.]/g, '')) || 0
+  const cartCount = cart.reduce((n, c) => n + c.qty, 0)
+  const cartTotal = cart.reduce((t, c) => t + priceNum(c.product) * c.qty, 0)
+
+  function addToCart(p) {
+    setCart(prev => {
+      const ex = prev.find(c => c.product.id === p.id)
+      if (ex) return prev.map(c => c.product.id === p.id ? { ...c, qty: Math.min(Number(p.stock) || 99, c.qty + 1) } : c)
+      return [...prev, { product: p, qty: 1 }]
+    })
+  }
+  function setCartQty(id, qty) {
+    setCart(prev => qty <= 0
+      ? prev.filter(c => c.product.id !== id)
+      : prev.map(c => c.product.id === id ? { ...c, qty: Math.min(Number(c.product.stock) || 99, qty) } : c))
+  }
+  function removeFromCart(id) { setCart(prev => prev.filter(c => c.product.id !== id)) }
+  function openCheckout(fromCart) {
+    const items = fromCart ? cart : []
+    setCheckout({ items, fromCart })
+    setCust({ name: '', email: '', phone: '', address: '' })
+    setPayment('COD')
+    setOrderMsg(''); setOrderOk(false); setLastOrder(null)
+    setCartOpen(false)
+  }
 
   const cur = settings?.currency || '₹'
   const fmtMoney = v => `${cur}${Number(v || 0).toLocaleString('en-IN')}`
@@ -375,6 +418,15 @@ export default function StorefrontPage() {
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium border border-border hover:bg-muted hover:text-foreground transition-colors">
               <PackageSearch className="size-3" /> Track Order
             </button>
+            {!account && (
+              <button onClick={() => setCartOpen(v => !v)}
+                className="relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium border border-border hover:bg-muted hover:text-foreground transition-colors">
+                <ShoppingBag className="size-3" /> Cart
+                {cartCount > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 min-w-4 h-4 px-1 rounded-full text-[9px] font-bold text-white flex items-center justify-center" style={{ backgroundColor: '#dc2626' }}>{cartCount}</span>
+                )}
+              </button>
+            )}
             {account ? (
               <>
                 <span className="text-[11px] font-medium text-muted-foreground hidden sm:inline">{account.name || account.email}</span>
@@ -640,7 +692,10 @@ export default function StorefrontPage() {
                                 ))}
                                 {(o.items || []).length === 0 && <div className="text-muted-foreground">{o.product_name} × {o.quantity}</div>}
                               </td>
-                              <td className="px-4 py-3 font-bold">{fmtMoney(o.total)}</td>
+                              <td className="px-4 py-3">
+                                <div className="font-bold">{fmtMoney(o.total)}</div>
+                                {o.payment_method && <div className="text-[9px] text-muted-foreground/60 uppercase tracking-wide mt-0.5">{o.payment_method}</div>}
+                              </td>
                               <td className="px-4 py-3">
                                 {dispatchDraft?.oid === o.id ? (
                                   <div className="flex flex-col gap-1.5 min-w-44">
@@ -701,7 +756,7 @@ export default function StorefrontPage() {
         )}
 
         {/* ── Checkout modal (visitors only) ── */}
-        {!account && buying && (
+        {!account && checkout && (
           <section className={`${cardCls} max-w-md mx-auto p-6 sm:p-8 border-accent/40`}>
             {orderOk ? (
               /* ── Success state ── */
@@ -711,14 +766,14 @@ export default function StorefrontPage() {
                 </div>
                 <h2 className="text-lg font-bold">Order Placed! 🎉</h2>
                 <p className="text-xs text-muted-foreground mt-2 max-w-xs mx-auto">
-                  {buying.name} (x{buyQty}) — {orderMsg}. Store owner ko order mil gaya, stock update ho gaya.
+                  {(checkout.items || []).map(it => `${it.product.name} (x${it.qty})`).join(', ')} — {orderMsg}. Store owner ko order mil gaya, stock update ho gaya.
                 </p>
-                <button onClick={() => { setTrackQuery({ number: orderNo, email: cust.email }); setTrackResult(null); setTrackError(''); setTrackOpen(true) }}
+                <button onClick={() => { setTrackQuery({ number: lastOrder?.number || '', email: lastOrder?.email || '' }); setTrackResult(null); setTrackError(''); setTrackOpen(true) }}
                   className="mt-5 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white hover:opacity-90 transition-opacity shadow-sm"
                   style={{ backgroundColor: accent }}>
                   <PackageSearch className="size-4" /> Track Order Status
                 </button>
-                <button onClick={() => { setBuying(null); setBuyQty(1); setCust({ name: '', email: '', phone: '', address: '' }); setOrderMsg(''); setOrderOk(false) }}
+                <button onClick={() => { setCheckout(null); setCust({ name: '', email: '', phone: '', address: '' }); setOrderMsg(''); setOrderOk(false); setLastOrder(null) }}
                   className="mt-3 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold border border-border hover:bg-muted transition-colors">
                   <ShoppingBag className="size-4" /> Continue Shopping
                 </button>
@@ -730,28 +785,54 @@ export default function StorefrontPage() {
                 <h2 className="text-lg font-bold flex items-center gap-2"><ShoppingBag className="size-4.5 text-accent" /> Checkout</h2>
                 <p className="text-xs text-muted-foreground mt-1">Apna naam + email daalo, order confirm ho jayega.</p>
               </div>
-              <button onClick={() => setBuying(null)} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
+              <button onClick={() => setCheckout(null)} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
             </div>
 
-            <div className="flex items-center gap-3 rounded-xl bg-muted/30 border border-border p-3 mb-4">
-              {buying.image_url ? (
-                <img src={buying.image_url} alt={buying.name} className="size-14 rounded-lg object-cover bg-muted" onError={e => { e.currentTarget.style.display = 'none' }} />
-              ) : (
-                <div className="size-14 rounded-lg bg-muted/40 flex items-center justify-center"><ShoppingBag className="size-5 text-muted-foreground/40" /></div>
-              )}
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-bold truncate">{buying.name}</div>
-                <div className="text-xs text-muted-foreground">
-                  {currency(buying.price)}{buying.compare_at && <span className="line-through ml-1.5 opacity-60">{currency(buying.compare_at)}</span>}
+            {/* Order summary */}
+            <div className="rounded-xl bg-muted/30 border border-border p-3 mb-4 space-y-2">
+              {(checkout.items || []).map(({ product, qty }) => (
+                <div key={product.id} className="flex items-center gap-3">
+                  {product.image_url ? (
+                    <img src={product.image_url} alt={product.name} className="size-12 rounded-lg object-cover bg-muted" onError={e => { e.currentTarget.style.display = 'none' }} />
+                  ) : (
+                    <div className="size-12 rounded-lg bg-muted/40 flex items-center justify-center"><ShoppingBag className="size-4 text-muted-foreground/40" /></div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-bold truncate">{product.name}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {currency(product.price)}{product.compare_at && <span className="line-through ml-1.5 opacity-60">{currency(product.compare_at)}</span>}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[9px] text-muted-foreground uppercase tracking-wide">Qty</div>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <button onClick={() => setCheckout(c => ({ ...c, items: c.items.map(i => i.product.id === product.id ? { ...i, qty: Math.max(1, i.qty - 1) } : i) }))} className="size-7 rounded-lg border border-border hover:bg-muted text-sm font-bold">−</button>
+                      <span className="w-8 text-center text-sm font-bold">{qty}</span>
+                      <button onClick={() => setCheckout(c => ({ ...c, items: c.items.map(i => i.product.id === product.id ? { ...i, qty: Math.min(Number(product.stock) || 99, i.qty + 1) } : i) }))} className="size-7 rounded-lg border border-border hover:bg-muted text-sm font-bold">+</button>
+                    </div>
+                  </div>
                 </div>
+              ))}
+              <div className="flex items-center justify-between border-t border-border/60 pt-2 text-sm">
+                <span className="text-muted-foreground">Total</span>
+                <span className="font-extrabold">{fmtMoney((checkout.items || []).reduce((t, i) => t + priceNum(i.product) * i.qty, 0))}</span>
               </div>
-              <div className="text-right">
-                <div className="text-[9px] text-muted-foreground uppercase tracking-wide">Qty</div>
-                <div className="flex items-center gap-1.5 mt-1">
-                  <button onClick={() => setBuyQty(q => Math.max(1, q - 1))} className="size-7 rounded-lg border border-border hover:bg-muted text-sm font-bold">−</button>
-                  <span className="w-8 text-center text-sm font-bold">{buyQty}</span>
-                  <button onClick={() => setBuyQty(q => Math.min(Number(buying.stock) || 99, q + 1))} className="size-7 rounded-lg border border-border hover:bg-muted text-sm font-bold">+</button>
-                </div>
+            </div>
+
+            {/* Payment method */}
+            <div className="mb-4">
+              <span className={labelCls}>Payment Method</span>
+              <div className="grid grid-cols-2 gap-2 mt-1.5">
+                <button onClick={() => setPayment('COD')}
+                  className={`flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-semibold border transition-colors ${payment === 'COD' ? 'text-white border-transparent' : 'border-border text-muted-foreground hover:text-foreground'}`}
+                  style={payment === 'COD' ? { backgroundColor: accent } : {}}>
+                  <Package className="size-3.5" /> Cash on Delivery
+                </button>
+                <button onClick={() => setPayment('UPI')}
+                  className={`flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-semibold border transition-colors ${payment === 'UPI' ? 'text-white border-transparent' : 'border-border text-muted-foreground hover:text-foreground'}`}
+                  style={payment === 'UPI' ? { backgroundColor: accent } : {}}>
+                  <Wallet className="size-3.5" /> UPI
+                </button>
               </div>
             </div>
 
@@ -797,14 +878,76 @@ export default function StorefrontPage() {
               className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-opacity shadow-sm mt-4"
               style={{ backgroundColor: accent }}>
               {ordering ? <Loader2 className="size-4 animate-spin" /> : <ShoppingBag className="size-4" />}
-              {ordering ? 'Placing order...' : `Order Now · ${fmtMoney((Number(String(buying.price || '').replace(/[^0-9.]/g, '')) || 0) * buyQty)}`}
+              {ordering ? 'Placing order...' : `Order Now · ${fmtMoney((checkout.items || []).reduce((t, i) => t + priceNum(i.product) * i.qty, 0))}`}
             </button>
-            <button type="button" onClick={() => setBuying(null)} className="w-full text-[11px] text-muted-foreground/60 hover:text-muted-foreground transition-colors mt-2">
+            <button type="button" onClick={() => setCheckout(null)} className="w-full text-[11px] text-muted-foreground/60 hover:text-muted-foreground transition-colors mt-2">
               Cancel
             </button>
               </>
             )}
           </section>
+        )}
+
+        {/* ── Cart drawer (visitors only) ── */}
+        {!account && cartOpen && (
+          <div className="fixed inset-0 z-40">
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setCartOpen(false)} />
+            <aside className="absolute right-0 top-0 h-full w-full max-w-sm bg-card border-l border-border shadow-2xl flex flex-col">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-border/60">
+                <h2 className="text-sm font-bold flex items-center gap-2"><ShoppingBag className="size-4 text-accent" /> Your Cart
+                  {cartCount > 0 && <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold text-white" style={{ backgroundColor: accent }}>{cartCount}</span>}
+                </h2>
+                <button onClick={() => setCartOpen(false)} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
+              </div>
+
+              {cart.length === 0 ? (
+                <div className="flex-1 flex flex-col items-center justify-center gap-2 p-8 text-center">
+                  <div className="size-14 rounded-2xl bg-muted/40 flex items-center justify-center"><ShoppingBag className="size-6 text-muted-foreground/40" /></div>
+                  <div className="text-sm font-medium">Cart khali hai</div>
+                  <div className="text-xs text-muted-foreground">Products mein "Add to Cart" dabao aur yahan se checkout karo.</div>
+                  <button onClick={() => setCartOpen(false)} className="mt-2 px-4 py-2 rounded-lg text-[11px] font-semibold text-white hover:opacity-90 transition-opacity" style={{ backgroundColor: accent }}>Browse Products</button>
+                </div>
+              ) : (
+                <>
+                  <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+                    {cart.map(({ product, qty }) => (
+                      <div key={product.id} className="flex items-center gap-3 rounded-xl bg-muted/30 border border-border p-3">
+                        {product.image_url ? (
+                          <img src={product.image_url} alt={product.name} className="size-14 rounded-lg object-cover bg-muted shrink-0" onError={e => { e.currentTarget.style.display = 'none' }} />
+                        ) : (
+                          <div className="size-14 rounded-lg bg-muted/40 flex items-center justify-center shrink-0"><ShoppingBag className="size-5 text-muted-foreground/40" /></div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-bold truncate">{product.name}</div>
+                          <div className="text-[11px] text-muted-foreground">{currency(product.price)}</div>
+                          <div className="flex items-center gap-1.5 mt-1.5">
+                            <button onClick={() => setCartQty(product.id, qty - 1)} className="size-6 rounded-md border border-border hover:bg-muted text-xs font-bold">−</button>
+                            <span className="w-7 text-center text-xs font-bold">{qty}</span>
+                            <button onClick={() => setCartQty(product.id, qty + 1)} className="size-6 rounded-md border border-border hover:bg-muted text-xs font-bold">+</button>
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end gap-2">
+                          <div className="text-xs font-bold">{fmtMoney(priceNum(product) * qty)}</div>
+                          <button onClick={() => removeFromCart(product.id)} className="p-1 rounded-md text-red-400 hover:bg-red-50 hover:text-red-600" title="Remove"><Trash2 className="size-3.5" /></button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="border-t border-border/60 px-5 py-4 space-y-3">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Subtotal</span>
+                      <span className="font-extrabold">{fmtMoney(cartTotal)}</span>
+                    </div>
+                    <button onClick={() => openCheckout(true)}
+                      className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white hover:opacity-90 transition-opacity shadow-sm"
+                      style={{ backgroundColor: accent }}>
+                      <ShoppingBag className="size-4" /> Proceed to Checkout
+                    </button>
+                  </div>
+                </>
+              )}
+            </aside>
+          </div>
         )}
 
         {/* ── Track Order modal (public) ── */}
@@ -860,6 +1003,9 @@ export default function StorefrontPage() {
                     {(trackResult.items || []).map((it, i) => <div key={i}>{it.name} × {it.quantity}</div>)}
                   </div>
                   <div className="mt-1 text-sm font-bold">{fmtMoney(trackResult.total)}</div>
+                  {trackResult.payment_method && trackResult.payment_method !== 'COD' && (
+                    <div className="mt-1 text-[10px] text-muted-foreground/70">Payment: {trackResult.payment_method}</div>
+                  )}
                 </div>
 
                 {/* Status timeline */}
@@ -872,6 +1018,7 @@ export default function StorefrontPage() {
                   {['placed', 'processing', 'shipped', 'delivered'].map((s, i) => {
                     const cur = orderStatuses.indexOf(trackResult.status || 'placed')
                     const done = cur >= i
+                    const ts = s === 'placed' ? trackResult.created_at : (s === 'shipped' ? trackResult.shipped_at : '')
                     return (
                       <div key={s} className="flex flex-col items-center gap-1.5 flex-1 relative">
                         {i > 0 && <div className={`absolute top-2.5 -left-1/2 w-full h-0.5 ${cur >= i ? 'bg-emerald-500' : 'bg-muted'}`} />}
@@ -879,6 +1026,7 @@ export default function StorefrontPage() {
                           {done && <CheckCircle2 className="size-3" />}
                         </div>
                         <span className={`text-[9px] font-semibold uppercase tracking-wide ${done ? 'text-emerald-600' : 'text-muted-foreground/50'}`}>{statusLabel(s)}</span>
+                        {ts && <span className="text-[8px] text-muted-foreground/60 leading-tight text-center max-w-16">{new Date(ts).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>}
                       </div>
                     )
                   })}
@@ -910,13 +1058,23 @@ export default function StorefrontPage() {
               <h2 className="text-lg font-extrabold">Our Products</h2>
               <p className="text-xs text-muted-foreground">{visible.length} item{visible.length !== 1 ? 's' : ''}</p>
             </div>
-            {account && (
-              <button onClick={() => startEdit(null)} disabled={!!editing}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
-                style={{ backgroundColor: accent }}>
-                <Plus className="size-3.5" /> Add Product
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground/50" />
+                <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products..."
+                  className="w-44 sm:w-56 pl-9 pr-3 py-2 text-xs bg-muted/30 border border-border rounded-lg text-foreground placeholder:text-muted-foreground/40 outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition-all" />
+                {search && (
+                  <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-muted-foreground/50 hover:text-foreground"><X className="size-3" /></button>
+                )}
+              </div>
+              {account && (
+                <button onClick={() => startEdit(null)} disabled={!!editing}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
+                  style={{ backgroundColor: accent }}>
+                  <Plus className="size-3.5" /> Add Product
+                </button>
+              )}
+            </div>
           </div>
 
           {!account && (
@@ -1049,11 +1207,17 @@ export default function StorefrontPage() {
                       )}
                     </div>
                     {!account && inStock && (
-                      <button onClick={() => { setBuying(p); setBuyQty(1); setCust({ name: '', email: '', phone: '', address: '' }); setOrderMsg(''); setOrderOk(false) }}
-                        className="mt-3 w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold text-white hover:opacity-90 transition-opacity shadow-sm"
-                        style={{ backgroundColor: accent }}>
-                        <ShoppingBag className="size-3.5" /> Buy Now
-                      </button>
+                      <div className="mt-3 flex items-center gap-2">
+                        <button onClick={() => addToCart(p)}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold border border-border hover:bg-muted transition-colors">
+                          <ShoppingBag className="size-3.5" /> Add to Cart
+                        </button>
+                        <button onClick={() => { openCheckout(false); setCheckout({ items: [{ product: p, qty: 1 }], fromCart: false }) }}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold text-white hover:opacity-90 transition-opacity shadow-sm"
+                          style={{ backgroundColor: accent }}>
+                          <ShoppingBag className="size-3.5" /> Buy Now
+                        </button>
+                      </div>
                     )}
                     {!account && !inStock && (
                       <div className="mt-3 w-full text-center py-2 rounded-xl text-xs font-medium text-muted-foreground/50 border border-border/50">Sold out</div>
