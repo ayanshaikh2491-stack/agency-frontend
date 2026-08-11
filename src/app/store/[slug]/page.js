@@ -117,6 +117,9 @@ export default function StorefrontPage() {
   const [settingsMsg, setSettingsMsg] = useState('')
   const [settingsOk, setSettingsOk] = useState(false)
 
+  // owner dashboard tab (sab kuch ek jagah — scroll nahi)
+  const [tab, setTab] = useState('dashboard')
+
   const authHeaders = token ? { 'X-Store-Token': token } : {}
 
   // Marketing source: where did this customer come from? (utm > referrer > direct)
@@ -811,7 +814,7 @@ export default function StorefrontPage() {
                 <div className="text-xs text-muted-foreground mt-0.5">Products manage karo, sales dekho, aur live site publish karo.</div>
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={openSettings}
+                <button onClick={() => { openSettings(); setTab('settings') }}
                   className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-medium border border-border hover:bg-muted transition-colors">
                   <Settings className="size-3.5" /> Settings
                 </button>
@@ -822,15 +825,35 @@ export default function StorefrontPage() {
               </div>
             </div>
 
+            {/* ── Owner tab nav: sab features ek jagah ── */}
+            <nav className="sticky top-[57px] z-10 flex flex-wrap gap-1.5 -mx-1 px-1 py-2 rounded-2xl bg-background/85 backdrop-blur border border-border/60 shadow-sm">
+              {[
+                { k: 'dashboard', label: 'Dashboard', icon: BarChart3, badge: 0 },
+                { k: 'orders', label: 'Orders', icon: ClipboardList, badge: pendingDispatch },
+                { k: 'products', label: 'Products', icon: Package, badge: lowStock.length },
+                { k: 'services', label: 'Services', icon: Package2, badge: 0 },
+                { k: 'settings', label: 'Settings', icon: Settings, badge: 0 },
+              ].map(t => (
+                <button key={t.k} onClick={() => { if (t.k === 'settings') openSettings(); setTab(t.k) }}
+                  className={`relative flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[11px] font-semibold transition-colors ${tab === t.k ? 'text-white shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'}`}
+                  style={tab === t.k ? { backgroundColor: accent } : {}}>
+                  <t.icon className="size-3.5" /> {t.label}
+                  {t.badge > 0 && (
+                    <span className="px-1.5 py-0.5 rounded-full text-[8px] font-bold text-white" style={{ backgroundColor: '#dc2626' }}>{t.badge}</span>
+                  )}
+                </button>
+              ))}
+            </nav>
+
             {/* Settings editor */}
-            {settingsOpen && (
+            {tab === 'settings' && (
               <section className={`${cardCls} p-6 space-y-4 border-accent/40`}>
                 <div className="flex items-center justify-between">
                   <div>
                     <h2 className="text-sm font-bold flex items-center gap-2"><Settings className="size-4 text-accent" /> Store Settings</h2>
                     <p className="text-xs text-muted-foreground mt-0.5">Store ka naam, logo, GSTIN, delivery aur payment options. Save karo + Publish karo.</p>
                   </div>
-                  <button onClick={() => setSettingsOpen(false)} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
+                  <button onClick={() => setTab('dashboard')} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
                 </div>
 
                 {settingsMsg && (
@@ -878,7 +901,7 @@ export default function StorefrontPage() {
                 </div>
 
                 <div className="flex justify-end gap-2">
-                  <button onClick={() => setSettingsOpen(false)} className="px-4 py-2 rounded-lg text-xs font-medium border border-border hover:bg-muted transition-colors">Cancel</button>
+                  <button onClick={() => setTab('dashboard')} className="px-4 py-2 rounded-lg text-xs font-medium border border-border hover:bg-muted transition-colors">Cancel</button>
                   <button onClick={saveSettings} disabled={settingsSaving}
                     className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
                     style={{ backgroundColor: accent }}>
@@ -888,6 +911,9 @@ export default function StorefrontPage() {
               </section>
             )}
 
+            {/* Dashboard tab: stats, graph, publish */}
+            {tab === 'dashboard' && (
+              <>
             {/* Sales stats */}
             <section>
               <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Aapke Sales Stats</h2>
@@ -1022,7 +1048,7 @@ export default function StorefrontPage() {
                             {Number(p.stock) === 0 ? 'Out of stock!' : `Sirf ${p.stock} left!`}
                           </div>
                         </div>
-                        <button onClick={() => startEdit(p)} className="text-[10px] font-semibold text-amber-700 border border-amber-300 rounded-lg px-2 py-1 hover:bg-amber-100 shrink-0">Update Stock</button>
+                        <button onClick={() => { setTab('products'); startEdit(p) }} className="text-[10px] font-semibold text-amber-700 border border-amber-300 rounded-lg px-2 py-1 hover:bg-amber-100 shrink-0">Update Stock</button>
                       </div>
                     ))}
                   </div>
@@ -1059,7 +1085,12 @@ export default function StorefrontPage() {
                 </div>
               </div>
             </section>
+              </>
+            )}
 
+            {/* Orders tab */}
+            {tab === 'orders' && (
+              <>
             {/* Orders management */}
             <section>
               <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
@@ -1286,6 +1317,8 @@ export default function StorefrontPage() {
                 </>
               )}
             </section>
+              </>
+            )}
 
             {/* ── Order detail modal ── */}
             {detailOrder && (
@@ -1574,7 +1607,8 @@ export default function StorefrontPage() {
           </div>
         )}
 
-        {/* ── Products ── */}
+        {/* ── Products (visitor OR owner on Products tab) ── */}
+        {(!account || tab === 'products') && (
         <section>
           <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
             <div>
@@ -1758,8 +1792,10 @@ export default function StorefrontPage() {
             })}
           </div>
         </section>
+        )}
 
-        {/* ── Services ── */}
+        {/* ── Services (visitor OR owner on Services tab) ── */}
+        {(!account || tab === 'services') && (
         <section>
           <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
             <div>
@@ -1853,6 +1889,7 @@ export default function StorefrontPage() {
             </div>
           )}
         </section>
+        )}
 
         <footer className="text-center text-[10px] text-muted-foreground/50 pb-8">
           © {new Date().getFullYear()} {storeName} · Powered by Agency OS
