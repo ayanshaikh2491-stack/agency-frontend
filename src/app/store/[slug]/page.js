@@ -82,6 +82,9 @@ export default function StorefrontPage() {
   const [authError, setAuthError] = useState(false)
   const [loggingIn, setLoggingIn] = useState(false)
   const [loginOpen, setLoginOpen] = useState(false)
+  // Owner mode: sirf tab active jab URL me ?owner=1 ho. Marketing site pe login
+  // button nahi dikhta — owner apne link me ?owner=1 laga ke login karta hai.
+  const [ownerMode, setOwnerMode] = useState(false)
 
   // data
   const [settings, setSettings] = useState(null)
@@ -234,6 +237,12 @@ export default function StorefrontPage() {
   // restore session
   useEffect(() => {
     try {
+      const sp = new URLSearchParams(window.location.search)
+      if (sp.get('owner') === '1') {
+        setOwnerMode(true)
+        // owner link pe aaya to login card seedha khul jaaye
+        setLoginOpen(true)
+      }
       const saved = localStorage.getItem(`store_token_${workspace}`)
       if (saved) { setToken(saved); loadWithToken(saved) }
     } catch { /* ignore */ }
@@ -892,7 +901,7 @@ export default function StorefrontPage() {
                   <LogOut className="size-3" /> Logout
                 </button>
               </>
-            ) : (
+            ) : ownerMode && (
               <button onClick={() => setLoginOpen(v => !v)}
                 className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[11px] font-semibold text-white hover:opacity-90 transition-opacity shadow-sm"
                 style={{ backgroundColor: accent }}>
@@ -923,7 +932,7 @@ export default function StorefrontPage() {
               </>
             )}
           </div>
-          {!account && (
+          {ownerMode && !account && (
             <button onClick={() => setLoginOpen(v => !v)}
               className="mt-6 flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold text-white hover:opacity-90 hover:-translate-y-0.5 transition-all shadow-lg"
               style={{ backgroundColor: accent }}>
@@ -971,8 +980,8 @@ export default function StorefrontPage() {
           </div>
         )}
 
-        {/* ── Login card (owner only) ── */}
-        {!account && loginOpen && (
+        {/* ── Login card (owner only, ?owner=1 se khulta hai) ── */}
+        {ownerMode && !account && loginOpen && (
           <section className={`${cardCls} max-w-md mx-auto p-6 sm:p-8`}>
             <div className="text-center mb-6">
               <div className="size-12 rounded-2xl bg-accent/10 flex items-center justify-center mx-auto mb-3">
@@ -2091,12 +2100,7 @@ export default function StorefrontPage() {
             </div>
           </div>
 
-          {!account && (
-            <div className="rounded-xl border border-accent/20 bg-accent/5 px-4 py-3 text-[11px] text-muted-foreground flex items-start gap-2 mb-4">
-              <KeyRound className="size-3.5 text-accent shrink-0 mt-0.5" />
-              <span><span className="font-semibold text-foreground">Store owner?</span> Login karke products add/edit kar sakte ho, orders dekho (kaha se aaya, status), aur dispatch/tracking update karo.</span>
-            </div>
-          )}
+          {/* Products section: owner dashboard me admin controls, visitor ko clean marketing view */}
 
           {/* Category filter */}
           {cats.length > 0 && (
@@ -2131,7 +2135,7 @@ export default function StorefrontPage() {
             <div className={`${cardCls} p-10 text-center`}>
               <div className="size-14 rounded-2xl bg-muted/40 flex items-center justify-center mx-auto mb-3"><Package className="size-6 text-muted-foreground/40" /></div>
               <div className="text-sm font-medium">Abhi koi product nahi hai</div>
-              <div className="text-xs text-muted-foreground mt-1">{account ? 'Add Product se pehla product add karo.' : 'Store owner login karke products add kar sakte hain.'}</div>
+              <div className="text-xs text-muted-foreground mt-1">{account ? 'Add Product se pehla product add karo.' : 'Abhi products available nahi hain — jald aa rahe hain!'}</div>
             </div>
           )}
 
