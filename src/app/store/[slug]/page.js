@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams } from 'next/navigation'
 import {
   Store, ShoppingBag, LogIn, LogOut, Plus, Trash2, Save, Pencil, X,
-  Loader2, Rocket, TrendingUp, KeyRound, Package2, Phone, MapPin,
+  Loader2, Rocket, TrendingUp, KeyRound, Phone, MapPin,
   Eye, EyeOff, Mail, Lock, Package, AlertCircle, CheckCircle2, ClipboardList,
   Bell, Truck, Globe, RefreshCw, Search, Minus, Wallet, Settings,
   Download, Printer, BarChart3, Users, Receipt, PackageCheck, ImagePlus,
@@ -21,7 +21,6 @@ const cardCls = 'rounded-2xl border border-border bg-card shadow-sm'
 const inputCls = 'w-full pl-9 pr-3 py-2.5 text-sm bg-muted/30 border border-border rounded-xl text-foreground placeholder:text-muted-foreground/40 outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition-all'
 const labelCls = 'text-[11px] font-semibold uppercase tracking-wider text-muted-foreground'
 const emptyProduct = { name: '', description: '', price: '', compare_at: '', image_url: '', category: '', sku: '', stock: 0, active: true }
-const emptyService = { name: '', description: '', price: '', image_url: '', active: true, sort_order: 0 }
 const emptyCoupon = { code: '', discount_type: 'percent', discount_value: '', min_order: '', max_uses: '', expires_at: '', active: true }
 
 function discountPct(price, compare) {
@@ -87,7 +86,6 @@ export default function StorefrontPage() {
   // data
   const [settings, setSettings] = useState(null)
   const [products, setProducts] = useState([])
-  const [services, setServices] = useState([])
   const [sales, setSales] = useState(null)
   const [siteUrl, setSiteUrl] = useState('')
   const [loading, setLoading] = useState(true)
@@ -97,13 +95,6 @@ export default function StorefrontPage() {
   const [editing, setEditing] = useState(null)
   const [draft, setDraft] = useState({ ...emptyProduct })
   const [saving, setSaving] = useState(false)
-
-  // service editor
-  const [svcEditing, setSvcEditing] = useState(null)
-  const [svcDraft, setSvcDraft] = useState({ ...emptyService })
-  const [svcSaving, setSvcSaving] = useState(false)
-  const [svcMsg, setSvcMsg] = useState('')
-  const [svcError, setSvcError] = useState(false)
 
   // publish
   const [publishing, setPublishing] = useState(false)
@@ -172,7 +163,7 @@ export default function StorefrontPage() {
   const [settingsMsg, setSettingsMsg] = useState('')
   const [settingsOk, setSettingsOk] = useState(false)
 
-  // image upload busy state ('logo' | 'product' | 'service' | 'banner' | null)
+  // image upload busy state ('logo' | 'product' | 'banner' | null)
   const [imgBusy, setImgBusy] = useState(null)
 
   // hero carousel index (banners)
@@ -212,7 +203,6 @@ export default function StorefrontPage() {
       if (!pubRes.ok) throw new Error(pub?.detail || 'Store load failed')
       setSettings(pub.settings || null)
       setProducts(pub.products || [])
-      setServices(pub.services || [])
       setReviews(pub.reviews || [])
       setReviewStats(pub.review_stats || { total: 0, avg: 0, by_product: {} })
       const sd = await salesRes.json().catch(() => null)
@@ -322,35 +312,6 @@ export default function StorefrontPage() {
       await api(`/api/store/products/${pid}?workspace=${encodeURIComponent(workspace)}&client=${encodeURIComponent(client)}`, { method: 'DELETE' })
       await load()
     } catch (e) { setError(e.message) }
-  }
-
-  // ── Services ──
-  function startSvcEdit(s) {
-    setSvcEditing(s?.id || 'new')
-    setSvcDraft(s ? { ...emptyService, ...s } : { ...emptyService })
-    setSvcMsg(''); setSvcError(false)
-  }
-
-  async function saveService() {
-    setSvcSaving(true); setSvcMsg(''); setSvcError(false)
-    try {
-      if (svcEditing === 'new') {
-        await api('/api/store/services', { method: 'POST', body: JSON.stringify({ workspace, client, service: svcDraft }) })
-      } else {
-        await api(`/api/store/services/${svcEditing}`, { method: 'PATCH', body: JSON.stringify({ workspace, client, data: svcDraft }) })
-      }
-      setSvcEditing(null)
-      setSvcMsg('Service save ho gaya! Publish karke live website update karo.')
-      await load()
-    } catch (e) { setSvcError(true); setSvcMsg(e.message) } finally { setSvcSaving(false) }
-  }
-
-  async function deleteService(sid) {
-    if (!window.confirm('Is service ko delete karna hai?')) return
-    try {
-      await api(`/api/store/services/${sid}?workspace=${encodeURIComponent(workspace)}&client=${encodeURIComponent(client)}`, { method: 'DELETE' })
-      await load()
-    } catch (e) { setSvcError(true); setSvcMsg(e.message) }
   }
 
   async function publish() {
@@ -496,7 +457,6 @@ export default function StorefrontPage() {
       setImgBusy(null)
       if (!dataUrl) { alert('Image process nahi ho payi, dobara try karo'); return }
       if (kind === 'logo') setSettingsDraft({ ...settingsDraft, logo_url: dataUrl })
-      else if (kind === 'service') setSvcDraft({ ...svcDraft, image_url: dataUrl })
       else if (kind === 'banner') setSettingsDraft({ ...settingsDraft, banners: [...(settingsDraft.banners || []), dataUrl] })
       else setDraft({ ...draft, image_url: dataUrl })
     })
@@ -1089,7 +1049,6 @@ export default function StorefrontPage() {
                 { k: 'dashboard', label: 'Dashboard', icon: BarChart3, badge: 0 },
                 { k: 'orders', label: 'Orders', icon: ClipboardList, badge: pendingDispatch },
                 { k: 'products', label: 'Products', icon: Package, badge: lowStock.length },
-                { k: 'services', label: 'Services', icon: Package2, badge: 0 },
                 { k: 'coupons', label: 'Coupons', icon: Receipt, badge: 0 },
                 { k: 'reviews', label: 'Reviews', icon: Users, badge: reviews.filter(r => !r.approved).length },
                 { k: 'settings', label: 'Settings', icon: Settings, badge: 0 },
@@ -2322,130 +2281,7 @@ export default function StorefrontPage() {
         </section>
         )}
 
-        {/* ── Services (visitor OR owner on Services tab) ── */}
-        {(!account || tab === 'services') && (
-        <section>
-          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-            <div>
-              <h2 className="text-lg font-extrabold">Our Services</h2>
-              <p className="text-xs text-muted-foreground">{services.length} service{services.length !== 1 ? 's' : ''}</p>
-            </div>
-            {account && (
-              <button onClick={() => startSvcEdit(null)} disabled={!!svcEditing}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
-                style={{ backgroundColor: accent }}>
-                <Plus className="size-3.5" /> Add Service
-              </button>
-            )}
-          </div>
-
-          {!account && services.length > 0 && (
-            <div className="rounded-xl border border-accent/20 bg-accent/5 px-4 py-3 text-[11px] text-muted-foreground flex items-start gap-2 mb-4">
-              <KeyRound className="size-3.5 text-accent shrink-0 mt-0.5" />
-              <span>Store owner login karke services add/edit kar sakte hain. Publish karo to live website pe services bhi update ho jaati hain.</span>
-            </div>
-          )}
-
-          {svcMsg && (
-            <div className={`rounded-xl border px-4 py-3 text-xs flex items-center gap-2 mb-4 ${svcError ? 'border-red-500/30 bg-red-500/10 text-red-500' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600'}`}>
-              {svcError ? <AlertCircle className="size-4 shrink-0" /> : <CheckCircle2 className="size-4 shrink-0" />} {svcMsg}
-            </div>
-          )}
-
-          {/* Service editor */}
-          {svcEditing && account && (
-            <div className={`${cardCls} p-6 mb-6 space-y-4 border-accent/40`}>
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold">{svcEditing === 'new' ? 'New Service' : 'Edit Service'}</h3>
-                <button onClick={() => setSvcEditing(null)} className="text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted"><X className="size-4" /></button>
-              </div>
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div className="sm:col-span-2"><span className={labelCls}>Name *</span><input className={inputCls + ' pl-3 mt-1.5'} value={svcDraft.name} onChange={e => setSvcDraft({ ...svcDraft, name: e.target.value })} placeholder="e.g. Bridal Makeup" /></div>
-                <div className="sm:col-span-2"><span className={labelCls}>Description</span><textarea className={inputCls + ' pl-3 mt-1.5 min-h-20'} value={svcDraft.description} onChange={e => setSvcDraft({ ...svcDraft, description: e.target.value })} placeholder="Kya service hai, kaise milti hai" /></div>
-                <div className="sm:col-span-2">
-                  <span className={labelCls}>Service Image</span>
-                  <div className="flex items-center gap-3 mt-1.5">
-                    <label className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-white hover:opacity-90 cursor-pointer transition-opacity shrink-0" style={{ backgroundColor: accent }}>
-                      {imgBusy === 'service' ? <Loader2 className="size-3.5 animate-spin" /> : <ImagePlus className="size-3.5" />}
-                      <input type="file" accept="image/*" className="hidden" onChange={e => handleImageFile(e, 'service')} />
-                      {imgBusy === 'service' ? 'Uploading...' : 'Upload Image'}
-                    </label>
-                    {svcDraft.image_url ? (
-                      <>
-                        <div className="size-12 rounded-lg border border-border bg-muted/30 overflow-hidden shrink-0">
-                          <img src={svcDraft.image_url} alt="preview" className="w-full h-full object-cover" onError={e => { e.currentTarget.style.display = 'none' }} />
-                        </div>
-                        <button onClick={() => setSvcDraft({ ...svcDraft, image_url: '' })} className="text-xs text-red-500 hover:underline shrink-0">Remove</button>
-                      </>
-                    ) : (
-                      <span className="text-[10px] text-muted-foreground/50">Koi image nahi — button se upload karo</span>
-                    )}
-                  </div>
-                  <input className={inputCls + ' pl-3 mt-2'} value={svcDraft.image_url || ''} onChange={e => setSvcDraft({ ...svcDraft, image_url: e.target.value })} placeholder="Optional: image ka link paste karo" />
-                </div>
-                <div><span className={labelCls}>Price</span><input className={inputCls + ' pl-3 mt-1.5'} value={svcDraft.price} onChange={e => setSvcDraft({ ...svcDraft, price: e.target.value })} placeholder="₹499" /></div>
-                <div><span className={labelCls}>Sort order</span><input type="number" className={inputCls + ' pl-3 mt-1.5'} value={svcDraft.sort_order ?? 0} onChange={e => setSvcDraft({ ...svcDraft, sort_order: parseInt(e.target.value || '0', 10) })} /></div>
-                <div className="sm:col-span-2">
-                  <label className="flex items-center gap-2 text-xs font-medium"><input type="checkbox" checked={!!svcDraft.active} onChange={e => setSvcDraft({ ...svcDraft, active: e.target.checked })} className="accent-[var(--accent)]" /> Active</label>
-                </div>
-              </div>
-              <div className="flex justify-end gap-2">
-                <button onClick={() => setSvcEditing(null)} className="px-4 py-2 rounded-lg text-xs font-medium border border-border hover:bg-muted transition-colors">Cancel</button>
-                <button onClick={saveService} disabled={svcSaving || !svcDraft.name.trim()}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
-                  style={{ backgroundColor: accent }}>
-                  {svcSaving ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} Save Service
-                </button>
-              </div>
-            </div>
-          )}
-
-          {services.length === 0 && !svcEditing && (
-            <div className={`${cardCls} p-10 text-center`}>
-              <div className="size-14 rounded-2xl bg-muted/40 flex items-center justify-center mx-auto mb-3"><Package2 className="size-6 text-muted-foreground/40" /></div>
-              <div className="text-sm font-medium">Abhi koi service nahi hai</div>
-              <div className="text-xs text-muted-foreground mt-1">{account ? 'Add Service se pehli service add karo.' : 'Store owner login karke services add kar sakte hain.'}</div>
-            </div>
-          )}
-
-          {/* Service grid */}
-          {services.length > 0 && (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {[...services]
-                .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-                .filter(s => account || s.active !== false)
-                .map(s => (
-                  <div key={s.id} className={`${cardCls} overflow-hidden flex flex-col group transition-shadow hover:shadow-md`}>
-                    <div className="relative aspect-[4/3] bg-muted/40 overflow-hidden">
-                      {s.image_url ? (
-                        <img src={s.image_url} alt={s.name} className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300" onError={e => { e.currentTarget.style.display = 'none' }} />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center"><Package2 className="size-9 text-muted-foreground/30" /></div>
-                      )}
-                      <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[9px] font-bold text-white shadow-sm" style={{ backgroundColor: accent }}>Service</span>
-                      {s.active === false && <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[9px] font-semibold text-muted-foreground bg-card border border-border">Hidden</span>}
-                    </div>
-                    <div className="p-4 flex-1 flex flex-col">
-                      <div className="flex items-start justify-between gap-2">
-                        <h3 className="text-sm font-bold leading-snug line-clamp-1">{s.name}</h3>
-                        {account && (
-                          <div className="flex gap-1 shrink-0">
-                            <button onClick={() => startSvcEdit(s)} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground" title="Edit"><Pencil className="size-3.5" /></button>
-                            <button onClick={() => deleteService(s.id)} className="p-1.5 rounded-md hover:bg-red-50 text-red-400 hover:text-red-600" title="Delete"><Trash2 className="size-3.5" /></button>
-                          </div>
-                        )}
-                      </div>
-                      {s.description && <p className="text-xs text-muted-foreground mt-1.5 line-clamp-3">{s.description}</p>}
-                      <div className="flex items-center justify-between mt-auto pt-4">
-                        <span className="text-base font-extrabold">{currency(s.price)}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-            </div>
-          )}
-        </section>
-        )}
+        {/* Services feature removed — abhi product business hai. Future service business ke liye backend ready hai (git history me code maujood). */}
 
         <footer className="text-center text-[10px] text-muted-foreground/50 pb-8">
           © {new Date().getFullYear()} {storeName} · Powered by Agency OS
