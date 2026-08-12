@@ -8,6 +8,7 @@ import {
   Eye, EyeOff, Mail, Lock, Package, AlertCircle, CheckCircle2, ClipboardList,
   Bell, Truck, Globe, RefreshCw, Search, Minus, Wallet, Settings,
   Download, Printer, BarChart3, Users, Receipt, PackageCheck, ImagePlus,
+  Star, MessageCircle,
 } from 'lucide-react'
 
 /* ─── Client Storefront ─────────────────────────────────────────────────────
@@ -19,8 +20,9 @@ import {
 const cardCls = 'rounded-2xl border border-border bg-card shadow-sm'
 const inputCls = 'w-full pl-9 pr-3 py-2.5 text-sm bg-muted/30 border border-border rounded-xl text-foreground placeholder:text-muted-foreground/40 outline-none focus:border-accent focus:ring-1 focus:ring-accent/30 transition-all'
 const labelCls = 'text-[11px] font-semibold uppercase tracking-wider text-muted-foreground'
-const emptyProduct = { name: '', description: '', price: '', compare_at: '', image_url: '', category: '', sku: '', gst: '', hsn: '', stock: 0, active: true }
-const emptyService = { name: '', description: '', price: '', active: true, sort_order: 0 }
+const emptyProduct = { name: '', description: '', price: '', compare_at: '', image_url: '', category: '', sku: '', stock: 0, active: true }
+const emptyService = { name: '', description: '', price: '', image_url: '', active: true, sort_order: 0 }
+const emptyCoupon = { code: '', discount_type: 'percent', discount_value: '', min_order: '', max_uses: '', expires_at: '', active: true }
 
 function discountPct(price, compare) {
   const p = parseFloat(String(price).replace(/[^0-9.]/g, ''))
@@ -111,6 +113,26 @@ export default function StorefrontPage() {
   // category filter
   const [catFilter, setCatFilter] = useState('')
 
+  // reviews (visitor + owner moderation)
+  const [reviews, setReviews] = useState([])
+  const [reviewStats, setReviewStats] = useState({ total: 0, avg: 0, by_product: {} })
+  const [reviewForm, setReviewForm] = useState(null) // { product } -> modal open
+  const [reviewDraft, setReviewDraft] = useState({ rating: 5, reviewer_name: '', reviewer_email: '', comment: '' })
+  const [reviewBusy, setReviewBusy] = useState(false)
+  const [reviewMsg, setReviewMsg] = useState('')
+
+  // coupons (owner management + visitor checkout apply)
+  const [coupons, setCoupons] = useState([])
+  const [couponEditing, setCouponEditing] = useState(null)
+  const [couponDraft, setCouponDraft] = useState({ ...emptyCoupon })
+  const [couponSaving, setCouponSaving] = useState(false)
+  const [couponMsg, setCouponMsg] = useState('')
+  const [couponError, setCouponError] = useState(false)
+  const [applyCode, setApplyCode] = useState('')
+  const [appliedCoupon, setAppliedCoupon] = useState(null) // { discount, coupon }
+  const [couponBusy, setCouponBusy] = useState(false)
+  const [couponApplyMsg, setCouponApplyMsg] = useState('')
+
   // checkout / cart flow
   const [cart, setCart] = useState([]) // [{ product, qty }]
   const [cartOpen, setCartOpen] = useState(false)
@@ -120,6 +142,7 @@ export default function StorefrontPage() {
   const [ordering, setOrdering] = useState(false)
   const [orderMsg, setOrderMsg] = useState('')
   const [orderOk, setOrderOk] = useState(false)
+  const [orderWa, setOrderWa] = useState('') // WhatsApp confirm deep link after order
   // product search
   const [search, setSearch] = useState('')
 
@@ -149,8 +172,11 @@ export default function StorefrontPage() {
   const [settingsMsg, setSettingsMsg] = useState('')
   const [settingsOk, setSettingsOk] = useState(false)
 
-  // image upload busy state ('logo' | 'product' | null)
+  // image upload busy state ('logo' | 'product' | 'service' | 'banner' | null)
   const [imgBusy, setImgBusy] = useState(null)
+
+  // hero carousel index (banners)
+  const [heroIdx, setHeroIdx] = useState(0)
 
   // owner dashboard tab (sab kuch ek jagah — scroll nahi)
   const [tab, setTab] = useState('dashboard')
@@ -187,16 +213,31 @@ export default function StorefrontPage() {
       setSettings(pub.settings || null)
       setProducts(pub.products || [])
       setServices(pub.services || [])
+      setReviews(pub.reviews || [])
+      setReviewStats(pub.review_stats || { total: 0, avg: 0, by_product: {} })
       const sd = await salesRes.json().catch(() => null)
       setSales(sd && !sd.detail ? sd : null)
       const st = await statusRes.json().catch(() => null)
       if (st && !st.detail) setSiteUrl(st.site_url || '')
+      if (account) {
+        try {
+          const cpRes = await fetch(`/api/store/coupons?${q}`, { headers: { 'X-Store-Token': token } })
+          const cpd = await cpRes.json()
+          if (cpRes.ok && Array.isArray(cpd)) setCoupons(cpd)
+        } catch { /* ignore */ }
+        try {
+          // owner: saare reviews (pending included) token ke saath
+          const rvRes = await fetch(`/api/store/reviews?${q}`, { headers: { 'X-Store-Token': token } })
+          const rvd = await rvRes.json()
+          if (rvRes.ok && Array.isArray(rvd)) setReviews(rvd)
+        } catch { /* ignore */ }
+      }
     } catch (e) {
       setError(e.message)
     } finally {
       setLoading(false)
     }
-  }, [workspace, client])
+  }, [workspace, client, account, token])
 
   useEffect(() => { load() }, [load])
 
@@ -333,12 +374,15 @@ export default function StorefrontPage() {
           items: checkout.items.map(({ product, qty }) => ({ product_id: product.id, quantity: qty })),
           customer: { name: cust.name, email: cust.email, phone: cust.phone, address: cust.address, source: detectSource() },
           payment_method: payment,
+          coupon_code: appliedCoupon?.coupon || '',
         }),
       })
       const total = d?.total ?? 0
       const orderNo = d?.order_number || d?.id || ''
       setOrderOk(true)
       setOrderMsg(`Order ${orderNo} placed! Total ${fmtMoney(total)}. Confirmation email bhej diya gaya hai.`)
+      setOrderWa(d?.whatsapp_link || '')
+      setAppliedCoupon(null); setApplyCode(''); setCouponApplyMsg('')
       if (checkout.fromCart) setCart([])
       setCartOpen(false)
       await load()
@@ -452,8 +496,125 @@ export default function StorefrontPage() {
       setImgBusy(null)
       if (!dataUrl) { alert('Image process nahi ho payi, dobara try karo'); return }
       if (kind === 'logo') setSettingsDraft({ ...settingsDraft, logo_url: dataUrl })
+      else if (kind === 'service') setSvcDraft({ ...svcDraft, image_url: dataUrl })
+      else if (kind === 'banner') setSettingsDraft({ ...settingsDraft, banners: [...(settingsDraft.banners || []), dataUrl] })
       else setDraft({ ...draft, image_url: dataUrl })
     })
+  }
+
+  // ── Coupons (owner manage + visitor apply) ──
+  function startCouponEdit(c) {
+    setCouponEditing(c?.id || 'new')
+    setCouponDraft(c ? {
+      code: c.code || '', discount_type: c.discount_type || 'percent',
+      discount_value: c.discount_value ?? '', min_order: c.min_order ?? '', max_uses: c.max_uses ?? '',
+      expires_at: (c.expires_at || '').slice(0, 16), active: c.active !== false,
+    } : { ...emptyCoupon })
+    setCouponMsg(''); setCouponError(false)
+  }
+
+  async function saveCoupon() {
+    if (!couponDraft.code?.trim()) { setCouponError(true); setCouponMsg('Coupon code zaroori hai'); return }
+    setCouponSaving(true); setCouponMsg(''); setCouponError(false)
+    try {
+      const payload = {
+        ...couponDraft,
+        code: couponDraft.code.trim().toUpperCase(),
+        discount_value: Number(couponDraft.discount_value) || 0,
+        min_order: Number(couponDraft.min_order) || 0,
+        max_uses: Number(couponDraft.max_uses) || 0,
+      }
+      if (couponEditing === 'new') {
+        await api('/api/store/coupons', { method: 'POST', body: JSON.stringify({ workspace, client, coupon: payload }) })
+      } else {
+        await api(`/api/store/coupons/${couponEditing}`, { method: 'PATCH', body: JSON.stringify({ workspace, client, coupon: payload }) })
+      }
+      setCouponEditing(null)
+      setCouponMsg('Coupon save ho gaya!'); setCouponError(false)
+      await load()
+    } catch (e) { setCouponError(true); setCouponMsg(e.message) } finally { setCouponSaving(false) }
+  }
+
+  async function deleteCoupon(cid) {
+    if (!window.confirm('Is coupon ko delete karna hai?')) return
+    try {
+      await api(`/api/store/coupons/${cid}?workspace=${encodeURIComponent(workspace)}&client=${encodeURIComponent(client)}`, { method: 'DELETE' })
+      await load()
+    } catch (e) { setCouponError(true); setCouponMsg(e.message) }
+  }
+
+  async function toggleCoupon(c) {
+    try {
+      await api(`/api/store/coupons/${c.id}`, {
+        method: 'PATCH', body: JSON.stringify({ workspace, client, coupon: { active: !c.active } }),
+      })
+      await load()
+    } catch (e) { setCouponError(true); setCouponMsg(e.message) }
+  }
+
+  async function applyCoupon() {
+    if (!applyCode.trim()) { setCouponApplyMsg('Coupon code likho'); return }
+    setCouponBusy(true); setCouponApplyMsg('')
+    try {
+      const d = await api('/api/store/coupons/validate', {
+        method: 'POST', body: JSON.stringify({ workspace, client, code: applyCode.trim(), subtotal: checkoutSubtotal }),
+      })
+      setAppliedCoupon({ discount: Number(d.discount) || 0, coupon: d.coupon || applyCode.trim().toUpperCase() })
+      setCouponApplyMsg(`✅ ${d.coupon} — ${fmtMoney(d.discount)} chhut mili!`)
+    } catch (e) {
+      setAppliedCoupon(null)
+      setCouponApplyMsg(`❌ ${e.message}`)
+    } finally { setCouponBusy(false) }
+  }
+
+  // ── Reviews (visitor write + owner moderate) ──
+  const prodRating = pid => reviewStats?.by_product?.[pid] || null
+
+  async function submitReview(e) {
+    e?.preventDefault()
+    if (!reviewForm) return
+    setReviewBusy(true); setReviewMsg('')
+    try {
+      await api('/api/store/reviews', {
+        method: 'POST', body: JSON.stringify({
+          workspace, client,
+          review: {
+            product_id: reviewForm.product.id,
+            product_name: reviewForm.product.name,
+            rating: reviewDraft.rating,
+            reviewer_name: reviewDraft.reviewer_name,
+            reviewer_email: reviewDraft.reviewer_email,
+            comment: reviewDraft.comment,
+          },
+        }),
+      })
+      setReviewMsg('✅ Review submit ho gaya! Owner approve karega to dikhega. Shukriya!')
+      setReviewForm(null)
+      setReviewDraft({ rating: 5, reviewer_name: '', reviewer_email: '', comment: '' })
+    } catch (e2) {
+      setReviewMsg(`❌ ${e2.message}`)
+    } finally { setReviewBusy(false) }
+  }
+
+  async function setReviewApproved(rid, approved) {
+    try {
+      await api(`/api/store/reviews/${rid}`, { method: 'PATCH', body: JSON.stringify({ workspace, client, data: { approved } }) })
+      await load()
+    } catch (e) { setError(e.message) }
+  }
+
+  async function deleteReview(rid) {
+    if (!window.confirm('Is review ko delete karna hai?')) return
+    try {
+      await api(`/api/store/reviews/${rid}?workspace=${encodeURIComponent(workspace)}&client=${encodeURIComponent(client)}`, { method: 'DELETE' })
+      await load()
+    } catch (e) { setError(e.message) }
+  }
+
+  function starsHtml(rating) {
+    return '★★★★★'.slice(0, 5).split('').map((s, i) => (
+      <span key={i} className={i < Math.round(rating) ? 'text-amber-400' : 'text-muted-foreground/25'}>{s}</span>
+    ))
   }
 
   // ── Bulk dispatch ──
@@ -564,7 +725,7 @@ export default function StorefrontPage() {
     const itemsHtml = items.map((i, idx) => `
       <tr>
         <td>${idx + 1}</td>
-        <td>${i.name}${i.hsn ? `<br><span class="muted">HSN: ${i.hsn}</span>` : ''}</td>
+        <td>${i.name}</td>
         <td class="right">${Number(i.quantity) || 1}</td>
         <td class="right">${fmtMoney(i.price)}</td>
         <td class="right">${fmtMoney((Number(i.price) || 0) * (Number(i.quantity) || 1))}</td>
@@ -576,7 +737,6 @@ export default function StorefrontPage() {
           ${settings?.contact_address ? `<div class="muted">${settings.contact_address}</div>` : ''}
           ${settings?.contact_phone ? `<div class="muted">Ph: ${settings.contact_phone}</div>` : ''}
           ${settings?.contact_email ? `<div class="muted">${settings.contact_email}</div>` : ''}
-          ${settings?.gstin ? `<div class="muted">GSTIN: ${settings.gstin}</div>` : ''}
         </div>
       </div>
       <div class="grid">
@@ -627,6 +787,8 @@ export default function StorefrontPage() {
   const storeName = settings?.store_name || settings?.name || 'My Store'
   const tagline = settings?.tagline || 'Shop our latest collection'
   const accent = settings?.color_primary || '#2563EB'
+  const banners = (settings?.banners || []).filter(Boolean)
+  const waNum = (settings?.whatsapp || '').replace(/[^0-9]/g, '')
 
   const cats = [...new Set(products.map(p => p.category).filter(Boolean))]
   const q = search.trim().toLowerCase()
@@ -635,10 +797,22 @@ export default function StorefrontPage() {
     (!q || [p.name, p.category, p.description, p.sku].filter(Boolean).some(v => String(v).toLowerCase().includes(q)))
   )
 
+  // Banner carousel auto-rotate
+  useEffect(() => {
+    if (banners.length < 2) return
+    const t = setInterval(() => setHeroIdx(h => (h + 1) % banners.length), 5000)
+    return () => clearInterval(t)
+  }, [banners.length])
+
   // ── cart helpers ──
   const priceNum = p => Number(String(p?.price || '').replace(/[^0-9.]/g, '')) || 0
   const cartCount = cart.reduce((n, c) => n + c.qty, 0)
   const cartTotal = cart.reduce((t, c) => t + priceNum(c.product) * c.qty, 0)
+
+  // checkout totals (coupon discount applied)
+  const checkoutSubtotal = (checkout?.items || []).reduce((t, i) => t + priceNum(i.product) * i.qty, 0)
+  const checkoutDiscount = Math.min(appliedCoupon?.discount || 0, checkoutSubtotal)
+  const checkoutTotal = Math.max(0, checkoutSubtotal - checkoutDiscount)
 
   function addToCart(p) {
     setCart(prev => {
@@ -727,7 +901,7 @@ export default function StorefrontPage() {
   const lowStock = products.filter(p => Number(p.stock) >= 0 && Number(p.stock) <= 5)
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
+    <main className="min-h-screen bg-background text-foreground" style={{ '--accent': accent }}>
       {/* ── Top bar ── */}
       <header className="border-b border-border/60 bg-card/60 backdrop-blur sticky top-0 z-20">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
@@ -770,20 +944,22 @@ export default function StorefrontPage() {
       </header>
 
       {/* ── Hero ── */}
-      <section className="border-b border-border/40" style={{ background: `linear-gradient(135deg, ${accent}14, ${accent}05 60%, transparent)` }}>
-        <div className="max-w-6xl mx-auto px-4 py-10 sm:py-14 flex flex-col items-center text-center">
+      <section className="border-b border-border/40 relative overflow-hidden" style={{ background: `linear-gradient(135deg, ${accent}1a, ${accent}08 55%, transparent)` }}>
+        <div className="pointer-events-none absolute -top-24 -right-24 size-72 rounded-full blur-3xl opacity-30" style={{ backgroundColor: accent }} />
+        <div className="pointer-events-none absolute -bottom-32 -left-20 size-80 rounded-full blur-3xl opacity-20" style={{ backgroundColor: accent }} />
+        <div className="max-w-6xl mx-auto px-4 py-10 sm:py-14 flex flex-col items-center text-center relative">
           <div className="size-14 rounded-2xl flex items-center justify-center text-white mb-4 shadow-lg" style={{ backgroundColor: accent }}>
             <Store className="size-7" />
           </div>
           <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight">{storeName}</h1>
           {tagline && <p className="text-sm sm:text-base text-muted-foreground mt-2 max-w-xl">{tagline}</p>}
-          <div className="flex items-center gap-2 mt-5">
-            <span className="px-3 py-1 rounded-full text-[11px] font-medium border border-border bg-card/60">{products.length} Products</span>
+          <div className="flex items-center gap-2 mt-5 flex-wrap justify-center">
+            <span className="px-3 py-1 rounded-full text-[11px] font-medium border border-border bg-card/60 backdrop-blur">{products.length} Products</span>
             {sales && (
               <>
-                <span className="px-3 py-1 rounded-full text-[11px] font-medium border border-border bg-card/60">{sales.orders ?? 0} Orders</span>
-                <span className="px-3 py-1 rounded-full text-[11px] font-medium border border-border bg-card/60">{fmtMoney(sales.revenue ?? 0)} Revenue</span>
-                <span className="px-3 py-1 rounded-full text-[11px] font-medium border border-border bg-card/60">{sales.views ?? 0} Views</span>
+                <span className="px-3 py-1 rounded-full text-[11px] font-medium border border-border bg-card/60 backdrop-blur">{sales.orders ?? 0} Orders</span>
+                <span className="px-3 py-1 rounded-full text-[11px] font-medium border border-border bg-card/60 backdrop-blur">{fmtMoney(sales.revenue ?? 0)} Revenue</span>
+                <span className="px-3 py-1 rounded-full text-[11px] font-medium border border-border bg-card/60 backdrop-blur">{sales.views ?? 0} Views</span>
               </>
             )}
           </div>
@@ -796,6 +972,37 @@ export default function StorefrontPage() {
           )}
         </div>
       </section>
+
+      {/* ── Banner carousel ── */}
+      {banners.length > 0 && (
+        <section className="max-w-6xl mx-auto px-4 pt-6">
+          <div className="relative rounded-3xl overflow-hidden border border-border shadow-md group">
+            <div className="flex transition-transform duration-500 ease-out" style={{ transform: `translateX(-${heroIdx * 100}%)` }}>
+              {banners.map((b, i) => (
+                <div key={i} className="w-full shrink-0 aspect-[21/9] sm:aspect-[21/7] bg-muted/40 relative">
+                  {b ? (
+                    <img src={b} alt={`banner ${i + 1}`} className="w-full h-full object-cover" onError={e => { e.currentTarget.style.display = 'none' }} />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-muted-foreground/40"><Store className="size-10" /></div>
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent pointer-events-none" />
+                </div>
+              ))}
+            </div>
+            {banners.length > 1 && (
+              <>
+                <button onClick={() => setHeroIdx(h => (h - 1 + banners.length) % banners.length)} className="absolute left-3 top-1/2 -translate-y-1/2 size-8 rounded-full bg-black/30 hover:bg-black/50 text-white flex items-center justify-center text-lg backdrop-blur-sm">‹</button>
+                <button onClick={() => setHeroIdx(h => (h + 1) % banners.length)} className="absolute right-3 top-1/2 -translate-y-1/2 size-8 rounded-full bg-black/30 hover:bg-black/50 text-white flex items-center justify-center text-lg backdrop-blur-sm">›</button>
+                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+                  {banners.map((_, i) => (
+                    <button key={i} onClick={() => setHeroIdx(i)} className={`size-1.5 rounded-full transition-all ${i === heroIdx ? 'w-5 bg-white' : 'bg-white/50 hover:bg-white/80'}`} />
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </section>
+      )}
 
       <div className="max-w-6xl mx-auto px-4 py-8 space-y-8">
         {error && (
@@ -883,6 +1090,8 @@ export default function StorefrontPage() {
                 { k: 'orders', label: 'Orders', icon: ClipboardList, badge: pendingDispatch },
                 { k: 'products', label: 'Products', icon: Package, badge: lowStock.length },
                 { k: 'services', label: 'Services', icon: Package2, badge: 0 },
+                { k: 'coupons', label: 'Coupons', icon: Receipt, badge: 0 },
+                { k: 'reviews', label: 'Reviews', icon: Users, badge: reviews.filter(r => !r.approved).length },
                 { k: 'settings', label: 'Settings', icon: Settings, badge: 0 },
               ].map(t => (
                 <button key={t.k} onClick={() => { if (t.k === 'settings') openSettings(); setTab(t.k) }}
@@ -902,7 +1111,7 @@ export default function StorefrontPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <h2 className="text-sm font-bold flex items-center gap-2"><Settings className="size-4 text-accent" /> Store Settings</h2>
-                    <p className="text-xs text-muted-foreground mt-0.5">Store ka naam, logo, GSTIN, delivery aur payment options. Save karo + Publish karo.</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Store ka naam, logo, color, delivery aur payment options. Save karo + Publish karo.</p>
                   </div>
                   <button onClick={() => setTab('dashboard')} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
                 </div>
@@ -938,7 +1147,6 @@ export default function StorefrontPage() {
                     </div>
                     <input className={inputCls + ' pl-3 mt-2'} value={settingsDraft.logo_url || ''} onChange={e => setSettingsDraft({ ...settingsDraft, logo_url: e.target.value })} placeholder="Optional: image ka link paste karo" />
                   </div>
-                  <div><span className={labelCls}>GSTIN</span><input className={inputCls + ' pl-3 mt-1.5'} value={settingsDraft.gstin || ''} onChange={e => setSettingsDraft({ ...settingsDraft, gstin: e.target.value })} placeholder="22ABCDE1234F1Z5" /></div>
                   <div><span className={labelCls}>Primary Color</span><input type="color" className="w-full h-10 rounded-xl border border-border bg-transparent mt-1.5 cursor-pointer" value={settingsDraft.color_primary || '#2563EB'} onChange={e => setSettingsDraft({ ...settingsDraft, color_primary: e.target.value })} /></div>
                   <div><span className={labelCls}>Contact Email</span><input className={inputCls + ' pl-3 mt-1.5'} value={settingsDraft.contact_email || ''} onChange={e => setSettingsDraft({ ...settingsDraft, contact_email: e.target.value })} placeholder="owner@store.com" /></div>
                   <div><span className={labelCls}>Contact Phone</span><input className={inputCls + ' pl-3 mt-1.5'} value={settingsDraft.contact_phone || ''} onChange={e => setSettingsDraft({ ...settingsDraft, contact_phone: e.target.value })} placeholder="+91 98765 43210" /></div>
@@ -960,6 +1168,30 @@ export default function StorefrontPage() {
                   </div>
                 </div>
 
+                {/* ── Banners (hero carousel) ── */}
+                <div className="sm:col-span-2">
+                  <span className={labelCls}>Hero Banners (storefront top pe carousel)</span>
+                  {(settingsDraft.banners || []).map((b, bi) => (
+                    <div key={bi} className="flex items-center gap-2 mt-2">
+                      <div className="size-14 rounded-lg border border-border bg-muted/30 overflow-hidden shrink-0">
+                        <img src={b} alt={`banner ${bi + 1}`} className="w-full h-full object-cover" onError={e => { e.currentTarget.style.display = 'none' }} />
+                      </div>
+                      <input className={inputCls + ' pl-3'} value={b} onChange={e => { const bs = [...(settingsDraft.banners || [])]; bs[bi] = e.target.value; setSettingsDraft({ ...settingsDraft, banners: bs }) }} placeholder="Banner image ka link" />
+                      <button onClick={() => setSettingsDraft({ ...settingsDraft, banners: (settingsDraft.banners || []).filter((_, i) => i !== bi) })} className="p-1.5 rounded-md hover:bg-red-50 text-red-400 hover:text-red-600 shrink-0"><Trash2 className="size-3.5" /></button>
+                    </div>
+                  ))}
+                  <div className="flex gap-2 mt-2">
+                    <label className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-white hover:opacity-90 cursor-pointer transition-opacity shrink-0" style={{ backgroundColor: accent }}>
+                      {imgBusy === 'banner' ? <Loader2 className="size-3.5 animate-spin" /> : <ImagePlus className="size-3.5" />}
+                      <input type="file" accept="image/*" className="hidden" onChange={e => handleImageFile(e, 'banner')} />
+                      {imgBusy === 'banner' ? 'Uploading...' : 'Upload Banner'}
+                    </label>
+                    <button onClick={() => setSettingsDraft({ ...settingsDraft, banners: [...(settingsDraft.banners || []), ''] })} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border border-border hover:bg-muted transition-colors shrink-0">
+                      <Plus className="size-3.5" /> Add Link
+                    </button>
+                  </div>
+                </div>
+
                 <div className="flex justify-end gap-2">
                   <button onClick={() => setTab('dashboard')} className="px-4 py-2 rounded-lg text-xs font-medium border border-border hover:bg-muted transition-colors">Cancel</button>
                   <button onClick={saveSettings} disabled={settingsSaving}
@@ -967,6 +1199,173 @@ export default function StorefrontPage() {
                     style={{ backgroundColor: accent }}>
                     {settingsSaving ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} Save Settings
                   </button>
+                </div>
+              </section>
+            )}
+
+            {/* Coupons tab: owner manage discount codes */}
+            {tab === 'coupons' && (
+              <section className="space-y-4">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <h2 className="text-sm font-bold flex items-center gap-2"><Receipt className="size-4 text-accent" /> Coupons</h2>
+                    <p className="text-xs text-muted-foreground mt-0.5">Discount codes banao, checkout pe customers apply karenge.</p>
+                  </div>
+                  <button onClick={() => startCouponEdit(null)}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-semibold text-white hover:opacity-90 transition-opacity"
+                    style={{ backgroundColor: accent }}>
+                    <Plus className="size-3.5" /> New Coupon
+                  </button>
+                </div>
+
+                {couponMsg && (
+                  <div className={`rounded-xl border px-4 py-3 text-xs flex items-center gap-2 ${couponError ? 'border-red-500/30 bg-red-500/10 text-red-500' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600'}`}>
+                    {couponError ? <AlertCircle className="size-4 shrink-0" /> : <CheckCircle2 className="size-4 shrink-0" />} {couponMsg}
+                  </div>
+                )}
+
+                {/* Coupon editor */}
+                {couponEditing && (
+                  <div className={`${cardCls} p-6 space-y-4 border-accent/40`}>
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-bold">{couponEditing === 'new' ? 'New Coupon' : 'Edit Coupon'}</h3>
+                      <button onClick={() => setCouponEditing(null)} className="text-muted-foreground hover:text-foreground p-1 rounded-md hover:bg-muted"><X className="size-4" /></button>
+                    </div>
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      <div><span className={labelCls}>Code *</span><input className={inputCls + ' pl-3 mt-1.5 uppercase'} value={couponDraft.code} onChange={e => setCouponDraft({ ...couponDraft, code: e.target.value.toUpperCase() })} placeholder="WELCOME10" /></div>
+                      <div><span className={labelCls}>Type</span>
+                        <div className="grid grid-cols-2 gap-2 mt-1.5">
+                          {[['percent', 'Percent %'], ['flat', 'Flat ₹']].map(([k, lbl]) => (
+                            <button key={k} onClick={() => setCouponDraft({ ...couponDraft, discount_type: k })}
+                              className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-colors ${couponDraft.discount_type === k ? 'text-white border-transparent' : 'border-border text-muted-foreground hover:text-foreground'}`}
+                              style={couponDraft.discount_type === k ? { backgroundColor: accent } : {}}>
+                              {lbl}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div><span className={labelCls}>{couponDraft.discount_type === 'percent' ? 'Discount %' : 'Discount (₹)'}</span><input type="number" className={inputCls + ' pl-3 mt-1.5'} value={couponDraft.discount_value} onChange={e => setCouponDraft({ ...couponDraft, discount_value: e.target.value })} placeholder={couponDraft.discount_type === 'percent' ? 'e.g. 10' : 'e.g. 100'} /></div>
+                      <div><span className={labelCls}>Min Order (₹)</span><input type="number" className={inputCls + ' pl-3 mt-1.5'} value={couponDraft.min_order} onChange={e => setCouponDraft({ ...couponDraft, min_order: e.target.value })} placeholder="0 = koi limit nahi" /></div>
+                      <div><span className={labelCls}>Max Uses</span><input type="number" className={inputCls + ' pl-3 mt-1.5'} value={couponDraft.max_uses} onChange={e => setCouponDraft({ ...couponDraft, max_uses: e.target.value })} placeholder="0 = unlimited" /></div>
+                      <div><span className={labelCls}>Expiry (optional)</span><input type="datetime-local" className={inputCls + ' pl-3 mt-1.5'} value={couponDraft.expires_at} onChange={e => setCouponDraft({ ...couponDraft, expires_at: e.target.value })} /></div>
+                      <div className="flex items-center">
+                        <label className="flex items-center gap-2 text-xs font-medium"><input type="checkbox" checked={!!couponDraft.active} onChange={e => setCouponDraft({ ...couponDraft, active: e.target.checked })} className="accent-[var(--accent)]" /> Active</label>
+                      </div>
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <button onClick={() => setCouponEditing(null)} className="px-4 py-2 rounded-lg text-xs font-medium border border-border hover:bg-muted transition-colors">Cancel</button>
+                      <button onClick={saveCoupon} disabled={couponSaving || !couponDraft.code.trim()}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
+                        style={{ backgroundColor: accent }}>
+                        {couponSaving ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} Save Coupon
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Coupon list */}
+                {coupons.length === 0 && !couponEditing && (
+                  <div className={`${cardCls} p-10 text-center`}>
+                    <div className="size-14 rounded-2xl bg-muted/40 flex items-center justify-center mx-auto mb-3"><Receipt className="size-6 text-muted-foreground/40" /></div>
+                    <div className="text-sm font-medium">Abhi koi coupon nahi hai</div>
+                    <div className="text-xs text-muted-foreground mt-1">New Coupon se pehla discount code banao.</div>
+                  </div>
+                )}
+
+                {coupons.length > 0 && (
+                  <div className={`${cardCls} overflow-hidden`}>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="border-b border-border bg-muted/20 text-[10px] uppercase tracking-wider text-muted-foreground">
+                            <th className="px-4 py-2.5 font-semibold">Code</th>
+                            <th className="px-4 py-2.5 font-semibold">Discount</th>
+                            <th className="px-4 py-2.5 font-semibold">Min Order</th>
+                            <th className="px-4 py-2.5 font-semibold">Uses</th>
+                            <th className="px-4 py-2.5 font-semibold">Expiry</th>
+                            <th className="px-4 py-2.5 font-semibold">Status</th>
+                            <th className="px-4 py-2.5 font-semibold text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {coupons.map(c => (
+                            <tr key={c.id} className="border-b border-border/50 last:border-0">
+                              <td className="px-4 py-2.5 font-bold tracking-wide">{c.code}</td>
+                              <td className="px-4 py-2.5">{c.discount_type === 'percent' ? `${c.discount_value}%` : fmtMoney(c.discount_value)}</td>
+                              <td className="px-4 py-2.5">{Number(c.min_order) > 0 ? fmtMoney(c.min_order) : '—'}</td>
+                              <td className="px-4 py-2.5">{c.used_count || 0}{Number(c.max_uses) > 0 ? ` / ${c.max_uses}` : ''}</td>
+                              <td className="px-4 py-2.5">{c.expires_at ? new Date(c.expires_at).toLocaleDateString() : '—'}</td>
+                              <td className="px-4 py-2.5">
+                                <button onClick={() => toggleCoupon(c)}
+                                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${c.active !== false ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-muted-foreground bg-muted/40 border-border'}`}>
+                                  {c.active !== false ? 'Active' : 'Paused'}
+                                </button>
+                              </td>
+                              <td className="px-4 py-2.5">
+                                <div className="flex justify-end gap-1">
+                                  <button onClick={() => startCouponEdit(c)} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground" title="Edit"><Pencil className="size-3.5" /></button>
+                                  <button onClick={() => deleteCoupon(c.id)} className="p-1.5 rounded-md hover:bg-red-50 text-red-400 hover:text-red-600" title="Delete"><Trash2 className="size-3.5" /></button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* Reviews tab: owner moderation */}
+            {tab === 'reviews' && (
+              <section className="space-y-4">
+                <div>
+                  <h2 className="text-sm font-bold flex items-center gap-2"><Users className="size-4 text-accent" /> Reviews</h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">Customer reviews approve karo, phir storefront pe dikhenge. {reviews.filter(r => !r.approved).length} pending hain.</p>
+                </div>
+
+                {reviews.length === 0 && (
+                  <div className={`${cardCls} p-10 text-center`}>
+                    <div className="size-14 rounded-2xl bg-muted/40 flex items-center justify-center mx-auto mb-3"><Star className="size-6 text-muted-foreground/40" /></div>
+                    <div className="text-sm font-medium">Abhi koi review nahi hai</div>
+                    <div className="text-xs text-muted-foreground mt-1">Customers product pe review likhenge to yahan dikhenge.</div>
+                  </div>
+                )}
+
+                <div className="space-y-3">
+                  {reviews.map(r => (
+                    <div key={r.id} className={`${cardCls} p-4 ${r.approved ? '' : 'border-amber-500/30'}`}>
+                      <div className="flex items-start justify-between gap-3 flex-wrap">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="flex items-center gap-0.5 text-sm">{starsHtml(r.rating)}</span>
+                            <span className="text-xs font-bold">{r.reviewer_name || 'Anonymous'}</span>
+                            <span className="text-[10px] text-muted-foreground/60">{r.product_name || 'Product'}</span>
+                          </div>
+                          {r.comment && <p className="text-xs text-muted-foreground mt-1.5">{r.comment}</p>}
+                          <div className="text-[10px] text-muted-foreground/50 mt-1.5">{r.reviewer_email}{r.created_at ? ` · ${new Date(r.created_at).toLocaleDateString()}` : ''}</div>
+                        </div>
+                        <div className="flex gap-1.5 shrink-0">
+                          {!r.approved && (
+                            <button onClick={() => setReviewApproved(r.id, true)}
+                              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-bold text-white hover:opacity-90 transition-opacity"
+                              style={{ backgroundColor: accent }}>
+                              <CheckCircle2 className="size-3" /> Approve
+                            </button>
+                          )}
+                          {r.approved && (
+                            <button onClick={() => setReviewApproved(r.id, false)}
+                              className="px-2.5 py-1.5 rounded-lg text-[10px] font-semibold border border-border hover:bg-muted transition-colors">
+                              Unpublish
+                            </button>
+                          )}
+                          <button onClick={() => deleteReview(r.id)} className="p-1.5 rounded-md hover:bg-red-50 text-red-400 hover:text-red-600" title="Delete"><Trash2 className="size-3.5" /></button>
+                        </div>
+                      </div>
+                      {!r.approved && <div className="text-[9px] font-bold uppercase tracking-wider text-amber-600 mt-2">Pending approval</div>}
+                    </div>
+                  ))}
                 </div>
               </section>
             )}
@@ -1439,7 +1838,6 @@ export default function StorefrontPage() {
                       <thead>
                         <tr className="border-b border-border bg-muted/20 text-[10px] uppercase tracking-wider text-muted-foreground">
                           <th className="px-3 py-2 font-semibold">Item</th>
-                          <th className="px-3 py-2 font-semibold">HSN</th>
                           <th className="px-3 py-2 font-semibold text-right">Qty</th>
                           <th className="px-3 py-2 font-semibold text-right">Amount</th>
                         </tr>
@@ -1448,7 +1846,6 @@ export default function StorefrontPage() {
                         {orderItems(detailOrder).map((it, i) => (
                           <tr key={i} className="border-b border-border/50 last:border-0">
                             <td className="px-3 py-2 font-medium">{it.name}</td>
-                            <td className="px-3 py-2 text-muted-foreground">{it.hsn || '—'}</td>
                             <td className="px-3 py-2 text-right">{it.quantity}</td>
                             <td className="px-3 py-2 text-right font-semibold">{fmtMoney((Number(it.price) || 0) * (Number(it.quantity) || 1))}</td>
                           </tr>
@@ -1488,9 +1885,16 @@ export default function StorefrontPage() {
                 </div>
                 <h2 className="text-lg font-bold">Order Placed! 🎉</h2>
                 <p className="text-xs text-muted-foreground mt-2 max-w-xs mx-auto">
-                  {(checkout.items || []).map(it => `${it.product.name} (x${it.qty})`).join(', ')} — {orderMsg}. Store owner ko order mil gaya, stock update ho gaya.
+                  {(checkout.items || []).map(it => `${it.product.name} (x${it.qty})`).join(', ')} — {orderMsg}
                 </p>
-                <button onClick={() => { setCheckout(null); setCust({ name: '', email: '', phone: '', address: '' }); setOrderMsg(''); setOrderOk(false) }}
+                {orderWa && (
+                  <a href={orderWa} target="_blank" rel="noreferrer"
+                    className="mt-4 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white hover:opacity-90 transition-opacity shadow-sm"
+                    style={{ backgroundColor: '#22c55e' }}>
+                    <MessageCircle className="size-4" /> WhatsApp pe Order Confirm karo
+                  </a>
+                )}
+                <button onClick={() => { setCheckout(null); setCust({ name: '', email: '', phone: '', address: '' }); setOrderMsg(''); setOrderOk(false); setOrderWa('') }}
                   className="mt-3 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold border border-border hover:bg-muted transition-colors">
                   <ShoppingBag className="size-4" /> Continue Shopping
                 </button>
@@ -1531,9 +1935,43 @@ export default function StorefrontPage() {
                 </div>
               ))}
               <div className="flex items-center justify-between border-t border-border/60 pt-2 text-sm">
-                <span className="text-muted-foreground">Total</span>
-                <span className="font-extrabold">{fmtMoney((checkout.items || []).reduce((t, i) => t + priceNum(i.product) * i.qty, 0))}</span>
+                <span className="text-muted-foreground">Subtotal</span>
+                <span className="font-extrabold">{fmtMoney(checkoutSubtotal)}</span>
               </div>
+              {appliedCoupon && (
+                <div className="flex items-center justify-between text-xs text-emerald-600">
+                  <span>Coupon {appliedCoupon.coupon}</span>
+                  <span className="font-bold">−{fmtMoney(checkoutDiscount)}</span>
+                </div>
+              )}
+              <div className="flex items-center justify-between pt-1 border-t border-border/60 text-sm">
+                <span className="text-muted-foreground font-medium">Total</span>
+                <span className="font-extrabold text-base">{fmtMoney(checkoutTotal)}</span>
+              </div>
+            </div>
+
+            {/* Coupon apply */}
+            <div className="mb-4">
+              <span className={labelCls}>Coupon Code</span>
+              <div className="flex gap-2 mt-1.5">
+                <div className="relative flex-1">
+                  <Receipt className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground/50" />
+                  <input className={inputCls} value={applyCode} onChange={e => setApplyCode(e.target.value.toUpperCase())} placeholder="e.g. WELCOME10" />
+                </div>
+                {appliedCoupon ? (
+                  <button onClick={() => { setAppliedCoupon(null); setApplyCode(''); setCouponApplyMsg('') }}
+                    className="px-3 py-2 rounded-xl text-xs font-semibold text-red-500 border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 transition-colors shrink-0">
+                    Remove
+                  </button>
+                ) : (
+                  <button onClick={applyCoupon} disabled={couponBusy || !applyCode.trim()}
+                    className="px-4 py-2 rounded-xl text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-opacity shrink-0"
+                    style={{ backgroundColor: accent }}>
+                    {couponBusy ? <Loader2 className="size-3.5 animate-spin" /> : 'Apply'}
+                  </button>
+                )}
+              </div>
+              {couponApplyMsg && <div className={`text-[11px] mt-1.5 ${couponApplyMsg.startsWith('✅') ? 'text-emerald-600' : 'text-red-500'}`}>{couponApplyMsg}</div>}
             </div>
 
             {/* Payment method */}
@@ -1595,7 +2033,7 @@ export default function StorefrontPage() {
               className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-opacity shadow-sm mt-4"
               style={{ backgroundColor: accent }}>
               {ordering ? <Loader2 className="size-4 animate-spin" /> : <ShoppingBag className="size-4" />}
-              {ordering ? 'Placing order...' : `Order Now · ${fmtMoney((checkout.items || []).reduce((t, i) => t + priceNum(i.product) * i.qty, 0))}`}
+              {ordering ? 'Placing order...' : `Order Now · ${fmtMoney(checkoutTotal)}`}
             </button>
             <button type="button" onClick={() => setCheckout(null)} className="w-full text-[11px] text-muted-foreground/60 hover:text-muted-foreground transition-colors mt-2">
               Cancel
@@ -1777,8 +2215,6 @@ export default function StorefrontPage() {
                 </div>
                 <div><span className={labelCls}>Category</span><input className={inputCls + ' pl-3 mt-1.5'} value={draft.category} onChange={e => setDraft({ ...draft, category: e.target.value })} placeholder="e.g. Menswear" /></div>
                 <div><span className={labelCls}>Stock</span><input type="number" className={inputCls + ' pl-3 mt-1.5'} value={draft.stock ?? 0} onChange={e => setDraft({ ...draft, stock: parseInt(e.target.value || '0', 10) })} /></div>
-                <div><span className={labelCls}>GST %</span><input type="number" className={inputCls + ' pl-3 mt-1.5'} value={draft.gst ?? ''} onChange={e => setDraft({ ...draft, gst: e.target.value })} placeholder="e.g. 18" /></div>
-                <div><span className={labelCls}>HSN Code</span><input className={inputCls + ' pl-3 mt-1.5'} value={draft.hsn ?? ''} onChange={e => setDraft({ ...draft, hsn: e.target.value })} placeholder="e.g. 6204" /></div>
                 <div className="sm:col-span-2 flex items-center gap-6">
                   <label className="flex items-center gap-2 text-xs font-medium"><input type="checkbox" checked={!!draft.active} onChange={e => setDraft({ ...draft, active: e.target.checked })} className="accent-[var(--accent)]" /> Active</label>
                   <label className="flex items-center gap-2 text-xs font-medium"><input type="checkbox" checked={!!draft.featured} onChange={e => setDraft({ ...draft, featured: e.target.checked })} className="accent-[var(--accent)]" /> Featured</label>
@@ -1841,6 +2277,18 @@ export default function StorefrontPage() {
                       )}
                     </div>
                     {p.description && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{p.description}</p>}
+                    {!account && prodRating(p.id) && (
+                      <div className="flex items-center gap-1.5 mt-2">
+                        <span className="flex items-center gap-0.5 text-sm">{starsHtml(prodRating(p.id).avg)}</span>
+                        <span className="text-[10px] text-muted-foreground/70">({prodRating(p.id).count})</span>
+                        <button onClick={() => setReviewForm({ product: p })}
+                          className="ml-auto text-[10px] font-semibold text-accent hover:underline">Rate this</button>
+                      </div>
+                    )}
+                    {!account && !prodRating(p.id) && (
+                      <button onClick={() => setReviewForm({ product: p })}
+                        className="mt-2 text-[10px] font-semibold text-accent hover:underline">★ Rate this product</button>
+                    )}
                     <div className="flex items-end justify-between mt-auto pt-3">
                       <div className="flex items-baseline gap-1.5">
                         <span className="text-base font-extrabold">{currency(p.price)}</span>
@@ -1914,6 +2362,27 @@ export default function StorefrontPage() {
               <div className="grid sm:grid-cols-2 gap-4">
                 <div className="sm:col-span-2"><span className={labelCls}>Name *</span><input className={inputCls + ' pl-3 mt-1.5'} value={svcDraft.name} onChange={e => setSvcDraft({ ...svcDraft, name: e.target.value })} placeholder="e.g. Bridal Makeup" /></div>
                 <div className="sm:col-span-2"><span className={labelCls}>Description</span><textarea className={inputCls + ' pl-3 mt-1.5 min-h-20'} value={svcDraft.description} onChange={e => setSvcDraft({ ...svcDraft, description: e.target.value })} placeholder="Kya service hai, kaise milti hai" /></div>
+                <div className="sm:col-span-2">
+                  <span className={labelCls}>Service Image</span>
+                  <div className="flex items-center gap-3 mt-1.5">
+                    <label className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-white hover:opacity-90 cursor-pointer transition-opacity shrink-0" style={{ backgroundColor: accent }}>
+                      {imgBusy === 'service' ? <Loader2 className="size-3.5 animate-spin" /> : <ImagePlus className="size-3.5" />}
+                      <input type="file" accept="image/*" className="hidden" onChange={e => handleImageFile(e, 'service')} />
+                      {imgBusy === 'service' ? 'Uploading...' : 'Upload Image'}
+                    </label>
+                    {svcDraft.image_url ? (
+                      <>
+                        <div className="size-12 rounded-lg border border-border bg-muted/30 overflow-hidden shrink-0">
+                          <img src={svcDraft.image_url} alt="preview" className="w-full h-full object-cover" onError={e => { e.currentTarget.style.display = 'none' }} />
+                        </div>
+                        <button onClick={() => setSvcDraft({ ...svcDraft, image_url: '' })} className="text-xs text-red-500 hover:underline shrink-0">Remove</button>
+                      </>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground/50">Koi image nahi — button se upload karo</span>
+                    )}
+                  </div>
+                  <input className={inputCls + ' pl-3 mt-2'} value={svcDraft.image_url || ''} onChange={e => setSvcDraft({ ...svcDraft, image_url: e.target.value })} placeholder="Optional: image ka link paste karo" />
+                </div>
                 <div><span className={labelCls}>Price</span><input className={inputCls + ' pl-3 mt-1.5'} value={svcDraft.price} onChange={e => setSvcDraft({ ...svcDraft, price: e.target.value })} placeholder="₹499" /></div>
                 <div><span className={labelCls}>Sort order</span><input type="number" className={inputCls + ' pl-3 mt-1.5'} value={svcDraft.sort_order ?? 0} onChange={e => setSvcDraft({ ...svcDraft, sort_order: parseInt(e.target.value || '0', 10) })} /></div>
                 <div className="sm:col-span-2">
@@ -1946,23 +2415,30 @@ export default function StorefrontPage() {
                 .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
                 .filter(s => account || s.active !== false)
                 .map(s => (
-                  <div key={s.id} className={`${cardCls} p-5 flex flex-col group transition-shadow hover:shadow-md`}>
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/60">Service</div>
-                        <h3 className="text-sm font-bold leading-snug mt-0.5 line-clamp-1">{s.name}</h3>
-                      </div>
-                      {account && (
-                        <div className="flex gap-1 shrink-0">
-                          <button onClick={() => startSvcEdit(s)} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground" title="Edit"><Pencil className="size-3.5" /></button>
-                          <button onClick={() => deleteService(s.id)} className="p-1.5 rounded-md hover:bg-red-50 text-red-400 hover:text-red-600" title="Delete"><Trash2 className="size-3.5" /></button>
-                        </div>
+                  <div key={s.id} className={`${cardCls} overflow-hidden flex flex-col group transition-shadow hover:shadow-md`}>
+                    <div className="relative aspect-[4/3] bg-muted/40 overflow-hidden">
+                      {s.image_url ? (
+                        <img src={s.image_url} alt={s.name} className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300" onError={e => { e.currentTarget.style.display = 'none' }} />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center"><Package2 className="size-9 text-muted-foreground/30" /></div>
                       )}
+                      <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[9px] font-bold text-white shadow-sm" style={{ backgroundColor: accent }}>Service</span>
+                      {s.active === false && <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[9px] font-semibold text-muted-foreground bg-card border border-border">Hidden</span>}
                     </div>
-                    {s.description && <p className="text-xs text-muted-foreground mt-1.5 line-clamp-3">{s.description}</p>}
-                    <div className="flex items-center justify-between mt-auto pt-4">
-                      <span className="text-base font-extrabold">{currency(s.price)}</span>
-                      {s.active === false && <span className="text-[9px] font-semibold text-muted-foreground/60 border border-border px-1.5 py-0.5 rounded-full">Hidden</span>}
+                    <div className="p-4 flex-1 flex flex-col">
+                      <div className="flex items-start justify-between gap-2">
+                        <h3 className="text-sm font-bold leading-snug line-clamp-1">{s.name}</h3>
+                        {account && (
+                          <div className="flex gap-1 shrink-0">
+                            <button onClick={() => startSvcEdit(s)} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground" title="Edit"><Pencil className="size-3.5" /></button>
+                            <button onClick={() => deleteService(s.id)} className="p-1.5 rounded-md hover:bg-red-50 text-red-400 hover:text-red-600" title="Delete"><Trash2 className="size-3.5" /></button>
+                          </div>
+                        )}
+                      </div>
+                      {s.description && <p className="text-xs text-muted-foreground mt-1.5 line-clamp-3">{s.description}</p>}
+                      <div className="flex items-center justify-between mt-auto pt-4">
+                        <span className="text-base font-extrabold">{currency(s.price)}</span>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -1975,6 +2451,60 @@ export default function StorefrontPage() {
           © {new Date().getFullYear()} {storeName} · Powered by Agency OS
         </footer>
       </div>
+
+      {/* ── Floating WhatsApp (visitors) ── */}
+      {!account && waNum && (
+        <a href={`https://wa.me/${waNum}?text=${encodeURIComponent(`Hi ${storeName}! Mujhe aapke products ke baare mein jaanna hai.`)}`}
+          target="_blank" rel="noreferrer"
+          className="fixed bottom-5 right-5 z-40 flex items-center gap-2 px-4 py-3 rounded-full text-white shadow-xl hover:scale-105 transition-transform"
+          style={{ backgroundColor: '#22c55e' }}
+          title="WhatsApp pe baat karo">
+          <MessageCircle className="size-5" />
+          <span className="text-xs font-bold">Chat</span>
+        </a>
+      )}
+
+      {/* ── Review modal (visitors) ── */}
+      {!account && reviewForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => { setReviewForm(null); setReviewMsg('') }} />
+          <div className="relative w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl p-6">
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <h3 className="text-sm font-bold flex items-center gap-2"><Star className="size-4 text-amber-400" /> Product Review</h3>
+                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{reviewForm.product.name}</p>
+              </div>
+              <button onClick={() => { setReviewForm(null); setReviewMsg('') }} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
+            </div>
+
+            <div className="mb-3">
+              <span className={labelCls}>Rating</span>
+              <div className="flex gap-1 mt-1.5">
+                {[1, 2, 3, 4, 5].map(n => (
+                  <button key={n} onClick={() => setReviewDraft(d => ({ ...d, rating: n }))}
+                    className={`text-2xl transition-colors ${n <= reviewDraft.rating ? 'text-amber-400' : 'text-muted-foreground/25 hover:text-amber-300'}`}>
+                    ★
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div><span className={labelCls}>Naam</span><input className={inputCls + ' pl-3 mt-1.5'} value={reviewDraft.reviewer_name} onChange={e => setReviewDraft(d => ({ ...d, reviewer_name: e.target.value }))} placeholder="Aapka naam" /></div>
+              <div><span className={labelCls}>Email</span><input className={inputCls + ' pl-3 mt-1.5'} type="email" value={reviewDraft.reviewer_email} onChange={e => setReviewDraft(d => ({ ...d, reviewer_email: e.target.value }))} placeholder="you@example.com" /></div>
+              <div><span className={labelCls}>Comment</span><textarea className={inputCls + ' pl-3 mt-1.5 min-h-20'} value={reviewDraft.comment} onChange={e => setReviewDraft(d => ({ ...d, comment: e.target.value }))} placeholder="Product ke baare mein kya khayal hai?" /></div>
+            </div>
+
+            {reviewMsg && <div className={`text-[11px] mt-2 ${reviewMsg.startsWith('❌') ? 'text-red-500' : 'text-emerald-600'}`}>{reviewMsg}</div>}
+
+            <button onClick={submitReview} disabled={reviewBusy || !reviewDraft.reviewer_name.trim() || !reviewDraft.reviewer_email.trim()}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-opacity mt-4"
+              style={{ backgroundColor: accent }}>
+              {reviewBusy ? <Loader2 className="size-4 animate-spin" /> : <Star className="size-4" />} Submit Review
+            </button>
+          </div>
+        </div>
+      )}
     </main>
   )
 }
