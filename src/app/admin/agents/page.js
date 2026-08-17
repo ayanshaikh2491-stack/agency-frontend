@@ -54,6 +54,9 @@ function useCEOOOrchestrators() {
         if (l.includes('analytics') || l.includes('report') || l.includes('stats') || l.includes('data')) {
           return route('analytics-bot', 'Analytics Bot')
         }
+        if (l.includes('analyz') || l.includes('insight') || l.includes('trend') || l.includes('why') || l.includes('compare') || l.includes('forecast')) {
+          return route('analyzing-bot', 'Analyzing Agent')
+        }
         if (l.includes('sale') || l.includes('close') || l.includes('convert') || l.includes('pitch')) {
           return routeSBA('SBA Agent (sales pipeline)')
         }
@@ -101,6 +104,7 @@ export default function AgentsPage() {
     { id: 'website-builder', name: 'Website Agent', emoji: '🌐', desc: 'Designs & builds websites' },
     { id: 'ads-runner', name: 'Ads Runner', emoji: '📢', desc: 'Runs Facebook/Google campaigns' },
     { id: 'analytics-bot', name: 'Analytics Bot', emoji: '📊', desc: 'Reports & data analysis' },
+    { id: 'analyzing-bot', name: 'Analyzing Agent', emoji: '🧠', desc: 'Cross-channel insight & trends' },
     { id: 'social-manager', name: 'Social Manager', emoji: '📱', desc: 'Manages social media' },
   ]
 
