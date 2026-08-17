@@ -8,7 +8,7 @@ import {
   Eye, EyeOff, Mail, Lock, Package, AlertCircle, CheckCircle2, ClipboardList,
   Bell, Truck, Globe, RefreshCw, Search, Minus, Wallet, Settings,
   Download, Printer, BarChart3, Users, Receipt, PackageCheck, ImagePlus,
-  Star, MessageCircle,
+  Star, MessageCircle, CalendarCheck, CalendarClock, CheckCheck, XCircle,
 } from 'lucide-react'
 
 /* ─── Client Storefront ─────────────────────────────────────────────────────
@@ -169,6 +169,26 @@ export default function StorefrontPage() {
   // image upload busy state ('logo' | 'product' | 'banner' | null)
   const [imgBusy, setImgBusy] = useState(null)
 
+  // ── Bookings (SBA agent books meetings here; owner ke apne store me, no Google) ──
+  const [meetings, setMeetings] = useState([])
+  const [meetingsLoading, setMeetingsLoading] = useState(false)
+  const [meetingsError, setMeetingsError] = useState('')
+  const [meetingUpdating, setMeetingUpdating] = useState(null)
+  // Booking config (owner toggles enable/working hours/slot minutes/timezone)
+  const [bookingSettings, setBookingSettings] = useState(null)
+  const [bookingDraft, setBookingDraft] = useState({})
+  const [bookingSaving, setBookingSaving] = useState(false)
+  const [bookingMsg, setBookingMsg] = useState('')
+  const [bookingOk, setBookingOk] = useState(false)
+
+  // ── Public booking widget (lead opens the owner link, picks a slot, no login) ──
+  const [bookingToken, setBookingToken] = useState('')
+  const [bookingInfo, setBookingInfo] = useState(null) // { meeting, booking }
+  const [bookingLoading, setBookingLoading] = useState(false)
+  const [bookingError, setBookingError] = useState('')
+  const [bookingConfirmed, setBookingConfirmed] = useState(false)
+  const [bookingTime, setBookingTime] = useState('')
+
   // hero carousel index (banners)
   const [heroIdx, setHeroIdx] = useState(0)
 
@@ -243,11 +263,52 @@ export default function StorefrontPage() {
         // owner link pe aaya to login card seedha khul jaaye
         setLoginOpen(true)
       }
+      const bk = sp.get('booking')
+      if (bk) {
+        setBookingToken(bk)
+        loadBookingPublic(bk)
+      }
       const saved = localStorage.getItem(`store_token_${workspace}`)
       if (saved) { setToken(saved); loadWithToken(saved) }
     } catch { /* ignore */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspace])
+
+  async function loadBookingPublic(tok) {
+    if (!tok) return
+    setBookingLoading(true); setBookingError('')
+    try {
+      const q = `workspace=${encodeURIComponent(workspace)}&client=${encodeURIComponent(client)}`
+      const res = await fetch(`/api/store/book/${tok}?${q}`)
+      const d = await res.json()
+      if (!res.ok) throw new Error(d?.detail || 'Booking link invalid')
+      setBookingInfo(d?.data || null)
+    } catch (e) {
+      setBookingError(e.message)
+    } finally {
+      setBookingLoading(false)
+    }
+  }
+
+  async function confirmBooking() {
+    if (!bookingToken) return
+    setBookingLoading(true); setBookingError('')
+    try {
+      const res = await fetch(`/api/store/book/${bookingToken}?workspace=${encodeURIComponent(workspace)}&client=${encodeURIComponent(client)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          confirmed_time: bookingTime || '',
+          lead_phone: (bookingInfo?.meeting?.lead_phone) || '',
+          notes: 'Confirmed by lead from public booking link',
+        }),
+      })
+      const d = await res.json()
+      if (!res.ok) throw new Error(d?.detail || 'Confirm failed')
+      setBookingConfirmed(true)
+      setBookingInfo(d?.data || bookingInfo)
+    } catch (e) { setBookingError(e.message) } finally { setBookingLoading(false) }
+  }
 
   async function loadWithToken(tok) {
     try {
@@ -357,6 +418,54 @@ export default function StorefrontPage() {
       setCartOpen(false)
       await load()
     } catch (e) { setOrderMsg(e.message); setOrderOk(false) } finally { setOrdering(false) }
+  }
+
+  const loadBookings = useCallback(async () => {
+    if (!account) return
+    setMeetingsLoading(true); setMeetingsError('')
+    try {
+      const q = `workspace=${encodeURIComponent(workspace)}&client=${encodeURIComponent(client)}`
+      const [mRes, bRes] = await Promise.all([
+        fetch(`/api/store/meetings?${q}`, { headers: { 'X-Store-Token': token } }),
+        fetch(`/api/store/booking/settings?${q}`),
+      ])
+      const md = await mRes.json()
+      if (!mRes.ok) throw new Error(md?.detail || 'Bookings load failed')
+      setMeetings(md?.data?.meetings || [])
+      const bd = await bRes.json()
+      if (bRes.ok && bd && !bd.detail) {
+        setBookingSettings(bd)
+        setBookingDraft({ ...bd })
+      }
+    } catch (e) {
+      setMeetingsError(e.message)
+    } finally {
+      setMeetingsLoading(false)
+    }
+  }, [workspace, client, account, token])
+
+  useEffect(() => { loadBookings() }, [loadBookings])
+
+  async function updateMeetingStatus(mid, status) {
+    setMeetingUpdating(mid); setMeetingsError('')
+    try {
+      await api(`/api/store/meetings/${mid}?workspace=${encodeURIComponent(workspace)}&client=${encodeURIComponent(client)}`, {
+        method: 'PATCH', body: JSON.stringify({ status }),
+      })
+      await loadBookings()
+    } catch (e) { setMeetingsError(e.message) } finally { setMeetingUpdating(null) }
+  }
+
+  async function saveBookingSettings() {
+    setBookingSaving(true); setBookingMsg(''); setBookingOk(false)
+    try {
+      const d = await api('/api/store/booking/settings', {
+        method: 'PATCH', body: JSON.stringify({ workspace, client, data: bookingDraft }),
+      })
+      setBookingSettings(d); setBookingDraft({ ...(d || bookingDraft) })
+      setBookingMsg('Booking settings save ho gaye!')
+      setBookingOk(true)
+    } catch (e) { setBookingMsg(e.message); setBookingOk(false) } finally { setBookingSaving(false) }
   }
 
   const loadOrders = useCallback(async () => {
@@ -980,6 +1089,73 @@ export default function StorefrontPage() {
           </div>
         )}
 
+        {/* ── Public booking widget (lead clicked the owner's booking link) ── */}
+        {bookingToken && (
+          <section className={`${cardCls} max-w-md mx-auto p-6 sm:p-8 border-accent/40`}>
+            {bookingConfirmed ? (
+              <div className="text-center py-4">
+                <div className="size-14 rounded-2xl bg-emerald-500/10 flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle2 className="size-7 text-emerald-500" />
+                </div>
+                <h2 className="text-lg font-bold">Booking Confirmed! 🎉</h2>
+                <p className="text-xs text-muted-foreground mt-2 max-w-xs mx-auto">
+                  Thank you{bookingInfo?.meeting?.lead_name ? ` ${bookingInfo.meeting.lead_name}` : ''}! The owner has been notified.
+                  {(bookingInfo?.meeting?.date || bookingTime) && (
+                    <span className="block mt-2 font-semibold text-foreground">
+                      {bookingInfo?.meeting?.date || (bookingTime ? bookingTime.slice(0, 10) : '')}{bookingInfo?.meeting?.time || (bookingTime ? ' ' + bookingTime.slice(11, 16) : '')}
+                    </span>
+                  )}
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="text-center mb-5">
+                  <div className="size-12 rounded-2xl bg-accent/10 flex items-center justify-center mx-auto mb-3">
+                    <CalendarCheck className="size-5 text-accent" />
+                  </div>
+                  <h2 className="text-lg font-bold">Confirm Your Meeting</h2>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {bookingInfo?.meeting?.lead_name ? `${bookingInfo.meeting.lead_name}, ` : ''}pick a slot that works for you.
+                  </p>
+                </div>
+
+                {bookingLoading && <div className="text-center py-6 text-sm text-muted-foreground">Loading your booking...</div>}
+                {bookingError && (
+                  <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs text-red-500 flex items-center gap-2 mb-3">
+                    <AlertCircle className="size-4 shrink-0" /> {bookingError}
+                  </div>
+                )}
+
+                {!bookingLoading && bookingInfo?.meeting && (
+                  <>
+                    {bookingInfo.meeting.notes && (
+                      <div className="text-[11px] text-muted-foreground bg-muted/20 border border-border rounded-lg px-3 py-2 mb-3">
+                        {bookingInfo.meeting.notes}
+                      </div>
+                    )}
+                    <div className="mb-4">
+                      <span className={labelCls}>Preferred Date &amp; Time</span>
+                      <input type="datetime-local" className={inputCls + ' pl-3 mt-1.5'}
+                        value={bookingTime}
+                        onChange={e => setBookingTime(e.target.value)}
+                        placeholder="yyyy-mm-ddThh:mm" />
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        Owner hours: {bookingInfo?.booking?.booking_working_hours || '09:00-18:00'} ({bookingInfo?.booking?.booking_timezone || 'Asia/Kolkata'})
+                      </p>
+                    </div>
+                    <button onClick={confirmBooking} disabled={bookingLoading}
+                      className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-opacity shadow-sm"
+                      style={{ backgroundColor: accent }}>
+                      {bookingLoading ? <Loader2 className="size-4 animate-spin" /> : <CheckCheck className="size-4" />}
+                      Confirm Booking
+                    </button>
+                  </>
+                )}
+              </>
+            )}
+          </section>
+        )}
+
         {/* ── Login card (owner only, ?owner=1 se khulta hai) ── */}
         {ownerMode && !account && loginOpen && (
           <section className={`${cardCls} max-w-md mx-auto p-6 sm:p-8`}>
@@ -1060,6 +1236,7 @@ export default function StorefrontPage() {
                 { k: 'products', label: 'Products', icon: Package, badge: lowStock.length },
                 { k: 'coupons', label: 'Coupons', icon: Receipt, badge: 0 },
                 { k: 'reviews', label: 'Reviews', icon: Users, badge: reviews.filter(r => !r.approved).length },
+                { k: 'bookings', label: 'Bookings', icon: CalendarCheck, badge: meetings.filter(m => (m.status || 'requested') === 'requested').length },
                 { k: 'settings', label: 'Settings', icon: Settings, badge: 0 },
               ].map(t => (
                 <button key={t.k} onClick={() => { if (t.k === 'settings') openSettings(); setTab(t.k) }}
@@ -1747,7 +1924,155 @@ export default function StorefrontPage() {
               </>
             )}
 
-            {/* ── Order detail modal ── */}
+            {/* ── Bookings tab: SBA agent meeting requests (owner's store, no Google) ── */}
+            {tab === 'bookings' && (
+              <>
+            <section>
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                <div className="flex items-center gap-3">
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                    <CalendarCheck className="size-4 text-accent" /> Bookings ({meetings.length})
+                  </h2>
+                  {meetings.filter(m => (m.status || 'requested') === 'requested').length > 0 && (
+                    <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold text-white shadow-sm"
+                      style={{ backgroundColor: '#dc2626' }}>
+                      <CalendarClock className="size-3" /> {meetings.filter(m => (m.status || 'requested') === 'requested').length} pending
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => { loadBookings(); }}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-medium border border-border hover:bg-muted transition-colors">
+                    <RefreshCw className="size-3" /> Refresh
+                  </button>
+                </div>
+              </div>
+
+              {meetingsError && (
+                <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs text-red-500 flex items-center gap-2 mb-3">
+                  <AlertCircle className="size-4 shrink-0" /> {meetingsError}
+                </div>
+              )}
+
+              {meetingsLoading && (
+                <div className={`${cardCls} p-6 text-center text-xs text-muted-foreground animate-pulse`}>Bookings load ho rahe hain...</div>
+              )}
+
+              {!meetingsLoading && meetings.length === 0 && (
+                <div className={`${cardCls} p-8 text-center`}>
+                  <div className="size-12 rounded-2xl bg-muted/40 flex items-center justify-center mx-auto mb-3"><CalendarCheck className="size-5 text-muted-foreground/40" /></div>
+                  <div className="text-sm font-medium">Abhi koi booking nahi hai</div>
+                  <div className="text-xs text-muted-foreground mt-1">Jab SBA agent kisi lead se meeting fix karega, request yahan dikhegi. Owner confirm/cancel kar sakta hai.</div>
+                </div>
+              )}
+
+              {!meetingsLoading && meetings.length > 0 && (
+                <div className="space-y-3">
+                  {meetings.map(m => {
+                    const status = m.status || 'requested'
+                    const mBadge = {
+                      requested: 'bg-amber-50 text-amber-700 border-amber-200',
+                      confirmed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                      completed: 'bg-blue-50 text-blue-700 border-blue-200',
+                      cancelled: 'bg-red-50 text-red-700 border-red-200',
+                    }[status] || 'bg-muted text-muted-foreground border-border'
+                    const mLabel = {
+                      requested: 'Requested', confirmed: 'Confirmed',
+                      completed: 'Completed', cancelled: 'Cancelled',
+                    }[status] || status
+                    return (
+                      <div key={m.id} className={`${cardCls} p-4 ${status === 'requested' ? 'border-amber-500/30' : ''}`}>
+                        <div className="flex items-start justify-between gap-3 flex-wrap">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-sm font-bold truncate">{m.lead_name || 'Lead'}</span>
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${mBadge}`}>{mLabel}</span>
+                            </div>
+                            <div className="text-[11px] text-muted-foreground mt-1">{m.lead_email || ''}{m.lead_phone ? ` · ${m.lead_phone}` : ''}</div>
+                            <div className="text-[11px] text-muted-foreground mt-0.5">
+                              <span className="inline-flex items-center gap-1"><CalendarClock className="size-3 text-muted-foreground/50" />
+                                {m.date ? `${m.date}${m.time ? ' ' + m.time : ''} (${m.duration_minutes || 30} min)` : 'Slot TBD'}
+                              </span>
+                              {m.source && <span className="ml-2 text-muted-foreground/60">via {m.source}</span>}
+                            </div>
+                            {m.purpose && <div className="text-[11px] text-muted-foreground/80 mt-1.5 line-clamp-2">{m.purpose}</div>}
+                            {m.notes && <div className="text-[10px] text-muted-foreground/60 mt-1">Notes: {m.notes}</div>}
+                          </div>
+                          <div className="flex flex-col gap-1.5 shrink-0">
+                            {status === 'requested' && (
+                              <button onClick={() => updateMeetingStatus(m.id, 'confirmed')} disabled={meetingUpdating === m.id}
+                                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-bold text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
+                                style={{ backgroundColor: accent }}>
+                                {meetingUpdating === m.id ? <Loader2 className="size-3 animate-spin" /> : <CheckCheck className="size-3" />} Confirm
+                              </button>
+                            )}
+                            {status !== 'cancelled' && status !== 'completed' && (
+                              <button onClick={() => updateMeetingStatus(m.id, 'cancelled')} disabled={meetingUpdating === m.id}
+                                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold border border-border hover:bg-red-50 text-red-500 hover:text-red-600 transition-colors disabled:opacity-50">
+                                {meetingUpdating === m.id ? <Loader2 className="size-3 animate-spin" /> : <XCircle className="size-3" />} Cancel
+                              </button>
+                            )}
+                            {status === 'confirmed' && (
+                              <button onClick={() => updateMeetingStatus(m.id, 'completed')} disabled={meetingUpdating === m.id}
+                                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold border border-border hover:bg-muted transition-colors disabled:opacity-50">
+                                {meetingUpdating === m.id ? <Loader2 className="size-3 animate-spin" /> : <CheckCheck className="size-3" />} Mark Done
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </section>
+
+            {/* Booking settings (owner enables SBA bookings + working hours) */}
+            <section className={`${cardCls} p-6 mt-4 space-y-4 border-accent/40`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-sm font-bold flex items-center gap-2"><CalendarClock className="size-4 text-accent" /> Booking Settings</h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">SBA agent ko meeting book karne dena hai? Enable karo + working hours set karo. Meetings apne store me save hote hain (no Google Calendar).</p>
+                </div>
+              </div>
+
+              {bookingMsg && (
+                <div className={`flex items-center gap-2 text-xs px-3 py-2 rounded-lg ${bookingOk ? 'text-emerald-500 bg-emerald-500/10' : 'text-red-500 bg-red-500/10'}`}>
+                  {bookingOk ? <CheckCircle2 className="size-3.5 shrink-0" /> : <AlertCircle className="size-3.5 shrink-0" />}
+                  {bookingMsg}
+                </div>
+              )}
+
+              <div className="flex items-center justify-between rounded-xl bg-muted/20 border border-border px-4 py-3">
+                <div>
+                  <div className="text-xs font-semibold">Enable Booking (SBA agent)</div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">Jab on ho, SBA agent lead se "yes" milne pe meeting request bana dega.</div>
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={!!bookingDraft.booking_enabled}
+                    onChange={e => setBookingDraft({ ...bookingDraft, booking_enabled: e.target.checked })}
+                    className="size-4 accent-[var(--accent)]" />
+                </label>
+              </div>
+
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div><span className={labelCls}>Slot Length (minutes)</span><input type="number" className={inputCls + ' pl-3 mt-1.5'} value={bookingDraft.booking_slot_minutes || 30} onChange={e => setBookingDraft({ ...bookingDraft, booking_slot_minutes: Number(e.target.value) || 30 })} placeholder="30" /></div>
+                <div><span className={labelCls}>Timezone</span><input className={inputCls + ' pl-3 mt-1.5'} value={bookingDraft.booking_timezone || 'Asia/Kolkata'} onChange={e => setBookingDraft({ ...bookingDraft, booking_timezone: e.target.value })} placeholder="Asia/Kolkata" /></div>
+                <div><span className={labelCls}>Working Hours (IST)</span><input className={inputCls + ' pl-3 mt-1.5'} value={bookingDraft.booking_working_hours || '09:00-18:00'} onChange={e => setBookingDraft({ ...bookingDraft, booking_working_hours: e.target.value })} placeholder="09:00-18:00" /></div>
+                <div><span className={labelCls}>Advance Notice (hours)</span><input type="number" className={inputCls + ' pl-3 mt-1.5'} value={bookingDraft.booking_advance_hours || 1} onChange={e => setBookingDraft({ ...bookingDraft, booking_advance_hours: Number(e.target.value) || 1 })} placeholder="1" /></div>
+              </div>
+
+              <div className="flex justify-end">
+                <button onClick={saveBookingSettings} disabled={bookingSaving}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
+                  style={{ backgroundColor: accent }}>
+                  {bookingSaving ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />} Save Booking Settings
+                </button>
+              </div>
+            </section>
+              </>
+            )}
+
             {detailOrder && (
               <div className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-8 overflow-y-auto">
                 <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setDetailOrder(null)} />
