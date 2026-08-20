@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════
-   Paperclip Design System — v1.0
-   Font: Inter | Text: #1a1b1d | Radius: 0 | Sharp corners
+   Agency Office Design System — dark, Munder Difflin style
+   Maroon brand (#6E1423) + gold (#F4D35E) + CEO gold / SBA blue
    ═══════════════════════════════════════════════════════════ */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
@@ -9,60 +9,67 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ═══════════════════════════════════════════════════════════
-   1. PAPERCLIP COLOR TOKENS
-   ═══════════════════════════════════════════════════════════ */
-
 :root {
-  /* ── Background Ladder ── */
-  --bg-canvas:       #ffffff;
-  --bg-elevated:     #ffffff;
-  --bg-depressed:    #f8f8f8;
-  --bg-hover:        #f5f5f5;
-  --bg-active:       #ebebeb;
+  /* ── Agency Office tokens (new frontend) ── */
+  --office-bg:      #0f1115;
+  --office-panel:   #161a21;
+  --office-border:  #232a33;
+  --office-text:    #e6e9ef;
+  --office-muted:   #8b94a3;
+  --office-accent:  #6E1423; /* maroon, agency brand */
+  --office-gold:    #F4D35E;
+  --office-ceo:     #F4D35E;
+  --office-sba:     #4ea1ff;
 
-  /* ── Text Hierarchy ── */
-  --text-primary:    #1a1b1d;
-  --text-secondary:  #4a4b4d;
-  --text-muted:      #8a8b8d;
-  --text-placeholder:#b0b1b3;
+  /* ── Background ladder (dark) ── */
+  --bg-canvas:       #0f1115;
+  --bg-elevated:     #161a21;
+  --bg-depressed:    #11151b;
+  --bg-hover:        #1c222b;
+  --bg-active:       #232a33;
+
+  /* ── Text hierarchy (dark) ── */
+  --text-primary:    #e6e9ef;
+  --text-secondary:  #b3bbc7;
+  --text-muted:      #8b94a3;
+  --text-placeholder:#5b6473;
   --text-on-dark:    #ffffff;
   --text-on-accent:  #ffffff;
 
-  /* ── Primary Accent (Blue) ── */
-  --accent:          #2563eb;
-  --accent-soft:     #3b82f6;
-  --accent-deep:     #1d4ed8;
-  --accent-glow:     rgba(37, 99, 235, 0.10);
-  --accent-surface:  rgba(37, 99, 235, 0.05);
+  /* ── Primary Accent (maroon) ── */
+  --accent:          #b3263b;
+  --accent-soft:     #c8465a;
+  --accent-deep:     #6E1423;
+  --accent-glow:     rgba(179, 38, 59, 0.18);
+  --accent-surface:  rgba(179, 38, 59, 0.10);
 
-  /* ── Surface Ladder ── */
-  --surface-1:       #ffffff;
-  --surface-2:       #f8f8f8;
-  --surface-dark:    #1a1b1d;
-  --surface-card:    #ffffff;
+  /* ── Surface ladder (dark) ── */
+  --surface-1:       #161a21;
+  --surface-2:       #11151b;
+  --surface-dark:    #0a0c10;
+  --surface-card:    #161a21;
 
-  /* ── Border System (radius=0) ── */
-  --border:          #e4e5e7;
-  --border-soft:     #ececed;
-  --border-strong:   #cdced0;
-  --border-accent:   rgba(37, 99, 235, 0.2);
+  /* ── Border system ── */
+  --border:          #232a33;
+  --border-soft:     #1a2029;
+  --border-strong:   #2e3744;
+  --border-accent:   rgba(179, 38, 59, 0.35);
 
-  /* ── Semantic Colors ── */
+  /* ── Semantic colors ── */
   --success:         #16a34a;
-  --success-soft:    rgba(22, 163, 74, 0.10);
-  --success-bg:      #dcfce7;
+  --success-soft:    rgba(22, 163, 74, 0.12);
+  --success-bg:      #0f2a1c;
   --warning:         #d97706;
-  --warning-soft:    rgba(217, 119, 6, 0.10);
-  --warning-bg:      #fef3c7;
+  --warning-soft:    rgba(217, 119, 6, 0.12);
+  --warning-bg:      #2a1f0a;
   --error:           #dc2626;
-  --error-soft:      rgba(220, 38, 38, 0.10);
-  --error-bg:        #fee2e2;
-  --info:            #2563eb;
-  --info-soft:       rgba(37, 99, 235, 0.10);
-  --info-bg:         #dbeafe;
+  --error-soft:      rgba(220, 38, 38, 0.12);
+  --error-bg:        #2a0f0f;
+  --info:            #4ea1ff;
+  --info-soft:       rgba(78, 161, 255, 0.12);
+  --info-bg:         #0f1f2e;
 
-  /* ── Brand Palette ── */
+  /* ── Brand palette ── */
   --brand-pink:      #ec4899;
   --brand-teal:      #14b8a6;
   --brand-lavender:  #a78bfa;
@@ -71,97 +78,46 @@
   --brand-mint:      #34d399;
   --brand-coral:     #f87171;
 
-  /* ── Sidebar (Dark — Paperclip) ── */
-  --sidebar:             #1a1b1d;
-  --sidebar-foreground:  #a0a1a3;
-  --sidebar-primary:     #ffffff;
-  --sidebar-accent:      #2a2b2d;
-  --sidebar-border:      #2e2f31;
-  --sidebar-ring:        #2563eb;
+  /* ── Sidebar (dark) ── */
+  --sidebar:             #0a0c10;
+  --sidebar-foreground:  #8b94a3;
+  --sidebar-primary:     #e6e9ef;
+  --sidebar-accent:      #161a21;
+  --sidebar-border:      #161a21;
+  --sidebar-ring:        #b3263b;
 
-  /* ── Chart Colors ── */
-  --chart-1: #2563eb;
+  /* ── Chart colors ── */
+  --chart-1: #b3263b;
   --chart-2: #16a34a;
   --chart-3: #d97706;
   --chart-4: #a78bfa;
-  --chart-5: #dc2626;
+  --chart-5: #4ea1ff;
 
-  /* ── Focus Ring ── */
-  --ring:          #2563eb;
-  --ring-offset:   #ffffff;
+  /* ── Focus ring ── */
+  --ring:          #b3263b;
+  --ring-offset:   #0f1115;
 
-  /* ── Border Radius Scale (ALL ZERO) ── */
-  --radius-xs:     0px;
-  --radius-sm:     0px;
-  --radius-md:     0px;
-  --radius-lg:     0px;
-  --radius-xl:     0px;
-  --radius-xxl:    0px;
-  --radius-pill:   0px;
+  /* ── Border radius scale (office uses gentle radii) ── */
+  --radius-xs:     4px;
+  --radius-sm:     6px;
+  --radius-md:     8px;
+  --radius-lg:     12px;
+  --radius-xl:     16px;
+  --radius-xxl:    24px;
+  --radius-pill:   999px;
 
-  accent-color: #2563eb;
-  color-scheme: light;
-
-  /* ── Paperclip-specific tokens ── */
-  --pc-accent-subtle: rgba(37, 99, 235, 0.08);
-  --pc-accent-ring:  rgba(37, 99, 235, 0.25);
-  --pc-shadow-sm:  0 1px 2px rgba(0,0,0,0.04);
-  --pc-shadow-md:  0 2px 8px rgba(0,0,0,0.06);
-  --pc-shadow-lg:  0 4px 16px rgba(0,0,0,0.08);
-  --pc-shadow-xl:  0 8px 32px rgba(0,0,0,0.10);
+  accent-color: #b3263b;
+  color-scheme: dark;
 }
 
-/* ═══════════════════════════════════════════════════════════
-   2. DARK MODE — Paperclip Dark
-   ═══════════════════════════════════════════════════════════ */
-
+/* Keep the .dark toggle consistent with the office palette. */
 .dark {
-  --bg-canvas:       #111113;
-  --bg-elevated:     #18181a;
-  --bg-depressed:    #1e1e20;
-  --bg-hover:        #1e1e20;
-  --bg-active:       #262628;
-
-  --text-primary:    #e8e8ea;
-  --text-secondary:  #9c9ca0;
-  --text-muted:      #727276;
-  --text-placeholder:#505054;
-  --text-on-dark:    #ffffff;
-  --text-on-accent:  #ffffff;
-
-  --accent:          #3b82f6;
-  --accent-soft:     #60a5fa;
-  --accent-deep:     #2563eb;
-  --accent-glow:     rgba(59, 130, 246, 0.15);
-  --accent-surface:  rgba(59, 130, 246, 0.08);
-
-  --surface-1:       #18181a;
-  --surface-2:       #1e1e20;
-  --surface-dark:    #0a0a0c;
-  --surface-card:    #1e1e20;
-
-  --border:          #2a2a2e;
-  --border-soft:     #1e1e20;
-  --border-strong:   #3a3a3e;
-  --border-accent:   rgba(59, 130, 246, 0.2);
-
-  --sidebar:             #0a0a0c;
-  --sidebar-foreground:  #727276;
-  --sidebar-primary:     #e8e8ea;
-  --sidebar-accent:      #1e1e20;
-  --sidebar-border:      #1e1e20;
-  --sidebar-ring:        #3b82f6;
-
-  --chart-1: #3b82f6;
-  --chart-2: #34d399;
-  --chart-3: #fbbf24;
-  --chart-4: #a78bfa;
-  --chart-5: #f87171;
-
-  --ring:          #3b82f6;
-  --ring-offset:   #18181a;
-
-  accent-color: #3b82f6;
+  --bg-canvas: #0f1115; --bg-elevated: #161a21; --bg-depressed: #11151b;
+  --bg-hover: #1c222b; --bg-active: #232a33;
+  --text-primary: #e6e9ef; --text-secondary: #b3bbc7; --text-muted: #8b94a3;
+  --accent: #b3263b; --accent-soft: #c8465a; --accent-deep: #6E1423;
+  --surface-1: #161a21; --surface-2: #11151b; --surface-card: #161a21;
+  --border: #232a33; --sidebar: #0a0c10; --ring: #b3263b;
   color-scheme: dark;
 }
 
@@ -170,7 +126,7 @@ html, body, .dark, .dark body {
   transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 }
 
-/* ── Legacy shadcn Aliases ── */
+/* ── shadcn aliases (map to office palette) ── */
 :root, .dark {
   --background:          var(--bg-canvas);
   --foreground:          var(--text-primary);
@@ -214,25 +170,25 @@ body {
 /* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border-strong); }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 999px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
 /* ── Selection ── */
-::selection { background: var(--accent-surface); color: var(--accent); }
+::selection { background: var(--accent-surface); color: var(--accent-soft); }
 
 /* ═══════════════════════════════════════════════════════════
-   4. PAPERCLIP COMPONENT CLASSES
+   4. OFFICE COMPONENT UTILITIES
    ═══════════════════════════════════════════════════════════ */
 
 /* Card */
 .pc-card {
   background: var(--surface-card);
   border: 1px solid var(--border);
-  border-radius: 0;
+  border-radius: var(--radius-lg);
   padding: 1.25rem;
   transition: box-shadow 0.15s, border-color 0.15s;
 }
-.pc-card:hover { border-color: var(--border-strong); box-shadow: var(--pc-shadow-sm); }
+.pc-card:hover { border-color: var(--border-strong); box-shadow: 0 2px 12px rgba(0,0,0,0.35); }
 
 /* Stat Block */
 .pc-stat-value { font-size: 1.5rem; font-weight: 600; color: var(--text-primary); line-height: 1.2; }
@@ -251,7 +207,7 @@ body {
   background: none; font-family: 'Inter', sans-serif;
 }
 .pc-tab:hover { color: var(--text-primary); }
-.pc-tab-active { color: var(--text-primary); border-bottom-color: var(--text-primary); }
+.pc-tab-active { color: var(--text-primary); border-bottom-color: var(--accent); }
 
 /* Table */
 .pc-table { width: 100%; border-collapse: collapse; }
