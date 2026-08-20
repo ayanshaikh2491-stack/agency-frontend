@@ -8,8 +8,15 @@ export function useOfficeSocket() {
   const ws = useRef(null);
 
   useEffect(() => {
-    const proto = window.location.protocol === "https:" ? "wss" : "ws";
-    const url = `${proto}://${window.location.host}/api/ceo/ws/office`;
+    // The backend (FastAPI + websockets) lives on a separate host from the
+    // Vercel frontend. Use NEXT_PUBLIC_API_URL (e.g. https://backend.example.com)
+    // so the office websocket reaches the real backend, not Vercel's origin.
+    const base =
+      process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ||
+      "http://18.213.66.136:8000";
+    const proto = base.startsWith("https") ? "wss" : "ws";
+    const host = base.replace(/^https?:\/\//, "");
+    const url = `${proto}://${host}/api/ceo/ws/office`;
     const socket = new WebSocket(url);
     ws.current = socket;
     socket.onopen = () => setConnected(true);
