@@ -4,6 +4,7 @@ import { Application, Graphics, Text, Container } from "pixi.js";
 import { ROOMS, WORLD, STATIONS, COLORS, deskRectFor } from "./rooms";
 import { OFFICE_CAST } from "./cast";
 import { Character } from "./character";
+import { makeGrid } from "./pathfinding";
 
 // Munder-style living office floor.
 // Renders multiple rooms (open office, CEO office, meeting room, cafeteria)
@@ -132,6 +133,13 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
       furniture.addChild(cf);
 
       // ── Characters ─────────────────────────────────────────
+      // collision grid from furniture rects so agents route AROUND desks
+      const blockers = [
+        ...OFFICE_CAST.map((m) => deskRectFor(m)),
+        { x: STATIONS.meeting.x - 72, y: STATIONS.meeting.y - 26, w: 144, h: 52 },
+        { x: STATIONS.cafeteria.x - 16, y: STATIONS.cafeteria.y - 16, w: 32, h: 32 },
+      ];
+      const grid = makeGrid(blockers);
       const chars = OFFICE_CAST.map(
         (m) =>
           new Character({
@@ -141,6 +149,7 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
             blurb: m.blurb,
             desk: m.desk,
             isGod: m.isGod,
+            grid,
           })
       );
       const charLayer = new Container();
