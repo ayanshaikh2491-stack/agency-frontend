@@ -17,18 +17,25 @@ export function useOfficeSocket() {
     const proto = base.startsWith("https") ? "wss" : "ws";
     const host = base.replace(/^https?:\/\//, "");
     const url = `${proto}://${host}/api/ceo/ws/office`;
-    const socket = new WebSocket(url);
-    ws.current = socket;
-    socket.onopen = () => setConnected(true);
-    socket.onclose = () => setConnected(false);
-    socket.onmessage = (e) => {
-      try {
-        setState(JSON.parse(e.data));
-      } catch {
-        /* ignore malformed frames */
-      }
-    };
-    return () => socket.close();
+    let socket = null;
+    try {
+      socket = new WebSocket(url);
+      ws.current = socket;
+      socket.onopen = () => setConnected(true);
+      socket.onclose = () => setConnected(false);
+      socket.onmessage = (e) => {
+        try {
+          setState(JSON.parse(e.data));
+        } catch {
+          /* ignore malformed frames */
+        }
+      };
+    } catch {
+      // ponytail: HTTPS deploy + http://raw-IP backend = browser blocks the
+      // insecure WebSocket (mixed content). Floor stays idle until the
+      // backend sits behind https (domain / reverse proxy).
+    }
+    return () => socket?.close();
   }, []);
 
   return { state, connected };
