@@ -1,41 +1,37 @@
 import { useEffect, useRef, useState } from "react";
 
-// Live "Michael's Office" floor socket.
-// Streams CEO controller state (ceo / workers / mandates / floor) every ~3s.
+// Live office floor state via SAME-ORIGIN polling of the Next.js API proxy
+// (/api/ceo/floor -> EC2 backend). A direct WebSocket cannot work: the old
+// ws:// endpoint no longer exists server-side, and from an https site a
+// ws:// raw-IP socket is blocked as mixed content anyway. Polling every 3s
+// matches the old socket cadence and works everywhere (local + Vercel).
+const POLL_MS = 3000;
+
 export function useOfficeSocket() {
   const [state, setState] = useState(null);
   const [connected, setConnected] = useState(false);
-  const ws = useRef(null);
+  const timer = useRef(null);
 
   useEffect(() => {
-    // The backend (FastAPI + websockets) lives on a separate host from the
-    // Vercel frontend. Use NEXT_PUBLIC_API_URL (e.g. https://backend.example.com)
-    // so the office websocket reaches the real backend, not Vercel's origin.
-    const base =
-      process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ||
-      "http://18.213.66.136:9002";
-    const proto = base.startsWith("https") ? "wss" : "ws";
-    const host = base.replace(/^https?:\/\//, "");
-    const url = `${proto}://${host}/api/ceo/ws/office`;
-    let socket = null;
-    try {
-      socket = new WebSocket(url);
-      ws.current = socket;
-      socket.onopen = () => setConnected(true);
-      socket.onclose = () => setConnected(false);
-      socket.onmessage = (e) => {
-        try {
-          setState(JSON.parse(e.data));
-        } catch {
-          /* ignore malformed frames */
-        }
-      };
-    } catch {
-      // ponytail: HTTPS deploy + http://raw-IP backend = browser blocks the
-      // insecure WebSocket (mixed content). Floor stays idle until the
-      // backend sits behind https (domain / reverse proxy).
+    let alive = true;
+    async function tick() {
+      try {
+        const r = await fetch("/api/ceo/floor", { cache: "no-store" });
+        if (!r.ok) throw new Error(String(r.status));
+        const j = await r.json();
+        if (!alive) return;
+        setState(j);
+        setConnected(true);
+      } catch {
+        if (alive) setConnected(false);
+      }
     }
-    return () => socket?.close();
+    tick();
+    timer.current = setInterval(tick, POLL_MS);
+    return () => {
+      alive = false;
+      clearInterval(timer.current);
+    };
   }, []);
 
   return { state, connected };

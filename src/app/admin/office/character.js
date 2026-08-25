@@ -32,10 +32,9 @@ export class Character {
     this.bobT = Math.random() * 10;
 
     // behavior bookkeeping
-    this.desired = "desk";
-    this.wanderCooldown = 6 + Math.random() * 9;
-    this.wanderPhase = "none"; // none | toCafe | atCafe | back
-    this.wanderWait = 0;
+    this.desired = "desk"; // desk | coffee
+    this.coffeeWait = 1.5 + Math.random() * 2;
+    this.showDesktop = false; // floor sets this when the agent is coding
 
     this.view = new Container();
     this._build();
@@ -73,6 +72,22 @@ export class Character {
     this.glyph.anchor.set(0.5);
     this.glyph.y = -16;
     this.rig.addChild(this.glyph);
+
+    // held props (children of rig so they flip with facing)
+    this.laptop = new Graphics();
+    this.laptop.roundRect(-9, 0, 18, 3, 1.5).fill(0x39424e); // base
+    this.laptop
+      .roundRect(-8, -8, 16, 9, 1.5)
+      .fill(0x222a33)
+      .stroke({ width: 1, color: 0x4ea1ff }); // screen
+    this.rig.addChild(this.laptop);
+    this.laptop.visible = false;
+
+    this.cup = new Graphics();
+    this.cup.roundRect(6, 4, 6, 7, 1.5).fill(0xf3f5f8); // cup
+    this.cup.circle(13, 7.5, 2.2).stroke({ width: 1.5, color: 0xf3f5f8 }); // handle
+    this.rig.addChild(this.cup);
+    this.cup.visible = false;
 
     // name tag (child of view — never flipped, always readable)
     this.nameTag = new Text({
@@ -144,37 +159,16 @@ export class Character {
       }
     }
 
-    this._wander(dt, moving);
+    this._wander(dt);
     this._applyTransform(dt, moving);
   }
 
+  // live = { status, task } for this character (or undefined)
   _applyLive(live) {
-    if (!live) return;
-    if (live.task) this.message = live.task;
-    else if (this.state !== "working") this.message = "";
+    const status = live?.status;
 
-    if (live.status === "error") {
+    if (status === "error") {
       this.state = "error";
-      if (this.desired !== "error") {
-        this.desired = "error";
-        this.setTarget(this.homeDesk.x, this.homeDesk.y);
-      }
-      return;
-    }
-
-    if (live.mandate) {
-      // CEO delegated a standing task -> walk to the meeting table, stay briefed.
-      this.state = "briefed";
-      this.message = live.task || "briefed by Michael";
-      if (this.desired !== "meeting") {
-        this.desired = "meeting";
-        this.setTarget(STATIONS.meeting.x, STATIONS.meeting.y);
-      }
-      return;
-    }
-
-    if (live.status === "working" || live.status === "thinking") {
-      this.state = "working";
       if (this.desired !== "desk") {
         this.desired = "desk";
         this.setTarget(this.homeDesk.x, this.homeDesk.y);
@@ -182,43 +176,33 @@ export class Character {
       return;
     }
 
-    // idle
-    this.state = "idle";
-    this.desired = "desk";
-  }
-
-  _wander(dt, moving) {
-    if (this.state === "working" || this.state === "error" || this.state === "briefed")
-      return;
-    if (this.desired !== "desk") return; // e.g. off at a meeting
-
-    const atHome =
-      Math.hypot(this.pos.x - this.homeDesk.x, this.pos.y - this.homeDesk.y) < 4;
-
-    if (this.wanderPhase === "none") {
-      if (atHome) {
-        this.wanderCooldown -= dt;
-        if (this.wanderCooldown <= 0) {
-          this.wanderPhase = "toCafe";
-          this.setTarget(STATIONS.cafeteria.x, STATIONS.cafeteria.y);
-        }
-      }
-    } else if (this.wanderPhase === "toCafe") {
-      if (!moving) {
-        this.wanderPhase = "atCafe";
-        this.wanderWait = 3 + Math.random() * 3;
-      }
-    } else if (this.wanderPhase === "atCafe") {
-      this.wanderWait -= dt;
-      if (this.wanderWait <= 0) {
-        this.wanderPhase = "back";
+    if (status === "working" || status === "thinking") {
+      this.state = "working";
+      this.message = live.task || "";
+      this.coffeeWait = 1.5 + Math.random() * 2;
+      if (this.desired !== "desk") {
+        this.desired = "desk";
         this.setTarget(this.homeDesk.x, this.homeDesk.y);
       }
-    } else if (this.wanderPhase === "back") {
-      if (!moving) {
-        this.wanderPhase = "none";
-        this.wanderCooldown = 9 + Math.random() * 11;
-      }
+      return;
+    }
+
+    // idle / standby / no data -> free time (coffee break)
+    this.state = "idle";
+    this.message = "";
+  }
+
+  // Free agents drift to the cafeteria for coffee. Michael never leaves.
+  _wander(dt) {
+    if (this.isGod || this.state !== "idle" || this.desired === "coffee")
+      return;
+    this.coffeeWait -= dt;
+    if (this.coffeeWait <= 0) {
+      this.desired = "coffee";
+      this.setTarget(
+        STATIONS.cafeteria.x + (Math.random() * 90 - 45),
+        STATIONS.cafeteria.y + (Math.random() * 50 - 25)
+      );
     }
   }
 
@@ -232,18 +216,19 @@ export class Character {
     this.rig.y = bob;
 
     const wantGlow =
-      this.state === "working"
-        ? 0.22 + 0.16 * Math.sin(this.bobT * 1.5)
-        : this.state === "briefed"
-        ? 0.2
-        : 0;
+      this.state === "working" ? 0.22 + 0.16 * Math.sin(this.bobT * 1.5) : 0;
     this.glow.alpha += (wantGlow - this.glow.alpha) * Math.min(1, dt * 6);
 
     this.glyph.text = this.state === "error" ? "!" : "";
 
+    // activity props: laptop in hands while working on the go,
+    // desktop monitor is drawn by the floor at the agent's own desk,
+    // coffee cup during breaks.
+    this.laptop.visible = this.state === "working" && !this.showDesktop;
+    this.cup.visible = this.state === "idle" && this.desired === "coffee";
+
     const showBubble =
-      (this.state === "working" || this.state === "briefed") &&
-      (this.message || "").trim().length > 0;
+      this.state === "working" && (this.message || "").trim().length > 0;
     this.bubble.visible = showBubble;
     if (showBubble) {
       this.bubbleText.text = this.message;

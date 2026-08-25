@@ -62,9 +62,10 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
         world.addChild(lbl);
       }
 
-      // ── Furniture: desks, meeting table, cafeteria ──────────
+      // ── Furniture: desks (+ desktop PCs), meeting table, coffee ──
       const furniture = new Container();
       world.addChild(furniture);
+      const deskMonitors = {}; // castId -> monitor Graphics (visible while coding)
 
       for (const m of OFFICE_CAST) {
         const d = deskRectFor(m);
@@ -73,6 +74,18 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
           .fill(COLORS.desk)
           .stroke({ width: 2, color: COLORS.deskStroke });
         furniture.addChild(g);
+
+        if (!m.isGod) {
+          // desktop PC on this desk — shown only while the agent is coding
+          const mon = new Graphics();
+          mon.roundRect(d.x + 26, d.y - 22, 40, 26, 3).fill(0x10141a)
+            .stroke({ width: 2, color: 0x4ea1ff });
+          mon.rect(d.x + 43, d.y + 4, 6, 5).fill(0x39424e); // stand
+          mon.rect(d.x + 36, d.y + 9, 20, 3, 1.5).fill(0x39424e); // base
+          mon.visible = false;
+          furniture.addChild(mon);
+          deskMonitors[m.id] = mon;
+        }
         const t = new Text({
           text: m.displayName,
           style: {
@@ -135,23 +148,22 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
       for (const c of chars) charLayer.addChild(c.view);
 
       // ── Live ticker ────────────────────────────────────────
+      const CODE_RE = /build|code|site|web|landing|deploy|page/i;
       const tick = (ticker) => {
         const dt = Math.min(0.05, ticker.deltaMS / 1000);
         const ls = liveRef.current || {};
-        const floor = ls.floor || ls.workers || [];
+        const floor = ls.floor || [];
         const fmap = {};
         for (const a of floor) fmap[a.agent_type || a.agent] = a;
-        const mmap = {};
-        for (const m of ls.mandates || [])
-          if (m.status === "running") mmap[m.worker] = true;
 
         for (const c of chars) {
           const f = fmap[c.id];
-          c.update(dt, {
-            status: f?.status,
-            task: f?.task,
-            mandate: !!mmap[c.id],
-          });
+          const active = f?.status === "working" || f?.status === "thinking";
+          // coders work at their desktop PC; everyone else on a laptop
+          const coding = !!active && (c.id === "website" || CODE_RE.test(f?.task || ""));
+          c.showDesktop = coding;
+          if (deskMonitors[c.id]) deskMonitors[c.id].visible = coding && c.state !== "walking";
+          c.update(dt, { status: f?.status, task: f?.task });
         }
       };
       app.ticker.add(tick);

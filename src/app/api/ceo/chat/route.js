@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
+// ponytail: CEO replies are LLM calls (~9-120s); Vercel hobby default is 10s
+export const maxDuration = 60
 
 /**
  * CEO API target.

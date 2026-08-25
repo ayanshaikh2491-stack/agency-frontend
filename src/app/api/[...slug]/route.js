@@ -66,7 +66,7 @@ async function proxy(request, { params }) {
     return NextResponse.json(data, { status: response.status })
   } catch (error) {
     return NextResponse.json(
-      { success: false, error: error.message, offline: true },
+      { success: false, error: error.message, cause: String((error && error.cause) || ''), offline: true },
       { status: 503 }
     )
   }
