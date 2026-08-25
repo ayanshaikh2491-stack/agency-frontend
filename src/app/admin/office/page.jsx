@@ -21,7 +21,7 @@ export default function OfficePage() {
         <div>
           <h1 style={{ margin: 0, fontSize: 22 }}>TAGS Agency — Michael&apos;s Office</h1>
           <p style={{ color: "var(--office-muted)", margin: "4px 0 0", fontSize: 13 }}>
-            The CEO is the only boss entry point. Click his desk to talk to him.
+            The CEO is the only boss entry point. Click his desk to talk to him. Watch the team work live.
           </p>
         </div>
         <div style={{ fontSize: 12, color: connected ? "var(--office-sba)" : "var(--office-muted)" }}>
@@ -31,7 +31,7 @@ export default function OfficePage() {
 
       <div style={{ display: "flex", gap: 24, flexWrap: "wrap", alignItems: "flex-start" }}>
         <div style={{ background: "var(--office-panel)", border: "1px solid var(--office-border)", borderRadius: 12, padding: 12 }}>
-          <OfficeFloor onSelectCeo={() => setChatOpen(true)} floor={floor} />
+          <OfficeFloor onSelectCeo={() => setChatOpen(true)} liveState={state} />
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 260 }}>

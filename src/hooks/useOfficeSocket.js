@@ -13,7 +13,7 @@ export function useOfficeSocket() {
     // so the office websocket reaches the real backend, not Vercel's origin.
     const base =
       process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ||
-      "http://18.213.66.136:8000";
+      "http://18.213.66.136:9002";
     const proto = base.startsWith("https") ? "wss" : "ws";
     const host = base.replace(/^https?:\/\//, "");
     const url = `${proto}://${host}/api/ceo/ws/office`;
