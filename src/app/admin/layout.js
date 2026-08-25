@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import ClientSwitcher from '@/components/ClientSwitcher'
 import { useTheme } from '@/lib/theme-context'
 import {
-  LayoutDashboard,
+  Building2,
   Inbox,
   CircleDot,
   Repeat,
@@ -201,7 +201,7 @@ function SidebarNav() {
             <SquarePen className="h-4 w-4 shrink-0" />
             <span className="truncate">New Task</span>
           </Link>
-          <NavItem href="/admin/dashboard" icon={LayoutDashboard} label="Dashboard" />
+          <NavItem href="/admin/office" icon={Building2} label="Office Floor" />
           <NavItem href="/admin/inbox" icon={Inbox} label="Inbox" badge="3" />
         </div>
 

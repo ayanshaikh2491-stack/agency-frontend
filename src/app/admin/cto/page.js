@@ -272,7 +272,7 @@ export default function CTOPage() {
               <h3 className="text-sm font-semibold text-[var(--foreground)]">Boardroom — CTO Console</h3>
               <p className="text-xs text-[var(--muted-foreground)]">{activeCompany ? activeCompany.name : 'No company selected'}</p>
             </div>
-            <Link href="/admin/dashboard/chat" className="shrink-0 rounded-full border border-[var(--border)] bg-[var(--card)] px-3 py-1 text-xs text-[var(--muted-foreground)] transition-colors hover:bg-[var(--border)]/50 hover:text-[var(--foreground)]">Boardroom →</Link>
+            <Link href="/admin/office" className="shrink-0 rounded-full border border-[var(--border)] bg-[var(--card)] px-3 py-1 text-xs text-[var(--muted-foreground)] transition-colors hover:bg-[var(--border)]/50 hover:text-[var(--foreground)]">Boardroom →</Link>
           </div>
 
           {/* Messages */}

@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { LogoIcon, UserIcon } from '@/components/Icons'
@@ -24,7 +24,7 @@ export default function LoginPage() {
       })
       const data = await res.json()
       if (data.success) {
-        router.push('/admin/dashboard')
+        router.push('/admin/office')
       } else {
         setError(data.error || 'Invalid email or password. Please try again.')
       }
