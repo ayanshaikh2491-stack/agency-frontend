@@ -35,3 +35,58 @@ export function deskRectFor(member) {
   const { x, y } = member.desk;
   return { x: x - 46, y: y - 30, w: 92, h: 60 };
 }
+
+// ── Walls, doors & decor (pixel-tile era) ────────────────────────
+// The world is a 55x34 grid of 20px tiles. A vertical wall runs down
+// col 38 with three doorways; two horizontal walls split the right wing.
+export const WALL_COL = 38;
+export const H_ROWS = [16, 24]; // horizontal wall rows (right wing only)
+export const DOOR_ROWS = [
+  [9, 13],   // CEO office door    (y 180-260)
+  [20, 24],  // meeting room door  (y 400-480)
+  [29, 33],  // cafeteria door     (y 580-660)
+];
+
+// Pixel-space wall rects for the pathfinding collision grid.
+export function wallRects() {
+  const segs = [];
+  let y = 0;
+  for (const [a, b] of DOOR_ROWS) {
+    if (y < a) segs.push({ x: 760, y, w: 20, h: a - y });
+    y = b;
+  }
+  if (y < 680) segs.push({ x: 760, y, w: 20, h: 680 - y });
+  segs.push({ x: 780, y: 320, w: 320, h: 20 });
+  segs.push({ x: 780, y: 480, w: 320, h: 20 });
+  return segs;
+}
+
+// Is this grid cell a wall tile? (visual layer uses this)
+export function isWallCell(col, row) {
+  if (col === WALL_COL && !DOOR_ROWS.some(([a, b]) => row >= a && row < b))
+    return true;
+  if (col > WALL_COL && H_ROWS.includes(row)) return true;
+  return false;
+}
+
+// Decorative tiles keyed by texture name from tiles.js
+export const DECOR = [
+  { tile: "plant", col: 2, row: 2 },
+  { tile: "plant", col: 2, row: 31 },
+  { tile: "plant", col: 37, row: 14 },
+  { tile: "plant", col: 53, row: 1 },
+  { tile: "plant", col: 52, row: 26 },
+  { tile: "plant", col: 51, row: 32 },
+  { tile: "board", col: 44, row: 17 },
+  { tile: "board", col: 45, row: 17 },
+  { tile: "coffee", col: 46, row: 29 },
+  { tile: "coffee", col: 47, row: 29 },
+  { tile: "mat", col: 1, row: 32 },
+  { tile: "mat", col: 2, row: 32 },
+];
+
+// Extra solid rect for the coffee machines (they sit above the station).
+export const COFFEE_BLOCKER = { x: 920, y: 580, w: 40, h: 40 };
+
+// Rug area under the meeting table (cell range, ends exclusive).
+export const RUG = { c0: 42, c1: 50, r0: 19, r1: 23 };

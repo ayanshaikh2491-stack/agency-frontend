@@ -1,15 +1,26 @@
 "use client";
 import { useEffect, useRef } from "react";
-import { Application, Graphics, Text, Container } from "pixi.js";
-import { ROOMS, WORLD, STATIONS, COLORS, deskRectFor } from "./rooms";
+import { Application, Graphics, Text, Container, Sprite } from "pixi.js";
+import {
+  ROOMS,
+  WORLD,
+  STATIONS,
+  COLORS,
+  deskRectFor,
+  wallRects,
+  isWallCell,
+  DECOR,
+  COFFEE_BLOCKER,
+  RUG,
+} from "./rooms";
 import { OFFICE_CAST } from "./cast";
 import { Character } from "./character";
 import { makeGrid } from "./pathfinding";
+import { buildTileTextures, T } from "./tiles";
 
 // Munder-style living office floor.
-// Renders multiple rooms (open office, CEO office, meeting room, cafeteria)
-// and animates the cast as walking characters whose state is driven by the
-// live CEO controller state (status / task / mandates) streamed over WebSocket.
+// Pixel-tile office (wood floors, walls with doorways, plants, coffee corner)
+// + walking pixel-human characters routed by A* around furniture and walls.
 export default function OfficeFloor({ onSelectCeo, liveState }) {
   const ref = useRef(null);
   const liveRef = useRef(null);
@@ -30,7 +41,7 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
         width: WORLD.w,
         height: WORLD.h,
         background: "#0b0d11",
-        antialias: true,
+        antialias: false,
       });
       if (destroyed) {
         app.destroy(true);
@@ -40,15 +51,52 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
       app.stage.eventMode = "static";
       app.stage.hitArea = app.screen;
 
-      // ── Rooms ───────────────────────────────────────────────
-      const world = new Container();
-      app.stage.addChild(world);
+      const tex = buildTileTextures(app.renderer);
+      const cols = Math.ceil(WORLD.w / T);
+      const rows = Math.ceil(WORLD.h / T);
 
+      // ── Floor layer ─────────────────────────────────────────
+      const floorC = new Container();
+      app.stage.addChild(floorC);
+      for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < cols; col++) {
+          let tname;
+          if (col < 38) tname = "wood";
+          else if (row <= 15) tname = "carpet";
+          else if (row >= 17 && row <= 23) tname = "meet";
+          else tname = "cafe";
+          const s = new Sprite(tex[tname]);
+          s.x = col * T;
+          s.y = row * T;
+          floorC.addChild(s);
+        }
+      }
+
+      // ── Wall layer ──────────────────────────────────────────
+      const wallC = new Container();
+      app.stage.addChild(wallC);
+      for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < cols; col++) {
+          if (!isWallCell(col, row)) continue;
+          const s = new Sprite(tex.wallTop);
+          s.x = col * T;
+          s.y = row * T;
+          wallC.addChild(s);
+        }
+      }
+
+      // ── Decor layer (plants, boards, coffee, mat) ───────────
+      const decorC = new Container();
+      app.stage.addChild(decorC);
+      for (const d of DECOR) {
+        const s = new Sprite(tex[d.tile]);
+        s.x = d.col * T;
+        s.y = d.row * T;
+        decorC.addChild(s);
+      }
+
+      // Room labels
       for (const r of ROOMS) {
-        const rg = new Graphics();
-        rg.rect(r.x, r.y, r.w, r.h).fill(r.fill);
-        rg.rect(r.x, r.y, r.w, r.h).stroke({ width: 2, color: COLORS.wall });
-        world.addChild(rg);
         const lbl = new Text({
           text: r.label,
           style: {
@@ -59,21 +107,32 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
           },
         });
         lbl.x = r.x + 12;
-        lbl.y = r.y + 10;
-        world.addChild(lbl);
+        lbl.y = r.y + r.h - 24;
+        app.stage.addChild(lbl);
       }
 
-      // ── Furniture: desks (+ desktop PCs), meeting table, coffee ──
+      // ── Furniture layer ─────────────────────────────────────
       const furniture = new Container();
-      world.addChild(furniture);
-      const deskMonitors = {}; // castId -> monitor Graphics (visible while coding)
+      app.stage.addChild(furniture);
 
+      // meeting rug under the table
+      for (let row = RUG.r0; row < RUG.r1; row++) {
+        for (let col = RUG.c0; col < RUG.c1; col++) {
+          const s = new Sprite(tex.rug);
+          s.x = col * T;
+          s.y = row * T;
+          furniture.addChild(s);
+        }
+      }
+
+      const deskMonitors = {}; // castId -> monitor Graphics (visible while coding)
       for (const m of OFFICE_CAST) {
         const d = deskRectFor(m);
         const g = new Graphics();
-        g.roundRect(d.x, d.y, d.w, d.h, 10)
-          .fill(COLORS.desk)
-          .stroke({ width: 2, color: COLORS.deskStroke });
+        g.roundRect(d.x, d.y, d.w, d.h, 8)
+          .fill(0x4a3a28)
+          .stroke({ width: 2, color: 0x63503a });
+        g.rect(d.x + 4, d.y + 2, d.w - 8, 5).fill({ color: 0x5c4936 });
         furniture.addChild(g);
 
         if (!m.isGod) {
@@ -81,12 +140,19 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
           const mon = new Graphics();
           mon.roundRect(d.x + 26, d.y - 22, 40, 26, 3).fill(0x10141a)
             .stroke({ width: 2, color: 0x4ea1ff });
-          mon.rect(d.x + 43, d.y + 4, 6, 5).fill(0x39424e); // stand
-          mon.rect(d.x + 36, d.y + 9, 20, 3, 1.5).fill(0x39424e); // base
+          mon.rect(d.x + 43, d.y + 4, 6, 5).fill(0x39424e);
+          mon.rect(d.x + 36, d.y + 9, 20, 3, 1.5).fill(0x39424e);
           mon.visible = false;
           furniture.addChild(mon);
           deskMonitors[m.id] = mon;
         }
+
+        // office chair at each workstation
+        const ch = new Graphics();
+        ch.circle(m.desk.x, m.desk.y + 40, 9).fill(0x27313d)
+          .stroke({ width: 2, color: 0x3a4756 });
+        furniture.addChild(ch);
+
         const t = new Text({
           text: m.displayName,
           style: {
@@ -97,7 +163,7 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
           },
         });
         t.x = d.x + 8;
-        t.y = d.y + d.h + 4;
+        t.y = d.y + d.h + 2;
         furniture.addChild(t);
         if (m.isGod) {
           g.eventMode = "static";
@@ -106,38 +172,26 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
         }
       }
 
-      // meeting table
+      // meeting table on the rug
       const mt = new Graphics();
       mt.roundRect(
         STATIONS.meeting.x - 72,
         STATIONS.meeting.y - 26,
         144,
         52,
-        12
+        10
       )
-        .fill(COLORS.station)
-        .stroke({ width: 2, color: COLORS.stationStroke });
+        .fill(0x50412e)
+        .stroke({ width: 2, color: 0x6a5740 });
       furniture.addChild(mt);
 
-      // cafeteria coffee station
-      const cf = new Graphics();
-      cf.roundRect(
-        STATIONS.cafeteria.x - 16,
-        STATIONS.cafeteria.y - 16,
-        32,
-        32,
-        8
-      )
-        .fill(0x3a2a1a)
-        .stroke({ width: 2, color: 0x6b4a2a });
-      furniture.addChild(cf);
-
       // ── Characters ─────────────────────────────────────────
-      // collision grid from furniture rects so agents route AROUND desks
+      // collision grid: walls + furniture so agents route through doorways
       const blockers = [
+        ...wallRects(),
         ...OFFICE_CAST.map((m) => deskRectFor(m)),
         { x: STATIONS.meeting.x - 72, y: STATIONS.meeting.y - 26, w: 144, h: 52 },
-        { x: STATIONS.cafeteria.x - 16, y: STATIONS.cafeteria.y - 16, w: 32, h: 32 },
+        COFFEE_BLOCKER,
       ];
       const grid = makeGrid(blockers);
       const chars = OFFICE_CAST.map(
@@ -153,7 +207,7 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
           })
       );
       const charLayer = new Container();
-      world.addChild(charLayer);
+      app.stage.addChild(charLayer);
       for (const c of chars) charLayer.addChild(c.view);
 
       // ── Live ticker ────────────────────────────────────────
