@@ -34,8 +34,9 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
   useEffect(() => {
     let app;
     let destroyed = false;
+    let building = null;
 
-    (async () => {
+    building = (async () => {
       app = new Application();
       await app.init({
         width: WORLD.w,
@@ -48,6 +49,12 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
         return;
       }
       ref.current.appendChild(app.canvas);
+      // ponytail: unmount can land mid-async-init (slow networks) — bail
+      // out cleanly instead of half-configuring a destroyed renderer
+      if (destroyed) {
+        app.destroy(true);
+        return;
+      }
       app.stage.eventMode = "static";
       app.stage.hitArea = app.screen;
 
@@ -232,9 +239,20 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
       app.ticker.add(tick);
     })();
 
+    building?.catch(() => {}); // never leak an unhandled rejection
+
     return () => {
       destroyed = true;
-      if (app) app.destroy(true);
+      const teardown = () => {
+        try {
+          app?.destroy(true);
+        } catch {
+          /* already gone */
+        }
+      };
+      // wait for a still-running init before destroying the renderer
+      if (building) building.then(teardown, teardown);
+      else teardown();
     };
   }, [onSelectCeo]);
 
