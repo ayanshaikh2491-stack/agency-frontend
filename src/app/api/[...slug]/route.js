@@ -3,6 +3,18 @@ import { NextResponse } from 'next/server'
 const BACKEND_URL = (process.env.BACKEND_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://18.213.66.136:9002').replace(/\/$/, '');
 const N8N_PIPELINE_URL = process.env.N8N_PIPELINE_URL || 'https://nexus-n8n-x17d.onrender.com/webhook/n8n-pipeline-status'
 
+// Handle CORS preflight
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,PATCH,OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Session-Token, X-Store-Token',
+    },
+  });
+}
+
 async function proxy(request, { params }) {
   const slug = params?.slug
   if (!slug || !Array.isArray(slug)) {
@@ -63,7 +75,11 @@ async function proxy(request, { params }) {
       data = await response.text()
     }
 
-    return NextResponse.json(data, { status: response.status })
+    const res = NextResponse.json(data, { status: response.status })
+    res.headers.set('Access-Control-Allow-Origin', '*')
+    res.headers.set('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,PATCH,OPTIONS')
+    res.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Session-Token, X-Store-Token')
+    return res
   } catch (error) {
     return NextResponse.json(
       { success: false, error: error.message, cause: String((error && error.cause) || ''), offline: true },
