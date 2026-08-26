@@ -2,7 +2,7 @@
 // Munder-style walking character with REAL spritesheet (AnimatedSprite)
 // PixiJS v8 — replaces procedural drawing with Kenney Folk 32x32 spritesheet.
 
-import { Container, AnimatedSprite, Graphics, Text, Spritesheet, Texture, SCALE_MODES } from "pixi.js";
+import { Container, AnimatedSprite, Graphics, Text, Spritesheet, Texture, SCALE_MODES, Assets } from "pixi.js";
 import { STATIONS } from "./rooms";
 import { findPath } from "./pathfinding";
 
@@ -68,10 +68,10 @@ export class Character {
   }
 
   async _build() {
-    // Load spritesheet once (static)
+    // Load spritesheet once (static) using Assets.load for proper async loading
     if (!Character._spriteSheet) {
       const data = await getSpritesheetData();
-      const texture = Texture.from(TEXTURE_URL);
+      const texture = await Assets.load(TEXTURE_URL);
       texture.baseTexture.scaleMode = SCALE_MODES.NEAREST;
       const sheet = new Spritesheet(texture.baseTexture, data);
       await sheet.parse();
