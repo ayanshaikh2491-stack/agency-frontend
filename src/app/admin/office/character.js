@@ -20,6 +20,15 @@ const ARM_Y = -4; // shoulder y
 
 const HAIR_COLORS = [0x171a1f, 0x3a2a1c, 0x6b4423, 0xa56a35, 0x8c3330, 0x494f59];
 
+// --- Visual tuning (make walk/work pop) ---
+const WALK_BOB_AMP = 2.8;      // vertical body bob while walking
+const IDLE_BOB_AMP = 0.5;      // subtle breathe while standing
+const LEG_SWING_X = 1.6;       // leg horizontal swing
+const LEG_LIFT_Y = 3.2;        // leg vertical lift
+const ARM_SWING = 0.35;        // arm swing while walking
+const TYPING_TAP = 0.12;       // typing hand tap
+const SIT_SINK = 7;            // how much body sinks when seated
+
 // Convert "#rrggbb" to a number.
 function hexToNum(hex) {
   return parseInt(String(hex).replace("#", ""), 16);
@@ -90,6 +99,18 @@ export class Character {
       .circle(0, 0, 32)
       .fill({ color: this.isGod ? 0xf4d35e : 0x4ea1ff, alpha: 0 });
     this.view.addChild(this.glow);
+
+    // persistent subtle outline (always visible, helps see through walls)
+    this.outline = new Graphics();
+    this.outline
+      .circle(0, -4, 18)
+      .stroke({ width: 1.5, color: 0x4ea1ff, alpha: 0.15 });
+    this.view.addChild(this.outline);
+
+    // footstep dust particles (created on demand)
+    this.dust = new Container();
+    this.view.addChild(this.dust);
+    this._dustTimer = 0;
 
     // rig (body) — flipped by facing
     this.rig = new Container();
@@ -347,7 +368,9 @@ export class Character {
     this.rig.scale.x = this.facing >= 0 ? 1 : -1;
 
     this.bobT += dt * (moving ? 11 : 3);
-    const bob = moving ? Math.sin(this.bobT) * 2.2 : Math.sin(this.bobT) * 0.6;
+    const bob = moving
+      ? Math.sin(this.bobT) * WALK_BOB_AMP
+      : Math.sin(this.bobT) * IDLE_BOB_AMP;
     this.rig.y = bob;
 
     // --- sitting pose ---------------------------------------------------
@@ -358,16 +381,16 @@ export class Character {
       4;
     this.sitting = !moving && atHome && this.state === "working";
     const ease = Math.min(1, dt * 10);
-    this.body.y += ((this.sitting ? 6 : 0) - this.body.y) * ease;
+    this.body.y += ((this.sitting ? SIT_SINK : 0) - this.body.y) * ease;
 
     // legs: visible alternating stride while walking, tucked fold while
     // seated, quietly standing otherwise.
     if (moving) {
       const sw = Math.sin(this.bobT);
-      this.legL.x = -LEG_X + sw * 1.2;
-      this.legL.y = LEG_Y + Math.max(0, sw) * 2.4;
-      this.legR.x = LEG_X - sw * 1.2;
-      this.legR.y = LEG_Y + Math.max(0, -sw) * 2.4;
+      this.legL.x = -LEG_X + sw * LEG_SWING_X;
+      this.legL.y = LEG_Y + Math.max(0, sw) * LEG_LIFT_Y;
+      this.legR.x = LEG_X - sw * LEG_SWING_X;
+      this.legR.y = LEG_Y + Math.max(0, -sw) * LEG_LIFT_Y;
       this.legL.scale.y = 1;
       this.legR.scale.y = 1;
     } else if (this.sitting) {
@@ -390,19 +413,55 @@ export class Character {
       armRT = -0.7;
       if (this.sitting && this.showDesktop) {
         const tap = Math.sin(this.bobT * 2.4);
-        armLT += tap * 0.09;
-        armRT -= tap * 0.09;
+        armLT += tap * TYPING_TAP;
+        armRT -= tap * TYPING_TAP;
       }
     } else if (moving) {
       const sw = Math.sin(this.bobT);
-      armLT = sw * 0.3;
-      armRT = -sw * 0.3;
+      armLT = sw * ARM_SWING;
+      armRT = -sw * ARM_SWING;
     } else {
       armLT = 0;
       armRT = 0;
     }
     this.armL.rotation += (armLT - this.armL.rotation) * ease;
     this.armR.rotation += (armRT - this.armR.rotation) * ease;
+
+    // persistent outline: subtle pulse when working, always visible
+    const outlineAlpha = this.state === "working"
+      ? 0.18 + 0.08 * Math.sin(this.bobT * 1.5)
+      : 0.12;
+    this.outline.clear().circle(0, -4, 18).stroke({
+      width: 1.5,
+      color: this.isGod ? 0xf4d35e : 0x4ea1ff,
+      alpha: outlineAlpha,
+    });
+
+    // footstep dust while walking (spawn every ~0.25s at heel strike)
+    if (moving) {
+      this._dustTimer -= dt;
+      if (this._dustTimer <= 0) {
+        this._dustTimer = 0.25;
+        const dust = new Graphics();
+        const side = this.facing >= 0 ? 1 : -1;
+        const footX = side * (LEG_X + Math.sin(this.bobT) * LEG_SWING_X);
+        const footY = LEG_Y + Math.max(0, -Math.sin(this.bobT)) * LEG_LIFT_Y;
+        dust.circle(footX * side, footY + this.rig.y, 2.5).fill({
+          color: 0x8899aa,
+          alpha: 0.5,
+        });
+        dust._life = 0.6;
+        this.dust.addChild(dust);
+      }
+    }
+    // update existing dust particles
+    for (let i = this.dust.children.length - 1; i >= 0; i--) {
+      const d = this.dust.children[i];
+      d._life -= dt;
+      d.alpha = Math.max(0, d._life / 0.6) * 0.5;
+      d.scale.set(d._life / 0.6 * 1.5);
+      if (d._life <= 0) this.dust.removeChild(d);
+    }
 
     const wantGlow =
       this.state === "working" ? 0.22 + 0.16 * Math.sin(this.bobT * 1.5) : 0;

@@ -88,6 +88,7 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
           const s = new Sprite(tex.wallTop);
           s.x = col * T;
           s.y = row * T;
+          s.alpha = 0.65; // see-through so agents behind walls are visible
           wallC.addChild(s);
         }
       }
