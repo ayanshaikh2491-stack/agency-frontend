@@ -1,0 +1,16 @@
+Vercel CLI 54.13.0 (Node.js 25.8.1)
+Retrieving project…
+> Environment Variables found for ayanshaikh2491-stacks-projects/agency-frontend [315ms]
+
+ name                               value               environments        created    
+ NEXT_PUBLIC_API_URL                Encrypted           Production          18d ago    
+ BACKEND_API_URL                    Encrypted           Production          18d ago    
+ SUPABASE_SERVICE_ROLE_KEY          Encrypted           Production          18d ago    
+ NEXT_PUBLIC_SUPABASE_ANON_KEY      Encrypted           Production          18d ago    
+ SUPABASE_URL                       Encrypted           Production          18d ago    
+ NEXT_PUBLIC_SUPABASE_URL           Encrypted           Production          18d ago    
+ HERMES_GATEWAY_URL                 Encrypted           Production          45d ago    
+ NOCOBASE_BACKEND_URL               Encrypted           Production          74d ago    
+ AGENCY_WORKSPACE_ID                Encrypted           Production          75d ago    
+ NEXT_PUBLIC_APP_URL                Encrypted           Production          77d ago    
+

@@ -1,54 +1,26 @@
 // src/app/admin/office/character.js
-// A Munder-style walking character for the office floor.
-// PixiJS v8 procedural pixel-human avatar with smooth movement (straight-line,
-// or waypoint-following when a collision grid is provided), an
-// idle/walk/working/error state machine, a pulsing glow, a thought bubble, a
-// sitting/typing pose, plus wander + delegation (walk-to-meeting) behaviors
-// driven by live floor state.
+// Munder-style walking character with REAL spritesheet (AnimatedSprite)
+// PixiJS v8 — replaces procedural drawing with Kenney Folk 32x32 spritesheet.
 
-import { Container, Graphics, Text } from "pixi.js";
+import { Container, AnimatedSprite, Graphics, Text, Spritesheet, BaseTexture, SCALE_MODES } from "pixi.js";
 import { STATIONS } from "./rooms";
 import { findPath } from "./pathfinding";
 
+// Spritesheet data loaded at runtime via fetch (avoids webpack JSON import issues)
+let spritesheetDataCache = null;
+async function getSpritesheetData() {
+  if (spritesheetDataCache) return spritesheetDataCache;
+  const res = await fetch("/office/sprites/spritesheetData.json");
+  spritesheetDataCache = await res.json();
+  return spritesheetDataCache;
+}
+
 const SPEED = 155; // px per second
+const TEXTURE_URL = "/office/sprites/32x32folk.png";
 
-// Rig geometry shared by _build and _applyTransform.
-const LEG_X = 3.6; // leg resting offset from center x
-const LEG_Y = 8; // leg resting top y
-const ARM_X = 8; // shoulder offset from center x
-const ARM_Y = -4; // shoulder y
-
-const HAIR_COLORS = [0x171a1f, 0x3a2a1c, 0x6b4423, 0xa56a35, 0x8c3330, 0x494f59];
-
-// --- Visual tuning (make walk/work pop) ---
-const WALK_BOB_AMP = 2.8;      // vertical body bob while walking
-const IDLE_BOB_AMP = 0.5;      // subtle breathe while standing
-const LEG_SWING_X = 1.6;       // leg horizontal swing
-const LEG_LIFT_Y = 3.2;        // leg vertical lift
-const ARM_SWING = 0.35;        // arm swing while walking
-const TYPING_TAP = 0.12;       // typing hand tap
-const SIT_SINK = 7;            // how much body sinks when seated
-
-// Convert "#rrggbb" to a number.
-function hexToNum(hex) {
-  return parseInt(String(hex).replace("#", ""), 16);
-}
-
-// Darken a numeric color by a factor (0..1).
-function shadeNum(num, f) {
-  const n = Number.isFinite(num) ? num : 0x4ea1ff;
-  const r = Math.round(((n >> 16) & 255) * f);
-  const g = Math.round(((n >> 8) & 255) * f);
-  const b = Math.round((n & 255) * f);
-  return (r << 16) | (g << 8) | b;
-}
-
-// Tiny stable string hash (per-character hair color pick).
-function hashStr(s) {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  return h;
-}
+// Direction mapping: 0=right, 1=down, 2=left, 3=up
+const DIR_NAMES = ["right", "down", "left", "up"];
+const SIT_ANIM = "sit";
 
 export class Character {
   constructor({
@@ -59,154 +31,97 @@ export class Character {
     desk,
     isGod = false,
     grid = null,
+    spriteRow = 0, // which character on sheet (0-7)
   }) {
     this.id = id;
     this.displayName = displayName;
-    this.shirt = typeof shirt === "string" ? hexToNum(shirt) : shirt;
+    this.shirt = shirt;
     this.blurb = blurb;
     this.isGod = isGod;
-    this.grid = grid || null; // optional tile grid; enables pathfinding
+    this.grid = grid || null;
+    this.spriteRow = spriteRow;
+
     // Stand in front of the desk, not on top of it.
     this.homeDesk = { x: desk.x, y: desk.y + 38 };
     this.pos = { x: STATIONS.entrance.x, y: STATIONS.entrance.y };
     this.target = { ...this.homeDesk };
     this.onArrive = null;
-    this.facing = 1;
-    this.state = "walking"; // walking | working | idle | error | briefed
+    this.facing = 1; // 1=down
+    this.state = "walking"; // walking | working | idle | error
     this.message = "";
     this.bobT = Math.random() * 10;
     this.sitting = false;
 
-    // behavior bookkeeping
-    this.desired = "desk"; // desk | coffee
+    // behavior
+    this.desired = "desk";
     this.coffeeWait = 1.5 + Math.random() * 2;
-    this.showDesktop = false; // floor sets this when the agent is coding
+    this.showDesktop = false;
 
-    // Waypoint queue from pathfinding. Empty queue => straight-line movement,
-    // identical to the pre-grid behavior.
+    // pathfinding
     this._waypoints = [];
     if (this.grid) this._planRoute(this.homeDesk.x, this.homeDesk.y);
 
+    // Pixi setup
     this.view = new Container();
     this._build();
     this._applyTransform(0, false);
   }
 
-  _build() {
+  async _build() {
+    // Load spritesheet once (static)
+    if (!Character._spriteSheet) {
+      const data = await getSpritesheetData();
+      const baseTexture = BaseTexture.from(TEXTURE_URL, { scaleMode: SCALE_MODES.NEAREST });
+      const sheet = new Spritesheet(baseTexture, data);
+      await sheet.parse();
+      Character._spriteSheet = sheet;
+    }
+    this.spriteSheet = Character._spriteSheet;
+
     // glow (behind everything)
     this.glow = new Graphics();
-    this.glow
-      .circle(0, 0, 32)
-      .fill({ color: this.isGod ? 0xf4d35e : 0x4ea1ff, alpha: 0 });
+    this.glow.circle(0, 0, 32).fill({ color: this.isGod ? 0xf4d35e : 0x4ea1ff, alpha: 0 });
     this.view.addChild(this.glow);
 
-    // persistent subtle outline (always visible, helps see through walls)
-    this.outline = new Graphics();
-    this.outline
-      .circle(0, -4, 18)
-      .stroke({ width: 1.5, color: 0x4ea1ff, alpha: 0.15 });
-    this.view.addChild(this.outline);
-
-    // footstep dust particles (created on demand)
-    this.dust = new Container();
-    this.view.addChild(this.dust);
-    this._dustTimer = 0;
-
-    // rig (body) — flipped by facing
+    // rig container (flipped by facing)
     this.rig = new Container();
     this.view.addChild(this.rig);
 
-    // grounded shadow — stays on the floor even when seated
+    // shadow
     const shadow = new Graphics();
-    shadow.ellipse(0, 17, 13, 4.5).fill({ color: 0x000000, alpha: 0.28 });
+    shadow.ellipse(0, 20, 14, 4).fill({ color: 0x000000, alpha: 0.28 });
     this.rig.addChild(shadow);
 
-    // body group — sinks ~6px when sitting (see _applyTransform)
-    this.body = new Container();
-    this.rig.addChild(this.body);
+    // AnimatedSprite for character
+    this.anim = new AnimatedSprite({
+      textures: this.spriteSheet.animations.down,
+      animationSpeed: 0.15,
+      anchor: { x: 0.5, y: 0.5 },
+      scale: 1.5,
+    });
+    this.anim.play();
+    this.rig.addChild(this.anim);
 
-    const SKIN = 0xf1c27d;
-    const SHIRT = Number.isFinite(this.shirt) ? this.shirt : 0x4ea1ff;
-    const PANTS = shadeNum(SHIRT, 0.45);
-    const HAIR =
-      HAIR_COLORS[hashStr(String(this.id ?? "")) % HAIR_COLORS.length];
+    // outline (subtle, always visible)
+    this.outline = new Graphics();
+    this.outline.circle(0, -4, 18).stroke({ width: 1.5, color: 0x4ea1ff, alpha: 0.12 });
+    this.rig.addChild(this.outline);
 
-    // legs: darker pants + shoe, pivot at hip (y grows downward)
-    const makeLeg = () => {
-      const lg = new Graphics();
-      lg.roundRect(-1.8, 0, 3.6, 7, 1).fill(PANTS); // pant leg
-      lg.roundRect(-2.1, 6, 4.2, 2.4, 1).fill(0x232a35); // shoe
-      return lg;
-    };
-    this.legL = makeLeg();
-    this.legR = makeLeg();
-    this.legL.position.set(-LEG_X, LEG_Y);
-    this.legR.position.set(LEG_X, LEG_Y);
-    this.body.addChild(this.legL, this.legR);
+    // dust particles
+    this.dust = new Container();
+    this.rig.addChild(this.dust);
+    this._dustTimer = 0;
 
-    // torso: colored shirt + collar px
-    const torso = new Graphics();
-    torso.roundRect(-7.5, -7, 15, 15, 3).fill(SHIRT);
-    torso.rect(-3, -7, 6, 2).fill(shadeNum(SHIRT, 0.7));
-    this.body.addChild(torso);
-
-    // arms: small sleeve nubs pivoting at the shoulder, skin hands
-    const makeArm = () => {
-      const ag = new Graphics();
-      ag.roundRect(-1.6, -1, 3.2, 7, 1.6).fill(SHIRT); // sleeve
-      ag.circle(0, 6, 1.6).fill(SKIN); // hand
-      return ag;
-    };
-    this.armL = makeArm();
-    this.armL.position.set(-ARM_X, ARM_Y);
-    this.armR = makeArm();
-    this.armR.position.set(ARM_X, ARM_Y);
-    this.body.addChild(this.armL, this.armR);
-
-    // head: hair circle behind, face circle in front => hair crescent on top,
-    // plus a back-of-head block, eyes and a tiny mouth px (facing +x).
-    const head = new Graphics();
-    head.circle(0, -15.5, 8).fill(HAIR); // hair block
-    head.circle(0, -13.5, 8).fill(SKIN); // face
-    head.rect(-8.6, -15, 2.6, 6.5).fill(HAIR); // back-of-head hair
-    head.rect(-8, -19, 5, 2).fill(HAIR); // fringe px
-    head.circle(-2.6, -14, 1.5).fill(0x222222); // eyes
-    head.circle(2.6, -14, 1.5).fill(0x222222);
-    head.rect(1.5, -10.5, 3, 1.2).fill(0x9c6b4e); // tiny mouth px
-    this.body.addChild(head);
-
-    if (this.isGod) {
-      const crown = new Graphics();
-      crown.roundRect(-11, -27, 22, 5, 2).fill(0xf4d35e); // little crown brim
-      this.body.addChild(crown);
-    }
-
-    // status glyph (error "!"), child of rig so it flips with the body
+    // status glyph
     this.glyph = new Text({
       text: "",
       style: { fill: 0xffffff, fontSize: 16, fontWeight: "800" },
     });
     this.glyph.anchor.set(0.5);
-    this.glyph.y = -32;
+    this.glyph.y = -42;
     this.rig.addChild(this.glyph);
 
-    // held props (children of body so they settle when seated)
-    this.laptop = new Graphics();
-    this.laptop.roundRect(-10, 2, 20, 3.5, 1.5).fill(0x39424e); // base
-    this.laptop
-      .roundRect(-9, -6, 18, 9, 1.5)
-      .fill(0x222a33)
-      .stroke({ width: 1, color: 0x4ea1ff }); // screen
-    this.body.addChild(this.laptop);
-    this.laptop.visible = false;
-
-    this.cup = new Graphics();
-    this.cup.roundRect(6, 3, 6, 7, 1.5).fill(0xf3f5f8); // cup
-    this.cup.circle(13, 6.5, 2.2).stroke({ width: 1.5, color: 0xf3f5f8 }); // handle
-    this.body.addChild(this.cup);
-    this.cup.visible = false;
-
-    // name tag (child of view — never flipped, always readable)
+    // name tag (on view, not flipped)
     this.nameTag = new Text({
       text: this.displayName,
       style: {
@@ -214,29 +129,31 @@ export class Character {
         fontSize: 10,
         fontWeight: "700",
         fontFamily: "Inter, system-ui, sans-serif",
+        stroke: { color: 0x000000, width: 2 },
       },
     });
     this.nameTag.anchor.set(0.5, 0);
-    this.nameTag.y = 24;
+    this.nameTag.y = -30;
     this.view.addChild(this.nameTag);
 
-    // thought bubble (child of view — never flipped)
+    // conversation bubbles (container on view)
     this.bubble = new Container();
-    this.bubbleBg = new Graphics();
-    this.bubbleText = new Text({
-      text: "",
-      style: {
-        fill: 0x111827,
-        fontSize: 10,
-        fontWeight: "600",
-        wordWrap: true,
-        wordWrapWidth: 132,
-        fontFamily: "Inter, system-ui, sans-serif",
-      },
-    });
-    this.bubble.addChild(this.bubbleBg, this.bubbleText);
     this.bubble.visible = false;
     this.view.addChild(this.bubble);
+
+    // conversation state
+    this.convState = {
+      isSpeaking: false,
+      isThinking: false,
+      bubbleText: "",
+    };
+
+    // God crown
+    if (this.isGod) {
+      this.crown = new Graphics();
+      this.crown.roundRect(-10, -48, 20, 6, 2).fill(0xf4d35e);
+      this.rig.addChild(this.crown);
+    }
   }
 
   setTarget(x, y, onArrive = null) {
@@ -246,41 +163,62 @@ export class Character {
     if (this.grid) this._planRoute(x, y);
   }
 
-  // Ask pathfinding for waypoints to (x, y). Any failure (null path, throw,
-  // malformed data) silently leaves the queue empty => straight-line fallback.
   _planRoute(x, y) {
     try {
       const path = findPath(this.grid, this.pos.x, this.pos.y, x, y);
       if (Array.isArray(path) && path.length > 0) {
         const q = path.slice();
-        // Drop a leading waypoint that just restates where we already are.
-        if (
-          q.length > 1 &&
-          Math.hypot(q[0].x - this.pos.x, q[0].y - this.pos.y) < 2
-        ) {
+        if (q.length > 1 && Math.hypot(q[0].x - this.pos.x, q[0].y - this.pos.y) < 2) {
           q.shift();
         }
-        this._waypoints = q.filter(
-          (p) => p && Number.isFinite(p.x) && Number.isFinite(p.y)
-        );
+        this._waypoints = q.filter(p => p && Number.isFinite(p.x) && Number.isFinite(p.y));
       }
     } catch (e) {
       this._waypoints = [];
     }
   }
 
-  // live = { status, task, mandate } for this character (or undefined)
+  // Called externally to update conversation visual state
+  setConversationState(state) {
+    this.convState = { ...this.convState, ...state };
+    this._updateBubbles();
+  }
+
+  _updateBubbles() {
+    this.bubble.removeChildren();
+    const { isSpeaking, isThinking, bubbleText } = this.convState;
+
+    if (isSpeaking) {
+      const g = new Graphics();
+      g.roundRect(-30, -16, 60, 24, 8).fill({ color: 0xf3f5f8, alpha: 0.95 }).stroke({ width: 1, color: 0xcbd3dd });
+      this.bubble.addChild(g);
+      const t = new Text({ text: "💬", style: { fontSize: 14 } });
+      t.anchor.set(0.5); t.x = 0; t.y = -4;
+      this.bubble.addChild(t);
+    }
+    if (isThinking) {
+      const t = new Text({ text: "💭", style: { fontSize: 16 } });
+      t.anchor.set(0.5); t.x = -20; t.y = -38;
+      this.bubble.addChild(t);
+    }
+    if (bubbleText) {
+      const g = new Graphics();
+      g.roundRect(-50, -18, 100, 28, 8).fill({ color: 0x111827, alpha: 0.9 }).stroke({ width: 1, color: 0x4ea1ff });
+      this.bubble.addChild(g);
+      const t = new Text({ text: bubbleText, style: { fill: 0xf3f5f8, fontSize: 9, fontWeight: "600", wordWrap: true, wordWrapWidth: 90 } });
+      t.anchor.set(0.5); t.x = 0; t.y = -4;
+      this.bubble.addChild(t);
+    }
+  }
+
   update(dt, live) {
     this._applyLive(live);
 
     const step = SPEED * dt;
     let moving = false;
 
-    // Head to the next queued waypoint; when the queue is empty, fall back to
-    // a straight line toward this.target (classic behavior, unchanged).
     for (let guard = 0; guard < 128; guard++) {
-      const goal =
-        this._waypoints.length > 0 ? this._waypoints[0] : this.target;
+      const goal = this._waypoints.length > 0 ? this._waypoints[0] : this.target;
       const dx = goal.x - this.pos.x;
       const dy = goal.y - this.pos.y;
       const dist = Math.hypot(dx, dy);
@@ -289,10 +227,9 @@ export class Character {
         this.pos.x = goal.x;
         this.pos.y = goal.y;
         if (this._waypoints.length > 0) {
-          this._waypoints.shift(); // intermediate waypoint reached; next leg
+          this._waypoints.shift();
           continue;
         }
-        // final arrival: fire the original callback exactly once
         if (this.onArrive) {
           const cb = this.onArrive;
           this.onArrive = null;
@@ -309,7 +246,8 @@ export class Character {
           this.pos.x += nx * step;
           this.pos.y += ny * step;
         }
-        if (Math.abs(nx) > 0.1) this.facing = nx >= 0 ? 1 : -1;
+        if (Math.abs(nx) > 0.1) this.facing = nx >= 0 ? 2 : 0; // 2=left, 0=right
+        if (Math.abs(ny) > 0.1 && Math.abs(ny) > Math.abs(nx)) this.facing = ny >= 0 ? 1 : 3; // 1=down, 3=up
         this.state = "walking";
       }
       break;
@@ -319,7 +257,6 @@ export class Character {
     this._applyTransform(dt, moving);
   }
 
-  // live = { status, task } for this character (or undefined)
   _applyLive(live) {
     const status = live?.status;
 
@@ -343,15 +280,12 @@ export class Character {
       return;
     }
 
-    // idle / standby / no data -> free time (coffee break)
     this.state = "idle";
     this.message = "";
   }
 
-  // Free agents drift to the cafeteria for coffee. Michael never leaves.
   _wander(dt) {
-    if (this.isGod || this.state !== "idle" || this.desired === "coffee")
-      return;
+    if (this.isGod || this.state !== "idle" || this.desired === "coffee") return;
     this.coffeeWait -= dt;
     if (this.coffeeWait <= 0) {
       this.desired = "coffee";
@@ -365,96 +299,53 @@ export class Character {
   _applyTransform(dt, moving) {
     this.view.x = this.pos.x;
     this.view.y = this.pos.y;
-    this.rig.scale.x = this.facing >= 0 ? 1 : -1;
+    this.rig.scale.x = this.facing === 2 ? -1 : 1; // flip for left
 
     this.bobT += dt * (moving ? 11 : 3);
-    const bob = moving
-      ? Math.sin(this.bobT) * WALK_BOB_AMP
-      : Math.sin(this.bobT) * IDLE_BOB_AMP;
+    const bob = moving ? Math.sin(this.bobT) * 2.8 : Math.sin(this.bobT) * 0.5;
     this.rig.y = bob;
 
-    // --- sitting pose ---------------------------------------------------
-    // Seated once parked at the home desk while working; stands back up as
-    // soon as the state leaves working or the character starts moving again.
-    const atHome =
-      Math.hypot(this.homeDesk.x - this.pos.x, this.homeDesk.y - this.pos.y) <
-      4;
+    // sitting
+    const atHome = Math.hypot(this.homeDesk.x - this.pos.x, this.homeDesk.y - this.pos.y) < 4;
     this.sitting = !moving && atHome && this.state === "working";
     const ease = Math.min(1, dt * 10);
-    this.body.y += ((this.sitting ? SIT_SINK : 0) - this.body.y) * ease;
+    this.rig.y += (this.sitting ? 7 : 0) * ease;
 
-    // legs: visible alternating stride while walking, tucked fold while
-    // seated, quietly standing otherwise.
-    if (moving) {
-      const sw = Math.sin(this.bobT);
-      this.legL.x = -LEG_X + sw * LEG_SWING_X;
-      this.legL.y = LEG_Y + Math.max(0, sw) * LEG_LIFT_Y;
-      this.legR.x = LEG_X - sw * LEG_SWING_X;
-      this.legR.y = LEG_Y + Math.max(0, -sw) * LEG_LIFT_Y;
-      this.legL.scale.y = 1;
-      this.legR.scale.y = 1;
-    } else if (this.sitting) {
-      this.legL.position.set(-LEG_X + 2.5, LEG_Y + 2.5);
-      this.legR.position.set(LEG_X + 2.5, LEG_Y + 2.5);
-      this.legL.scale.y = 0.55;
-      this.legR.scale.y = 0.55;
-    } else {
-      this.legL.position.set(-LEG_X, LEG_Y);
-      this.legR.position.set(LEG_X, LEG_Y);
-      this.legL.scale.y = 1;
-      this.legR.scale.y = 1;
-    }
+    // Update animation based on facing and state
+    const dirName = ["right", "down", "left", "up"][this.facing] || "down";
+    const isSitting = this.sitting && this.state === "working";
 
-    // arms: hang as side nubs; angle forward (typing) while working; tiny
-    // alternating hand tap while seated at the desktop.
-    let armLT, armRT;
-    if (this.state === "working") {
-      armLT = -1.05;
-      armRT = -0.7;
-      if (this.sitting && this.showDesktop) {
-        const tap = Math.sin(this.bobT * 2.4);
-        armLT += tap * TYPING_TAP;
-        armRT -= tap * TYPING_TAP;
+    if (isSitting && this.spriteSheet.animations.sit) {
+      if (this.anim.textures !== this.spriteSheet.animations.sit) {
+        this.anim.textures = this.spriteSheet.animations.sit;
+        this.anim.animationSpeed = 0.05;
+        this.anim.play();
       }
     } else if (moving) {
-      const sw = Math.sin(this.bobT);
-      armLT = sw * ARM_SWING;
-      armRT = -sw * ARM_SWING;
+      if (this.anim.textures !== this.spriteSheet.animations[dirName]) {
+        this.anim.textures = this.spriteSheet.animations[dirName];
+        this.anim.animationSpeed = 0.15;
+        this.anim.play();
+      }
     } else {
-      armLT = 0;
-      armRT = 0;
+      this.anim.stop();
+      this.anim.texture = this.spriteSheet.animations[dirName]?.[0] || this.spriteSheet.animations.down[0];
     }
-    this.armL.rotation += (armLT - this.armL.rotation) * ease;
-    this.armR.rotation += (armRT - this.armR.rotation) * ease;
 
-    // persistent outline: subtle pulse when working, always visible
-    const outlineAlpha = this.state === "working"
-      ? 0.18 + 0.08 * Math.sin(this.bobT * 1.5)
-      : 0.12;
-    this.outline.clear().circle(0, -4, 18).stroke({
-      width: 1.5,
-      color: this.isGod ? 0xf4d35e : 0x4ea1ff,
-      alpha: outlineAlpha,
-    });
-
-    // footstep dust while walking (spawn every ~0.25s at heel strike)
+    // dust while walking
     if (moving) {
       this._dustTimer -= dt;
       if (this._dustTimer <= 0) {
         this._dustTimer = 0.25;
         const dust = new Graphics();
-        const side = this.facing >= 0 ? 1 : -1;
-        const footX = side * (LEG_X + Math.sin(this.bobT) * LEG_SWING_X);
-        const footY = LEG_Y + Math.max(0, -Math.sin(this.bobT)) * LEG_LIFT_Y;
-        dust.circle(footX * side, footY + this.rig.y, 2.5).fill({
-          color: 0x8899aa,
-          alpha: 0.5,
-        });
+        const side = this.facing === 2 ? -1 : 1;
+        const footX = side * 6;
+        const footY = 20;
+        dust.circle(footX * side, footY + this.rig.y, 2.5).fill({ color: 0x8899aa, alpha: 0.5 });
         dust._life = 0.6;
         this.dust.addChild(dust);
       }
     }
-    // update existing dust particles
     for (let i = this.dust.children.length - 1; i >= 0; i--) {
       const d = this.dust.children[i];
       d._life -= dt;
@@ -463,34 +354,19 @@ export class Character {
       if (d._life <= 0) this.dust.removeChild(d);
     }
 
-    const wantGlow =
-      this.state === "working" ? 0.22 + 0.16 * Math.sin(this.bobT * 1.5) : 0;
-    this.glow.alpha += (wantGlow - this.glow.alpha) * Math.min(1, dt * 6);
+    // outline pulse
+    const outlineAlpha = this.state === "working"
+      ? 0.18 + 0.08 * Math.sin(this.bobT * 1.5)
+      : 0.12;
+    this.outline.clear().circle(0, -4, 18).stroke({
+      width: 1.5, color: this.isGod ? 0xf4d35e : 0x4ea1ff, alpha: outlineAlpha,
+    });
 
     this.glyph.text = this.state === "error" ? "!" : "";
-
-    // activity props: laptop in hands while working on the go,
-    // desktop monitor is drawn by the floor at the agent's own desk,
-    // coffee cup during breaks.
-    this.laptop.visible = this.state === "working" && !this.showDesktop;
-    this.cup.visible = this.state === "idle" && this.desired === "coffee";
-
-    const showBubble =
-      this.state === "working" && (this.message || "").trim().length > 0;
-    this.bubble.visible = showBubble;
-    if (showBubble) {
-      this.bubbleText.text = this.message;
-      const w = Math.min(154, Math.max(64, this.bubbleText.width + 16));
-      const h = this.bubbleText.height + 12;
-      this.bubbleText.x = 2;
-      this.bubbleText.y = -h - 12 + 6;
-      this.bubbleBg
-        .clear()
-        .roundRect(-6, -h - 12, w, h, 9)
-        .fill({ color: 0xf3f5f8, alpha: 0.97 })
-        .stroke({ width: 1, color: 0xcbd3dd });
-      this.bubbleBg.circle(0, -8, 3).fill({ color: 0xf3f5f8, alpha: 0.97 });
-      this.bubbleBg.circle(4, -4, 2).fill({ color: 0xf3f5f8, alpha: 0.97 });
-    }
   }
 }
+
+// Static cache for spritesheet
+Character._spriteSheet = null;
+
+export default Character;

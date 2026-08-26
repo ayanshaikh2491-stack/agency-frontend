@@ -18,15 +18,11 @@ import { Character } from "./character";
 import { makeGrid } from "./pathfinding";
 import { buildTileTextures, T } from "./tiles";
 
-// Munder-style living office floor.
-// Pixel-tile office (wood floors, walls with doorways, plants, coffee corner)
-// + walking pixel-human characters routed by A* around furniture and walls.
+// Munder-style living office floor with real spritesheet characters.
 export default function OfficeFloor({ onSelectCeo, liveState }) {
   const ref = useRef(null);
   const liveRef = useRef(null);
 
-  // Keep the latest live state available to the Pixi ticker without
-  // re-running the init effect.
   useEffect(() => {
     liveRef.current = liveState;
   }, [liveState]);
@@ -49,8 +45,6 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
         return;
       }
       ref.current.appendChild(app.canvas);
-      // ponytail: unmount can land mid-async-init (slow networks) — bail
-      // out cleanly instead of half-configuring a destroyed renderer
       if (destroyed) {
         app.destroy(true);
         return;
@@ -88,12 +82,12 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
           const s = new Sprite(tex.wallTop);
           s.x = col * T;
           s.y = row * T;
-          s.alpha = 0.65; // see-through so agents behind walls are visible
+          s.alpha = 0.65;
           wallC.addChild(s);
         }
       }
 
-      // ── Decor layer (plants, boards, coffee, mat) ───────────
+      // ── Decor layer ─────────────────────────────────────────
       const decorC = new Container();
       app.stage.addChild(decorC);
       for (const d of DECOR) {
@@ -123,7 +117,7 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
       const furniture = new Container();
       app.stage.addChild(furniture);
 
-      // meeting rug under the table
+      // meeting rug
       for (let row = RUG.r0; row < RUG.r1; row++) {
         for (let col = RUG.c0; col < RUG.c1; col++) {
           const s = new Sprite(tex.rug);
@@ -133,7 +127,7 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
         }
       }
 
-      const deskMonitors = {}; // castId -> monitor Graphics (visible while coding)
+      const deskMonitors = {};
       for (const m of OFFICE_CAST) {
         const d = deskRectFor(m);
         const g = new Graphics();
@@ -144,7 +138,6 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
         furniture.addChild(g);
 
         if (!m.isGod) {
-          // desktop PC on this desk — shown only while the agent is coding
           const mon = new Graphics();
           mon.roundRect(d.x + 26, d.y - 22, 40, 26, 3).fill(0x10141a)
             .stroke({ width: 2, color: 0x4ea1ff });
@@ -155,7 +148,6 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
           deskMonitors[m.id] = mon;
         }
 
-        // office chair at each workstation
         const ch = new Graphics();
         ch.circle(m.desk.x, m.desk.y + 40, 9).fill(0x27313d)
           .stroke({ width: 2, color: 0x3a4756 });
@@ -180,7 +172,6 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
         }
       }
 
-      // meeting table on the rug
       const mt = new Graphics();
       mt.roundRect(
         STATIONS.meeting.x - 72,
@@ -194,7 +185,6 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
       furniture.addChild(mt);
 
       // ── Characters ─────────────────────────────────────────
-      // collision grid: walls + furniture so agents route through doorways
       const blockers = [
         ...wallRects(),
         ...OFFICE_CAST.map((m) => deskRectFor(m)),
@@ -212,6 +202,7 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
             desk: m.desk,
             isGod: m.isGod,
             grid,
+            spriteRow: m.spriteRow,
           })
       );
       const charLayer = new Container();
@@ -230,7 +221,6 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
         for (const c of chars) {
           const f = fmap[c.id];
           const active = f?.status === "working" || f?.status === "thinking";
-          // coders work at their desktop PC; everyone else on a laptop
           const coding = !!active && (c.id === "website" || CODE_RE.test(f?.task || ""));
           c.showDesktop = coding;
           if (deskMonitors[c.id]) deskMonitors[c.id].visible = coding && c.state !== "walking";
@@ -240,18 +230,15 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
       app.ticker.add(tick);
     })();
 
-    building?.catch(() => {}); // never leak an unhandled rejection
+    building?.catch(() => {});
 
     return () => {
       destroyed = true;
       const teardown = () => {
         try {
           app?.destroy(true);
-        } catch {
-          /* already gone */
-        }
+        } catch { /* already gone */ }
       };
-      // wait for a still-running init before destroying the renderer
       if (building) building.then(teardown, teardown);
       else teardown();
     };
