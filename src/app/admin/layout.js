@@ -240,16 +240,22 @@ function SidebarNav() {
 /* ─── Layout Content ─── */
 function LayoutContent({ children }) {
   const { selectedCompanyId } = useCompany()
+  const pathname = usePathname()
+  const isOffice = pathname === "/admin/office" || pathname.startsWith("/admin/office/")
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      {/* ClientSwitcher renders Col 1 (strip) + Col 2 (sidebar header + children) */}
-      <ClientSwitcher>
-        <SidebarNav />
-      </ClientSwitcher>
+      {!isOffice && (
+        <>
+          {/* ClientSwitcher renders Col 1 (strip) + Col 2 (sidebar header + children) */}
+          <ClientSwitcher>
+            <SidebarNav />
+          </ClientSwitcher>
+        </>
+      )}
 
       {/* Main viewport with fade transition on client change */}
-      <main className="flex-1 flex flex-col overflow-hidden min-w-0">
+      <main className={`flex-1 flex flex-col overflow-hidden min-w-0 ${isOffice ? 'w-full' : ''}`}>
         <AnimatePresence mode="wait">
           <motion.div
             key={selectedCompanyId || 'default'}
@@ -259,7 +265,7 @@ function LayoutContent({ children }) {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.18, ease: 'easeInOut' }}
           >
-            <div className="max-w-[1400px] mx-auto w-full p-6">
+            <div className={`max-w-[1400px] mx-auto w-full p-6 ${isOffice ? 'p-0 max-w-none' : ''}`}>
               {children}
             </div>
           </motion.div>
