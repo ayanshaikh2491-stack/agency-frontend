@@ -77,7 +77,9 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
       }
 
       // Characters
+      console.log("Creating characters...");
       const blockers = buildBlockersFromTilemap(tilemapData);
+      console.log("Blockers:", blockers.length);
       const grid = makeGrid(blockers);
       const chars = OFFICE_CAST.map(
         (m) =>
@@ -92,6 +94,7 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
             spriteIndex: m.spriteRow,
           })
       );
+      console.log("Characters created:", chars.length);
 
       const charLayer = new Container();
       charLayer.name = "characters";
