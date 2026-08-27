@@ -1,6 +1,7 @@
 // src/app/admin/office/character.js
 // Munder-style character using AI Town's 32x32folk.png spritesheet
 // PixiJS v8 — AnimatedSprite with proper spritesheet parsing
+// v2024-08-27: force rebuild for Vercel cache bust
 
 import { Container, AnimatedSprite, Graphics, Text, Spritesheet, Texture, SCALE_MODES, Assets } from "pixi.js";
 import { STATIONS } from "./rooms";
