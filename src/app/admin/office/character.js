@@ -85,16 +85,17 @@ export class Character {
   }
 
   async _build() {
-    // Load shared spritesheet once
-    if (!_sharedSpriteSheet) {
-      const data = await (await fetch(SPRITESHEET_JSON)).json();
-      const texture = await Assets.load(TEXTURE_URL);
-      texture.source.scaleMode = "nearest";
-      const sheet = new Spritesheet(texture.baseTexture, data);
-      await sheet.parse();
-      _sharedSpriteSheet = sheet;
-    }
-    this.spriteSheet = _sharedSpriteSheet;
+    try {
+      // Load shared spritesheet once
+      if (!_sharedSpriteSheet) {
+        const data = await (await fetch(SPRITESHEET_JSON)).json();
+        const texture = await Assets.load(TEXTURE_URL);
+        texture.source.scaleMode = "nearest";
+        const sheet = new Spritesheet(texture, data);
+        await sheet.parse();
+        _sharedSpriteSheet = sheet;
+      }
+      this.spriteSheet = _sharedSpriteSheet;
 
     // glow
     this.glow = new Graphics();
@@ -156,6 +157,9 @@ export class Character {
     if (this.isGod) {
       this.crown = new Graphics();
       this.rig.addChild(this.crown);
+    }
+    } catch (e) {
+      console.error("Character._build failed:", e);
     }
   }
 
