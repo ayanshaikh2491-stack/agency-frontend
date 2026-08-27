@@ -81,7 +81,6 @@ export class Character {
 
     this.view = new Container();
     this._build();
-    this._applyTransform(0, false);
   }
 
   async _build() {
@@ -266,6 +265,7 @@ export class Character {
   }
 
   _applyTransform(dt, moving) {
+    if (!this.anim) return; // spritesheet still loading
     this.view.x = this.pos.x; this.view.y = this.pos.y;
     this.rig.scale.x = this.facing === 2 ? -1 : 1;
 
