@@ -3,11 +3,12 @@
 // PixiJS v8 — AnimatedSprite with proper spritesheet parsing
 // v2024-08-27: force rebuild for Vercel cache bust
 
-import { Container, AnimatedSprite, Graphics, Text, Spritesheet, Texture, SCALE_MODES, Assets } from "pixi.js";
+import { Container, AnimatedSprite, Graphics, Text, Spritesheet, Texture, Assets } from "pixi.js";
 import { STATIONS } from "./rooms";
 import { findPath } from "./pathfinding";
 
 // Visual tuning
+const SPEED = 140; // px per second
 const WALK_BOB_AMP = 3.0;
 const IDLE_BOB_AMP = 0.4;
 const SIT_SINK = 8;
@@ -88,7 +89,7 @@ export class Character {
     if (!_sharedSpriteSheet) {
       const data = await (await fetch(SPRITESHEET_JSON)).json();
       const texture = await Assets.load(TEXTURE_URL);
-      texture.baseTexture.scaleMode = SCALE_MODES.NEAREST;
+      texture.source.scaleMode = "nearest";
       const sheet = new Spritesheet(texture.baseTexture, data);
       await sheet.parse();
       _sharedSpriteSheet = sheet;
