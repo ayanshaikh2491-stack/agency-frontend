@@ -1,198 +1,78 @@
 "use client";
-import { useEffect, useRef } from "react";
-import { Application, Graphics, Text, Container, Sprite } from "pixi.js";
-import {
-  ROOMS,
-  WORLD,
-  STATIONS,
-  COLORS,
-  deskRectFor,
-  wallRects,
-  isWallCell,
-  DECOR,
-  COFFEE_BLOCKER,
-  RUG,
-} from "./rooms";
-import { OFFICE_CAST } from "./cast";
+import { useEffect, useRef, useState } from "react";
+import { Application, Graphics, Text, Container, Sprite, TilingSprite, Texture, Rectangle } from "pixi.js";
 import { Character } from "./character";
 import { makeGrid } from "./pathfinding";
-import { buildTileTextures, T } from "./tiles";
+import { OFFICE_CAST } from "./cast";
+import { STATIONS } from "./rooms";
 
-// Munder-style living office floor with real spritesheet characters.
+// Tilemap configuration
+const TILE_SIZE = 16; // AI Town uses 16px tiles
+const MAP_WIDTH = 40;
+const MAP_HEIGHT = 40;
+const WORLD_W = MAP_WIDTH * TILE_SIZE;
+const WORLD_H = MAP_HEIGHT * TILE_SIZE;
+
+// Layer rendering order (bottom to top)
+const LAYER_ORDER = ["terrain", "objects", "objects2", "details", "collision"];
+
 export default function OfficeFloor({ onSelectCeo, liveState }) {
   const ref = useRef(null);
-  const liveRef = useRef(null);
+  const liveRef = useRef(liveState);
+  const [assetsLoaded, setAssetsLoaded] = useState(false);
 
-  useEffect(() => {
-    liveRef.current = liveState;
-  }, [liveState]);
+  liveRef.current = liveState;
 
   useEffect(() => {
     let app;
     let destroyed = false;
     let building = null;
+    let tilemapData = null;
+    let tilesetTexture = null;
+    let chars = [];
 
     building = (async () => {
       app = new Application();
       await app.init({
-        width: WORLD.w,
-        height: WORLD.h,
-        background: "#0b0d11",
+        width: WORLD_W,
+        height: WORLD_H,
+        background: "#1a1a2e",
         antialias: false,
+        resolution: window.devicePixelRatio || 1,
+        autoDensity: true,
       });
-      if (destroyed) {
-        app.destroy(true);
-        return;
-      }
+      if (destroyed) { app.destroy(true); return; }
       ref.current.appendChild(app.canvas);
-      if (destroyed) {
-        app.destroy(true);
-        return;
-      }
+      if (destroyed) { app.destroy(true); return; }
       app.stage.eventMode = "static";
       app.stage.hitArea = app.screen;
 
-      const tex = buildTileTextures(app.renderer);
-      const cols = Math.ceil(WORLD.w / T);
-      const rows = Math.ceil(WORLD.h / T);
+      // Load assets
+      try {
+        // Load tilemap
+        const tilemapRes = await fetch("/office/sprites/tilemap.json");
+        tilemapData = await tilemapRes.json();
 
-      // ── Floor layer ─────────────────────────────────────────
-      const floorC = new Container();
-      app.stage.addChild(floorC);
-      for (let row = 0; row < rows; row++) {
-        for (let col = 0; col < cols; col++) {
-          let tname;
-          if (col < 38) tname = "wood";
-          else if (row <= 15) tname = "carpet";
-          else if (row >= 17 && row <= 23) tname = "meet";
-          else tname = "cafe";
-          const s = new Sprite(tex[tname]);
-          s.x = col * T;
-          s.y = row * T;
-          floorC.addChild(s);
-        }
+        // Load tileset
+        const tilesetBaseTexture = await import("pixi.js").then(m => m.Assets.load("/office/sprites/rpg-tileset.png"));
+        tilesetTexture = tilesetBaseTexture;
+        tilesetTexture.baseTexture.scaleMode = "nearest";
+
+        // Build the world
+        await buildWorld(app, tilemapData, tilesetTexture);
+        setAssetsLoaded(true);
+
+      } catch (e) {
+        console.error("Asset load failed:", e);
+        // Fallback to procedural
+        await buildFallbackWorld(app);
+        setAssetsLoaded(true);
       }
 
-      // ── Wall layer ──────────────────────────────────────────
-      const wallC = new Container();
-      app.stage.addChild(wallC);
-      for (let row = 0; row < rows; row++) {
-        for (let col = 0; col < cols; col++) {
-          if (!isWallCell(col, row)) continue;
-          const s = new Sprite(tex.wallTop);
-          s.x = col * T;
-          s.y = row * T;
-          s.alpha = 0.65;
-          wallC.addChild(s);
-        }
-      }
-
-      // ── Decor layer ─────────────────────────────────────────
-      const decorC = new Container();
-      app.stage.addChild(decorC);
-      for (const d of DECOR) {
-        const s = new Sprite(tex[d.tile]);
-        s.x = d.col * T;
-        s.y = d.row * T;
-        decorC.addChild(s);
-      }
-
-      // Room labels
-      for (const r of ROOMS) {
-        const lbl = new Text({
-          text: r.label,
-          style: {
-            fill: r.labelColor,
-            fontSize: 13,
-            fontWeight: "700",
-            fontFamily: "Inter, system-ui, sans-serif",
-          },
-        });
-        lbl.x = r.x + 12;
-        lbl.y = r.y + r.h - 24;
-        app.stage.addChild(lbl);
-      }
-
-      // ── Furniture layer ─────────────────────────────────────
-      const furniture = new Container();
-      app.stage.addChild(furniture);
-
-      // meeting rug
-      for (let row = RUG.r0; row < RUG.r1; row++) {
-        for (let col = RUG.c0; col < RUG.c1; col++) {
-          const s = new Sprite(tex.rug);
-          s.x = col * T;
-          s.y = row * T;
-          furniture.addChild(s);
-        }
-      }
-
-      const deskMonitors = {};
-      for (const m of OFFICE_CAST) {
-        const d = deskRectFor(m);
-        const g = new Graphics();
-        g.roundRect(d.x, d.y, d.w, d.h, 8)
-          .fill(0x4a3a28)
-          .stroke({ width: 2, color: 0x63503a });
-        g.rect(d.x + 4, d.y + 2, d.w - 8, 5).fill({ color: 0x5c4936 });
-        furniture.addChild(g);
-
-        if (!m.isGod) {
-          const mon = new Graphics();
-          mon.roundRect(d.x + 26, d.y - 22, 40, 26, 3).fill(0x10141a)
-            .stroke({ width: 2, color: 0x4ea1ff });
-          mon.rect(d.x + 43, d.y + 4, 6, 5).fill(0x39424e);
-          mon.rect(d.x + 36, d.y + 9, 20, 3, 1.5).fill(0x39424e);
-          mon.visible = false;
-          furniture.addChild(mon);
-          deskMonitors[m.id] = mon;
-        }
-
-        const ch = new Graphics();
-        ch.circle(m.desk.x, m.desk.y + 40, 9).fill(0x27313d)
-          .stroke({ width: 2, color: 0x3a4756 });
-        furniture.addChild(ch);
-
-        const t = new Text({
-          text: m.displayName,
-          style: {
-            fill: 0xcfd8e3,
-            fontSize: 11,
-            fontWeight: "700",
-            fontFamily: "Inter, system-ui, sans-serif",
-          },
-        });
-        t.x = d.x + 8;
-        t.y = d.y + d.h + 2;
-        furniture.addChild(t);
-        if (m.isGod) {
-          g.eventMode = "static";
-          g.cursor = "pointer";
-          g.on("pointerdown", () => onSelectCeo && onSelectCeo());
-        }
-      }
-
-      const mt = new Graphics();
-      mt.roundRect(
-        STATIONS.meeting.x - 72,
-        STATIONS.meeting.y - 26,
-        144,
-        52,
-        10
-      )
-        .fill(0x50412e)
-        .stroke({ width: 2, color: 0x6a5740 });
-      furniture.addChild(mt);
-
-      // ── Characters ─────────────────────────────────────────
-      const blockers = [
-        ...wallRects(),
-        ...OFFICE_CAST.map((m) => deskRectFor(m)),
-        { x: STATIONS.meeting.x - 72, y: STATIONS.meeting.y - 26, w: 144, h: 52 },
-        COFFEE_BLOCKER,
-      ];
+      // Characters
+      const blockers = buildBlockersFromTilemap(tilemapData);
       const grid = makeGrid(blockers);
-      const chars = OFFICE_CAST.map(
+      chars = OFFICE_CAST.map(
         (m) =>
           new Character({
             id: m.id,
@@ -205,11 +85,18 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
             spriteIndex: m.spriteRow,
           })
       );
+
       const charLayer = new Container();
+      charLayer.name = "characters";
       app.stage.addChild(charLayer);
       for (const c of chars) charLayer.addChild(c.view);
 
-      // ── Live ticker ────────────────────────────────────────
+      // Depth sorting - sort characters by Y position each frame
+      const sortCharacters = () => {
+        charLayer.children.sort((a, b) => (a.y || 0) - (b.y || 0));
+      };
+
+      // Live ticker
       const CODE_RE = /build|code|site|web|landing|deploy|page/i;
       const tick = (ticker) => {
         const dt = Math.min(0.05, ticker.deltaMS / 1000);
@@ -221,13 +108,14 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
         for (const c of chars) {
           const f = fmap[c.id];
           const active = f?.status === "working" || f?.status === "thinking";
-          const coding = !!active && (c.id === "website" || CODE_RE.test(f?.task || ""));
+          const coding = !!active && (c.id === "website" || /build|code|site|web|landing|deploy|page/i.test(f?.task || ""));
           c.showDesktop = coding;
-          if (deskMonitors[c.id]) deskMonitors[c.id].visible = coding && c.state !== "walking";
           c.update(dt, { status: f?.status, task: f?.task });
         }
+        sortCharacters();
       };
       app.ticker.add(tick);
+
     })();
 
     building?.catch(() => {});
@@ -235,9 +123,7 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
     return () => {
       destroyed = true;
       const teardown = () => {
-        try {
-          app?.destroy(true);
-        } catch { /* already gone */ }
+        try { app?.destroy(true); } catch { /* already gone */ }
       };
       if (building) building.then(teardown, teardown);
       else teardown();
@@ -248,12 +134,132 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
     <div
       ref={ref}
       style={{
-        width: WORLD.w,
+        width: WORLD_W,
         maxWidth: "100%",
         borderRadius: 12,
         overflow: "hidden",
         border: "1px solid var(--office-border)",
+        background: "#1a1a2e",
       }}
     />
   );
+}
+
+async function buildWorld(app, tilemapData, tilesetTexture) {
+  const { Container, Sprite, TilingSprite, Graphics, Text } = await import("pixi.js");
+  const TILE = 16;
+
+  // Create layer containers in order
+  const layers = {};
+  for (const layerName of LAYER_ORDER) {
+    layers[layerName] = new Container();
+    layers[layerName].name = layerName;
+    app.stage.addChild(layers[layerName]);
+  }
+
+  // Parse tileset into individual textures
+  const frameWidth = 16;
+  const frameHeight = 16;
+  const sheetCols = Math.floor(tilesetTexture.width / frameWidth);
+  const sheetRows = Math.floor(tilesetTexture.height / frameHeight);
+  const textures = {};
+
+  for (let row = 0; row < sheetRows; row++) {
+    for (let col = 0; col < sheetCols; col++) {
+      const gid = row * sheetCols + col + 1;
+      const frame = new Rectangle(col * frameWidth, row * frameHeight, frameWidth, frameHeight);
+      textures[gid] = new Texture(tilesetTexture, frame);
+    }
+  }
+
+  // Render each layer from tilemap
+  for (const layer of tilemapData.layers) {
+    if (!layer.visible || layer.type !== "tilelayer") continue;
+    const targetLayer = layers[layer.name] || layers.details;
+    const data = layer.data;
+    const width = layer.width;
+
+    for (let i = 0; i < data.length; i++) {
+      const gid = data[i];
+      if (gid === 0 || !textures[gid]) continue;
+      const col = i % width;
+      const row = Math.floor(i / width);
+      const sprite = new Sprite(textures[gid]);
+      sprite.x = col * 16;
+      sprite.y = row * 16;
+      targetLayer.addChild(sprite);
+    }
+  }
+
+  // Add collision layer for pathfinding (from collision layer or object layer)
+  const roomLabels = [
+    { name: "Open Office", x: 50, y: 600, color: 0x88ccff },
+    { name: "Michael's Office", x: 650, y: 200, color: 0xffd700 },
+    { name: "Meeting Room", x: 650, y: 400, color: 0x88ccff },
+    { name: "Cafeteria", x: 650, y: 580, color: 0xffaa00 },
+  ];
+  for (const r of roomLabels) {
+    const lbl = new Text({
+      text: r.name,
+      style: { fill: r.color, fontSize: 12, fontWeight: "700", fontFamily: "monospace", stroke: { color: 0x000000, width: 2 } },
+    });
+    lbl.x = r.x;
+    lbl.y = r.y;
+    app.stage.addChild(lbl);
+  }
+
+  // Add subtle lighting overlay
+  const lighting = new Graphics();
+  lighting.rect(0, 0, WORLD_W, WORLD_H).fill({ color: 0x000000, alpha: 0.15 });
+  app.stage.addChild(lighting);
+}
+
+function buildFallbackWorld(app) {
+  // Simple procedural fallback
+  const { Container, Graphics, Sprite } = require("pixi.js");
+  const TILE = 20;
+  const floor = new Container();
+  app.stage.addChild(floor);
+  for (let row = 0; row < 34; row++) {
+    for (let col = 0; col < 55; col++) {
+      const g = new Graphics();
+      g.rect(col * TILE, row * TILE, TILE, TILE).fill(col < 38 ? 0x8a6642 : 0x23262e);
+      floor.addChild(g);
+    }
+  }
+}
+
+function buildBlockersFromTilemap(tilemapData) {
+  const blockers = [];
+  const TILE = 16;
+  
+  if (!tilemapData) return [
+    { x: 0, y: 0, w: WORLD_W, h: TILE }, // top
+    { x: 0, y: WORLD_H - TILE, w: WORLD_W, h: TILE }, // bottom
+    { x: 0, y: 0, w: TILE, h: WORLD_H }, // left
+    { x: WORLD_W - TILE, y: 0, w: TILE, h: WORLD_H }, // right
+  ];
+
+  // Use collision layer or object layer for blockers
+  for (const layer of tilemapData.layers) {
+    if (layer.name === "collision" || layer.properties?.some?.(p => p.name === "collides" && p.value)) {
+      const data = layer.data;
+      const width = layer.width;
+      for (let i = 0; i < data.length; i++) {
+        if (data[i] > 0) {
+          const col = i % width;
+          const row = Math.floor(i / width);
+          blockers.push({ x: col * TILE, y: row * TILE, w: TILE, h: TILE });
+        }
+      }
+    }
+  }
+  // Merge adjacent blockers
+  return mergeBlockers(blockers);
+}
+
+function mergeBlockers(blockers) {
+  if (!blockers.length) return blockers;
+  // Simple merge - just return as-is for now
+  return blockers;
 }
