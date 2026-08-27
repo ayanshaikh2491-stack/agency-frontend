@@ -3,7 +3,7 @@
 // PixiJS v8 — AnimatedSprite with proper spritesheet parsing
 // v2024-08-27: force rebuild for Vercel cache bust
 
-import { Container, AnimatedSprite, Graphics, Text, Spritesheet, Texture, Assets } from "pixi.js";
+import { Container, AnimatedSprite, Graphics, Text, Spritesheet, Texture } from "pixi.js";
 import { STATIONS } from "./rooms";
 import { findPath } from "./pathfinding";
 
@@ -35,6 +35,17 @@ function hashStr(s) {
 
 const TEXTURE_URL = "/office/sprites/32x32folk.png";
 const SPRITESHEET_JSON = "/office/sprites/spritesheetData.json";
+
+// Load an image as a PixiJS texture via a plain Image element (robust; always fires a real request)
+function loadTexture(url) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => resolve(Texture.from(img));
+    img.onerror = () => reject(new Error("image load failed: " + url));
+    img.src = url;
+  });
+}
 
 // Spritesheet cache
 let _sharedSpriteSheet = null;
@@ -89,7 +100,7 @@ export class Character {
       // Load shared spritesheet once
       if (!_sharedSpriteSheet) {
         const data = await (await fetch(SPRITESHEET_JSON)).json();
-        const texture = await Assets.load(TEXTURE_URL);
+        const texture = await loadTexture(TEXTURE_URL);
         texture.source.scaleMode = "nearest";
         const sheet = new Spritesheet(texture, data);
         await sheet.parse();
