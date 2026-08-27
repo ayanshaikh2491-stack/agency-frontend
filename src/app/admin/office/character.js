@@ -37,7 +37,7 @@ const TEXTURE_URL = "/office/sprites/32x32folk.png";
 const SPRITESHEET_JSON = "/office/sprites/spritesheetData.json";
 
 // Load an image as a PixiJS texture via a plain Image element (robust; always fires a real request)
-function loadTexture(url) {
+export function loadTexture(url) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.crossOrigin = "anonymous";

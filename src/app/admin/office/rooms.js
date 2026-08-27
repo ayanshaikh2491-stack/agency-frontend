@@ -3,7 +3,7 @@
 // Pure data: the scene (OfficeFloor) reads these to draw rooms and to place
 // desks / stations. Characters walk between these coordinates.
 
-export const WORLD = { w: 1100, h: 680 };
+export const WORLD = { w: 1280, h: 960 };
 
 // Rooms are drawn as filled rectangles with a label + divider walls.
 export const ROOMS = [
@@ -14,10 +14,11 @@ export const ROOMS = [
 ];
 
 // Shared stations characters walk to (besides their own desk).
+// Coordinates are in the SkyOffice 1280x960 office space.
 export const STATIONS = {
-  entrance:  { x: 44,  y: 648, label: "Entrance" },
-  cafeteria: { x: 940, y: 600, label: "Coffee" },
-  meeting:   { x: 930, y: 425, label: "Table" },
+  entrance:  { x: 640, y: 560, label: "Entrance" },
+  cafeteria: { x: 1180, y: 560, label: "Coffee" },
+  meeting:   { x: 930, y: 200, label: "Table" },
 };
 
 // Floor / wall accent colors
