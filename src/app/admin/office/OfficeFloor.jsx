@@ -63,7 +63,7 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
         const { Assets, Texture, Rectangle, BaseTexture, Spritesheet } = await import("pixi.js");
         const tilesetBaseTexture = await Assets.load("/office/sprites/rpg-tileset.png");
         const tilesetTexture = tilesetBaseTexture;
-        tilesetTexture.baseTexture.scaleMode = "nearest";
+        tilesetTexture.source.scaleMode = "nearest";
         console.log("Tileset loaded:", tilesetTexture.width, "x", tilesetTexture.height);
 
         // Build the world
@@ -97,7 +97,7 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
       console.log("Characters created:", chars.length);
 
       const charLayer = new Container();
-      charLayer.name = "characters";
+      charLayer.label = "characters";
       app.stage.addChild(charLayer);
       for (const c of chars) charLayer.addChild(c.view);
 
@@ -163,7 +163,7 @@ async function buildWorld(app, tilemapData, tilesetTexture) {
   const layers = {};
   for (const layerName of LAYER_ORDER) {
     layers[layerName] = new Container();
-    layers[layerName].name = layerName;
+    layers[layerName].label = layerName;
     app.stage.addChild(layers[layerName]);
   }
 
@@ -183,7 +183,6 @@ async function buildWorld(app, tilemapData, tilesetTexture) {
       textures[gid] = new Texture(tilesetTexture, frame);
     }
   }
-  console.log("Generated", Object.keys(textures).length, "textures");
 
   // Render each layer from tilemap
   let spriteCount = 0;
@@ -193,7 +192,6 @@ async function buildWorld(app, tilemapData, tilesetTexture) {
     const data = layer.data;
     const width = layer.width;
 
-    let layerSpriteCount = 0;
     for (let i = 0; i < data.length; i++) {
       const gid = data[i];
       if (gid === 0 || !textures[gid]) continue;
@@ -203,12 +201,9 @@ async function buildWorld(app, tilemapData, tilesetTexture) {
       sprite.x = col * 16;
       sprite.y = row * 16;
       targetLayer.addChild(sprite);
-      layerSpriteCount++;
       spriteCount++;
     }
-    console.log("Layer", layer.name, ":", layerSpriteCount, "sprites");
   }
-  console.log("Total sprites rendered:", spriteCount);
 
   // Add room labels
   const roomLabels = [
