@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { Application, Graphics, Text, Container, Sprite, TilingSprite, Texture, Rectangle } from "pixi.js";
+import { Application, Graphics, Text, Container, Sprite, Texture, Rectangle } from "pixi.js";
 import { Character } from "./character";
 import { makeGrid } from "./pathfinding";
 import { OFFICE_CAST } from "./cast";
@@ -19,7 +19,6 @@ const LAYER_ORDER = ["terrain", "objects", "objects2", "details", "collision"];
 export default function OfficeFloor({ onSelectCeo, liveState }) {
   const ref = useRef(null);
   const liveRef = useRef(liveState);
-  const [assetsLoaded, setAssetsLoaded] = useState(false);
 
   liveRef.current = liveState;
 
@@ -40,6 +39,7 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
         antialias: false,
         resolution: window.devicePixelRatio || 1,
         autoDensity: true,
+        preference: "webgl",
       });
       if (destroyed) { app.destroy(true); return; }
       ref.current.appendChild(app.canvas);
@@ -47,32 +47,39 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
       app.stage.eventMode = "static";
       app.stage.hitArea = app.screen;
 
+      console.log("OfficeFloor: App initialized, canvas:", app.canvas.width, "x", app.canvas.height);
+
       // Load assets
       try {
         // Load tilemap
+        console.log("Loading tilemap...");
         const tilemapRes = await fetch("/office/sprites/tilemap.json");
+        if (!tilemapRes.ok) throw new Error("Failed to fetch tilemap");
         tilemapData = await tilemapRes.json();
+        console.log("Tilemap loaded, layers:", tilemapData.layers?.length);
 
         // Load tileset
-        const tilesetBaseTexture = await import("pixi.js").then(m => m.Assets.load("/office/sprites/rpg-tileset.png"));
-        tilesetTexture = tilesetBaseTexture;
+        console.log("Loading tileset...");
+        const { Assets, Texture, Rectangle, BaseTexture, Spritesheet } = await import("pixi.js");
+        const tilesetBaseTexture = await Assets.load("/office/sprites/rpg-tileset.png");
+        const tilesetTexture = tilesetBaseTexture;
         tilesetTexture.baseTexture.scaleMode = "nearest";
+        console.log("Tileset loaded:", tilesetTexture.width, "x", tilesetTexture.height);
 
         // Build the world
         await buildWorld(app, tilemapData, tilesetTexture);
-        setAssetsLoaded(true);
+        console.log("World built successfully");
 
       } catch (e) {
         console.error("Asset load failed:", e);
         // Fallback to procedural
         await buildFallbackWorld(app);
-        setAssetsLoaded(true);
       }
 
       // Characters
       const blockers = buildBlockersFromTilemap(tilemapData);
       const grid = makeGrid(blockers);
-      chars = OFFICE_CAST.map(
+      const chars = OFFICE_CAST.map(
         (m) =>
           new Character({
             id: m.id,
@@ -118,7 +125,7 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
 
     })();
 
-    building?.catch(() => {});
+    building?.catch((e) => console.error("Building failed:", e));
 
     return () => {
       destroyed = true;
@@ -146,7 +153,7 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
 }
 
 async function buildWorld(app, tilemapData, tilesetTexture) {
-  const { Container, Sprite, TilingSprite, Graphics, Text } = await import("pixi.js");
+  const { Container, Sprite, Graphics, Text, Texture, Rectangle } = await import("pixi.js");
   const TILE = 16;
 
   // Create layer containers in order
@@ -164,6 +171,8 @@ async function buildWorld(app, tilemapData, tilesetTexture) {
   const sheetRows = Math.floor(tilesetTexture.height / frameHeight);
   const textures = {};
 
+  console.log("Tileset:", tilesetTexture.width, "x", tilesetTexture.height, "cols:", sheetCols, "rows:", sheetRows);
+
   for (let row = 0; row < sheetRows; row++) {
     for (let col = 0; col < sheetCols; col++) {
       const gid = row * sheetCols + col + 1;
@@ -171,14 +180,17 @@ async function buildWorld(app, tilemapData, tilesetTexture) {
       textures[gid] = new Texture(tilesetTexture, frame);
     }
   }
+  console.log("Generated", Object.keys(textures).length, "textures");
 
   // Render each layer from tilemap
+  let spriteCount = 0;
   for (const layer of tilemapData.layers) {
     if (!layer.visible || layer.type !== "tilelayer") continue;
     const targetLayer = layers[layer.name] || layers.details;
     const data = layer.data;
     const width = layer.width;
 
+    let layerSpriteCount = 0;
     for (let i = 0; i < data.length; i++) {
       const gid = data[i];
       if (gid === 0 || !textures[gid]) continue;
@@ -188,10 +200,14 @@ async function buildWorld(app, tilemapData, tilesetTexture) {
       sprite.x = col * 16;
       sprite.y = row * 16;
       targetLayer.addChild(sprite);
+      layerSpriteCount++;
+      spriteCount++;
     }
+    console.log("Layer", layer.name, ":", layerSpriteCount, "sprites");
   }
+  console.log("Total sprites rendered:", spriteCount);
 
-  // Add collision layer for pathfinding (from collision layer or object layer)
+  // Add room labels
   const roomLabels = [
     { name: "Open Office", x: 50, y: 600, color: 0x88ccff },
     { name: "Michael's Office", x: 650, y: 200, color: 0xffd700 },
@@ -215,11 +231,9 @@ async function buildWorld(app, tilemapData, tilesetTexture) {
 }
 
 function buildFallbackWorld(app) {
-  // Simple procedural fallback
-  const { Container, Graphics, Sprite } = require("pixi.js");
-  const TILE = 20;
   const floor = new Container();
   app.stage.addChild(floor);
+  const TILE = 20;
   for (let row = 0; row < 34; row++) {
     for (let col = 0; col < 55; col++) {
       const g = new Graphics();
@@ -234,13 +248,12 @@ function buildBlockersFromTilemap(tilemapData) {
   const TILE = 16;
   
   if (!tilemapData) return [
-    { x: 0, y: 0, w: WORLD_W, h: TILE }, // top
-    { x: 0, y: WORLD_H - TILE, w: WORLD_W, h: TILE }, // bottom
-    { x: 0, y: 0, w: TILE, h: WORLD_H }, // left
-    { x: WORLD_W - TILE, y: 0, w: TILE, h: WORLD_H }, // right
+    { x: 0, y: 0, w: WORLD_W, h: TILE },
+    { x: 0, y: WORLD_H - TILE, w: WORLD_W, h: TILE },
+    { x: 0, y: 0, w: TILE, h: WORLD_H },
+    { x: WORLD_W - TILE, y: 0, w: TILE, h: WORLD_H },
   ];
 
-  // Use collision layer or object layer for blockers
   for (const layer of tilemapData.layers) {
     if (layer.name === "collision" || layer.properties?.some?.(p => p.name === "collides" && p.value)) {
       const data = layer.data;
@@ -254,12 +267,10 @@ function buildBlockersFromTilemap(tilemapData) {
       }
     }
   }
-  // Merge adjacent blockers
   return mergeBlockers(blockers);
 }
 
 function mergeBlockers(blockers) {
   if (!blockers.length) return blockers;
-  // Simple merge - just return as-is for now
   return blockers;
 }
