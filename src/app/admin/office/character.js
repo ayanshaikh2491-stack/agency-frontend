@@ -1,21 +1,18 @@
 // src/app/admin/office/character.js
-// Munder-style walking character — procedural pixel-human with smooth walk cycles.
-// No external images; frames generated each render for perfect crisp pixel art.
+// Munder-style character using AI Town's 32x32folk.png spritesheet
+// PixiJS v8 — AnimatedSprite with proper spritesheet parsing
 
-import { Container, Graphics, Text } from "pixi.js";
+import { Container, AnimatedSprite, Graphics, Text, Spritesheet, Texture, SCALE_MODES, Assets } from "pixi.js";
 import { STATIONS } from "./rooms";
 import { findPath } from "./pathfinding";
 
-const SPEED = 155; // px per second
-
 // Visual tuning
 const WALK_BOB_AMP = 3.0;
-const IDLE_BOB_AMP = 0.5;
-const LEG_SWING_X = 2.0;
-const LEG_LIFT_Y = 3.5;
-const ARM_SWING = 0.4;
-const TYPING_TAP = 0.14;
+const IDLE_BOB_AMP = 0.4;
 const SIT_SINK = 8;
+
+const HAIR_COLORS = [0x171a1f, 0x3a2a1c, 0x6b4423, 0xa56a35, 0x8c3330, 0x494f59];
+const SKIN = 0xf1c27d;
 
 function hexToNum(hex) {
   return parseInt(String(hex).replace("#", ""), 16);
@@ -34,8 +31,11 @@ function hashStr(s) {
   return h;
 }
 
-const HAIR_COLORS = [0x171a1f, 0x3a2a1c, 0x6b4423, 0xa56a35, 0x8c3330, 0x494f59];
-const SKIN = 0xf1c27d;
+const TEXTURE_URL = "/office/sprites/32x32folk.png";
+const SPRITESHEET_JSON = "/office/sprites/spritesheetData.json";
+
+// Spritesheet cache
+let _sharedSpriteSheet = null;
 
 export class Character {
   constructor({
@@ -46,13 +46,15 @@ export class Character {
     desk,
     isGod = false,
     grid = null,
+    spriteIndex = 0, // 0-7 for f1-f8 on the sheet
   }) {
     this.id = id;
     this.displayName = displayName;
-    this.shirt = typeof shirt === "string" ? parseInt(String(shirt).replace("#", ""), 16) : shirt;
+    this.shirt = typeof shirt === "string" ? hexToNum(shirt) : shirt;
     this.blurb = blurb;
     this.isGod = isGod;
     this.grid = grid || null;
+    this.spriteIndex = spriteIndex; // which character on the sheet (0-7)
 
     this.homeDesk = { x: desk.x, y: desk.y + 38 };
     this.pos = { x: STATIONS.entrance.x, y: STATIONS.entrance.y };
@@ -76,13 +78,23 @@ export class Character {
     this.pants = shadeNum(this.shirtNum, 0.45);
     this.hair = HAIR_COLORS[hashStr(String(id ?? "")) % HAIR_COLORS.length];
 
-    // Pixi setup
     this.view = new Container();
     this._build();
     this._applyTransform(0, false);
   }
 
-  _build() {
+  async _build() {
+    // Load shared spritesheet once
+    if (!_sharedSpriteSheet) {
+      const data = await (await fetch(SPRITESHEET_JSON)).json();
+      const texture = await Assets.load(TEXTURE_URL);
+      texture.baseTexture.scaleMode = SCALE_MODES.NEAREST;
+      const sheet = new Spritesheet(texture.baseTexture, data);
+      await sheet.parse();
+      _sharedSpriteSheet = sheet;
+    }
+    this.spriteSheet = _sharedSpriteSheet;
+
     // glow
     this.glow = new Graphics();
     this.glow.circle(0, 0, 36).fill({ color: this.isGod ? 0xf4d35e : 0x4ea1ff, alpha: 0 });
@@ -96,13 +108,23 @@ export class Character {
     shadow.ellipse(0, 20, 16, 5).fill({ color: 0x000000, alpha: 0.3 });
     this.rig.addChild(shadow);
 
-    // body container (sinks when sitting)
     this.body = new Container();
     this.rig.addChild(this.body);
 
-    // persistent outline
+    // AnimatedSprite using the shared spritesheet
+    // The sheet has animations: down, left, right, up, sit
+    this.anim = new AnimatedSprite({
+      textures: this.spriteSheet.animations.down,
+      animationSpeed: 0.15,
+      anchor: { x: 0.5, y: 0.5 },
+      scale: 1.5,
+    });
+    this.anim.play();
+    this.body.addChild(this.anim);
+
+    // outline
     this.outline = new Graphics();
-    this.rig.addChild(this.outline);
+    this.body.addChild(this.outline);
 
     // dust
     this.dust = new Container();
@@ -124,7 +146,7 @@ export class Character {
     this.nameTag.y = -34;
     this.view.addChild(this.nameTag);
 
-    // conversation bubbles
+    // bubbles
     this.bubble = new Container();
     this.bubble.visible = false;
     this.view.addChild(this.bubble);
@@ -252,86 +274,30 @@ export class Character {
 
     const atHome = Math.hypot(this.homeDesk.x - this.pos.x, this.homeDesk.y - this.pos.y) < 4;
     this.sitting = !moving && atHome && this.state === "working";
-    const ease = Math.min(1, dt * 10);
-    this.body.y += ((this.sitting ? SIT_SINK : 0) - this.body.y) * ease;
 
-    // ---- DRAW BODY EACH FRAME (procedural pixel human) ----
-    this.body.removeChildren();
+    // Update AnimatedSprite based on facing and state
+    const dirNames = ["right", "down", "left", "up"];
+    const dirName = dirNames[this.facing] || "down";
+    const isSitting = this.sitting && this.state === "working";
 
-    const shirt = this.shirtNum;
-    const pants = this.pants;
-    const hair = this.hair;
-    const facingRight = this.facing !== 2; // flip at draw time via rig.scale.x
-
-    const sw = Math.sin(this.bobT);
-    const legSwing = moving ? sw * LEG_SWING_X : 0;
-    const legLift = moving ? Math.max(0, -sw) * LEG_LIFT_Y : 0;
-    const armSwing = moving ? sw * ARM_SWING : 0;
-
-    // Legs
-    const makeLeg = (side) => {
-      const g = new Graphics();
-      const x = side * (4 + legSwing);
-      const y = 10 + (side > 0 ? legLift : 0);
-      g.roundRect(x - 2, y, 4, 9, 1).fill(this.pants);
-      g.roundRect(x - 2.5, y + 9, 5, 3.5, 1).fill(0x232a35); // shoe
-      return g;
-    };
-    this.body.addChild(makeLeg(-1));
-    this.body.addChild(makeLeg(1));
-
-    // Torso
-    const torso = new Graphics();
-    const torsoY = this.sitting ? 2 : 0;
-    torso.roundRect(-9, -14 + torsoY, 18, 16, 3).fill(this.shirtNum);
-    torso.rect(-4, -14 + torsoY, 8, 2).fill(shadeNum(this.shirtNum, 0.7)); // collar
-    this.body.addChild(torso);
-
-    // Arms
-    const armAngle = this.state === "working" ? -1.1 : (moving ? armSwing : 0);
-    const makeArm = (side) => {
-      const g = new Graphics();
-      const x = side * (10 + (moving ? armSwing * 5 : 0));
-      const y = -8;
-      g.roundRect(x - 2, y, 4, 10, 2).fill(this.shirtNum);
-      g.circle(x, y + 10, 2.5).fill(SKIN);
-      g.rotation = side * armAngle;
-      return g;
-    };
-    this.body.addChild(makeArm(-1));
-    this.body.addChild(makeArm(1));
-
-    // Head
-    const head = new Graphics();
-    const headY = -18 + torsoY;
-    head.circle(0, headY - 2, 8).fill(this.hair); // hair
-    head.circle(0, headY, 7).fill(SKIN); // face
-    head.rect(-7, headY - 6, 4, 7).fill(this.hair); // fringe
-    head.circle(-2.5, headY - 1, 1.5).fill(0x222222); // eyes
-    head.circle(2.5, headY - 1, 1.5).fill(0x222222);
-    head.rect(1, headY + 3, 4, 1).fill(0x9c6b4e); // mouth
-    this.body.addChild(head);
-
-    // Sitting adjustments
-    if (this.sitting) {
-      this.body.children.forEach(c => { if (c !== torso) c.y += 4; });
+    if (isSitting && this.spriteSheet.animations.sit) {
+      if (this.anim.textures !== this.spriteSheet.animations.sit) {
+        this.anim.textures = this.spriteSheet.animations.sit;
+        this.anim.animationSpeed = 0.05;
+        this.anim.play();
+      }
+    } else if (moving) {
+      if (this.anim.textures !== this.spriteSheet.animations[dirName]) {
+        this.anim.textures = this.spriteSheet.animations[dirName];
+        this.anim.animationSpeed = 0.15;
+        this.anim.play();
+      }
+    } else {
+      this.anim.stop();
+      this.anim.texture = this.spriteSheet.animations[dirName]?.[0] || this.spriteSheet.animations.down[0];
     }
 
-    // Typing tap
-    if (this.sitting && this.showDesktop) {
-      const tap = Math.sin(this.bobT * 2.5) * TYPING_TAP;
-      this.body.children.forEach(c => { if (c.rotation !== undefined) c.rotation += tap; });
-    }
-
-    // ---- OUTLINE ----
-    const outlineAlpha = this.state === "working"
-      ? 0.2 + 0.1 * Math.sin(this.bobT * 1.5)
-      : 0.12;
-    this.outline.clear().circle(0, -2, 20).stroke({
-      width: 1.5, color: this.isGod ? 0xf4d35e : 0x4ea1ff, alpha: outlineAlpha,
-    });
-
-    // ---- DUST ----
+    // dust
     if (moving) {
       this._dustTimer -= dt;
       if (this._dustTimer <= 0) {
@@ -351,17 +317,17 @@ export class Character {
       if (d._life <= 0) this.dust.removeChild(d);
     }
 
-    // Glow
-    const wantGlow = this.state === "working" ? 0.25 + 0.15 * Math.sin(this.bobT * 1.5) : 0;
-    this.glow.alpha += (wantGlow - this.glow.alpha) * Math.min(1, dt * 6);
+    // outline pulse
+    const outlineAlpha = this.state === "working"
+      ? 0.2 + 0.1 * Math.sin(this.bobT * 1.5)
+      : 0.12;
+    this.outline.clear().circle(0, -2, 20).stroke({
+      width: 1.5, color: this.isGod ? 0xf4d35e : 0x4ea1ff, alpha: outlineAlpha,
+    });
 
-    // Glyph
     this.glyph.text = this.state === "error" ? "!" : "";
-
-    // Bubbles
     this._updateBubbles();
 
-    // Crown
     if (this.isGod && this.crown) {
       this.crown.clear().roundRect(-10, -50, 20, 6, 2).fill(0xf4d35e);
     }

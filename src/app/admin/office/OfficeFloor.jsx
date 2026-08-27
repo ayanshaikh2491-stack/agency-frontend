@@ -202,7 +202,7 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
             desk: m.desk,
             isGod: m.isGod,
             grid,
-            spriteRow: m.spriteRow,
+            spriteIndex: m.spriteRow,
           })
       );
       const charLayer = new Container();
