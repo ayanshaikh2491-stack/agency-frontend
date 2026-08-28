@@ -8,9 +8,9 @@ export const WORLD = { w: 1280, h: 960 };
 // Room zones drawn on top of the SkyOffice base map (tint + label + wall dividers).
 // Coordinates are pixels in the 1280x960 office space.
 export const ROOMS = [
-  { id: "ceo",     x: 800, y: 32,  w: 448, h: 304, label: "CEO Office",    fill: 0x1b1d12, labelColor: 0xf4d35e, sub: "Michael" },
-  { id: "meeting", x: 32,  y: 32,  w: 768, h: 304, label: "Meeting Room",  fill: 0x121b1b, labelColor: 0x5fd0c5 },
-  { id: "open",    x: 32,  y: 352, w: 1216,h: 576, label: "Open Office",   fill: 0x14181f, labelColor: 0x6b7686 },
+  { id: "ceo",     x: 800, y: 32,  w: 448, h: 304, label: "CEO Office",    fill: 0x3a2a1a, labelColor: 0xf4d35e, sub: "Michael" },
+  { id: "meeting", x: 32,  y: 32,  w: 768, h: 304, label: "Meeting Room",  fill: 0x16263a, labelColor: 0x5fd0c5 },
+  { id: "open",    x: 32,  y: 352, w: 1216,h: 576, label: "Open Office",   fill: 0x1e242c, labelColor: 0x9fb0c0 },
 ];
 
 // Interior wall divider segments (rectangles) — drawn over the floor to separate rooms.

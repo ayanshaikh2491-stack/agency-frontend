@@ -6,7 +6,8 @@ import { makeGrid } from "./pathfinding";
 import { OFFICE_CAST } from "./cast";
 import { ROOMS, WALLS } from "./rooms";
 
-const TILE = 32; // SkyOffice office uses 32px tiles
+const TILE = 32;
+const WALL_T = 16; // wall thickness (thick + clearly visible)
 
 export default function OfficeFloor({ onSelectCeo, liveState }) {
   const ref = useRef(null);
@@ -37,9 +38,9 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
       app.stage.eventMode = "static";
       app.stage.hitArea = app.screen;
 
-      // ── Load tilesets + collision maps ──────────────────────────
+      // ── Tilesets + collision ───────────────────────────────────
       const collidesByGid = new Map();
-      const tilesetCache = []; // { firstgid, count, tex, cols }
+      const tilesetCache = [];
       for (const ts of map.tilesets) {
         const tex = await loadTexture("/office/sprites/skyoffice/" + ts.image);
         tex.source.scaleMode = "nearest";
@@ -50,8 +51,6 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
           if (prop && prop.value) collidesByGid.set(ts.firstgid + t.id, true);
         }
       }
-
-      // gid -> Texture (cached)
       const gidTex = new Map();
       const getTileTex = (gid) => {
         if (gid === 0) return null;
@@ -59,17 +58,29 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
         const ts = tilesetCache.find((c) => gid >= c.firstgid && gid < c.firstgid + c.count);
         if (!ts) { gidTex.set(gid, null); return null; }
         const local = gid - ts.firstgid;
-        const col = local % ts.cols;
-        const row = Math.floor(local / ts.cols);
-        const tex = new Texture(ts.tex, new Rectangle(col * TILE, row * TILE, TILE, TILE));
+        const tex = new Texture(
+          ts.tex,
+          new Rectangle((local % ts.cols) * TILE, Math.floor(local / ts.cols) * TILE, TILE, TILE)
+        );
         gidTex.set(gid, tex);
         return tex;
       };
 
-      // ── Render layers ───────────────────────────────────────────
+      // ── 1. SOLID distinct room floors (opaque, per-room color) ─
+      const floorLayer = new Container();
+      floorLayer.label = "floors";
+      for (const r of ROOMS) {
+        const g = new Graphics();
+        g.rect(r.x, r.y, r.w, r.h).fill({ color: r.fill });
+        floorLayer.addChild(g);
+      }
+      app.stage.addChild(floorLayer);
+
+      // ── 2. SkyOffice furniture (Obj layers; skip Ground's uniform floor) ─
       const blockers = [];
       for (const layer of map.layers) {
         if (layer.type !== "tilelayer") continue;
+        if (layer.name === "Ground") continue; // we replaced the floor with solid room colors
         const lc = new Container();
         lc.label = layer.name;
         app.stage.addChild(lc);
@@ -80,40 +91,55 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
           if (gid === 0) continue;
           const tex = getTileTex(gid);
           if (!tex) continue;
-          const col = i % lw;
-          const row = Math.floor(i / lw);
           const s = new Sprite(tex);
-          s.x = col * TILE;
-          s.y = row * TILE;
+          s.x = (i % lw) * TILE;
+          s.y = Math.floor(i / lw) * TILE;
           lc.addChild(s);
-          if (collidesByGid.get(gid)) blockers.push({ x: col * TILE, y: row * TILE, w: TILE, h: TILE });
+          if (collidesByGid.get(gid)) blockers.push({ x: (i % lw) * TILE, y: Math.floor(i / lw) * TILE, w: TILE, h: TILE });
         }
       }
 
-      // ── Room tints + walls + labels (organize the open floor) ──
-      const roomLayer = new Container();
-      roomLayer.label = "rooms";
-      app.stage.addChild(roomLayer);
+      // ── 3. Walls: inner dividers + outer border (thick + clear) ─
+      const wallLayer = new Container();
+      wallLayer.label = "walls";
+      app.stage.addChild(wallLayer);
+      const drawWall = (x, y, w, h) => {
+        const g = new Graphics();
+        g.rect(x, y, w, h).fill({ color: 0x10131a }).stroke({ width: 2, color: 0x3a4150 });
+        wallLayer.addChild(g);
+      };
+      for (const wseg of WALLS) drawWall(wseg.x, wseg.y, wseg.w, wseg.h);
+      drawWall(0, 0, W, WALL_T);
+      drawWall(0, H - WALL_T, W, WALL_T);
+      drawWall(0, 0, WALL_T, H);
+      drawWall(W - WALL_T, 0, WALL_T, H);
+
+      // ── 4. Per-agent desk (so each agent clearly sits at a desk) ─
+      const deskLayer = new Container();
+      deskLayer.label = "desks";
+      app.stage.addChild(deskLayer);
+      for (const m of OFFICE_CAST) {
+        const g = new Graphics();
+        g.rect(m.desk.x - 16, m.desk.y - 2, 32, 18).fill({ color: 0x4a3a28 }).stroke({ width: 1, color: 0x6b5236 });
+        g.rect(m.desk.x - 8, m.desk.y - 14, 16, 10).fill({ color: 0x0d1b2a }).stroke({ width: 1, color: 0x2a4a6a });
+        deskLayer.addChild(g);
+      }
+
+      // ── 5. Room labels ─────────────────────────────────────────
+      const labelLayer = new Container();
+      labelLayer.label = "labels";
+      app.stage.addChild(labelLayer);
       for (const r of ROOMS) {
-        const tint = new Graphics();
-        tint.rect(r.x, r.y, r.w, r.h).fill({ color: r.fill, alpha: 0.28 });
-        roomLayer.addChild(tint);
         const lbl = new Text({
-          text: r.sub ? `${r.label}  ·  ${r.sub}` : r.label,
+          text: r.sub ? `${r.label} · ${r.sub}` : r.label,
           style: { fill: r.labelColor, fontSize: 18, fontWeight: "800", fontFamily: "Inter, system-ui, sans-serif", stroke: { color: 0x000000, width: 3 } },
         });
         lbl.x = r.x + 14;
         lbl.y = r.y + 10;
-        roomLayer.addChild(lbl);
+        labelLayer.addChild(lbl);
       }
-      for (const w of WALLS) {
-        const wall = new Graphics();
-        wall.rect(w.x, w.y, w.w, w.h).fill({ color: 0x2a2f3a }).stroke({ width: 1, color: 0x3a4150 });
-        roomLayer.addChild(wall);
-      }
-      console.log("Rooms drawn:", ROOMS.length, "walls:", WALLS.length);
 
-      // ── Characters (agents already wired to backend) ────────────
+      // ── 6. Agents (grouped into rooms) ─────────────────────────
       const grid = makeGrid(blockers);
       chars = OFFICE_CAST.map((m) =>
         new Character({
@@ -131,10 +157,8 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
       charLayer.label = "characters";
       app.stage.addChild(charLayer);
       for (const c of chars) charLayer.addChild(c.view);
-
       const sortChars = () => charLayer.children.sort((a, b) => (a.y || 0) - (b.y || 0));
 
-      // ── Live ticker ─────────────────────────────────────────────
       const tick = (ticker) => {
         const dt = Math.min(0.05, ticker.deltaMS / 1000);
         const ls = liveRef.current || {};
@@ -151,7 +175,7 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
         sortChars();
       };
       app.ticker.add(tick);
-      console.log("Office built — tilesets:", map.tilesets.length, "blockers:", blockers.length, "agents:", chars.length);
+      console.log("Office built v2 — rooms:", ROOMS.length, "walls:", WALLS.length + 4, "agents:", chars.length);
     })();
 
     building?.catch((e) => console.error("Office build failed:", e));
