@@ -4,6 +4,7 @@ import { Application, Container, Sprite, Texture, Rectangle, Graphics, Text } fr
 import { Character, loadTexture } from "./character";
 import { makeGrid } from "./pathfinding";
 import { OFFICE_CAST } from "./cast";
+import { ROOMS, WALLS } from "./rooms";
 
 const TILE = 32; // SkyOffice office uses 32px tiles
 
@@ -88,6 +89,29 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
           if (collidesByGid.get(gid)) blockers.push({ x: col * TILE, y: row * TILE, w: TILE, h: TILE });
         }
       }
+
+      // ── Room tints + walls + labels (organize the open floor) ──
+      const roomLayer = new Container();
+      roomLayer.label = "rooms";
+      app.stage.addChild(roomLayer);
+      for (const r of ROOMS) {
+        const tint = new Graphics();
+        tint.rect(r.x, r.y, r.w, r.h).fill({ color: r.fill, alpha: 0.28 });
+        roomLayer.addChild(tint);
+        const lbl = new Text({
+          text: r.sub ? `${r.label}  ·  ${r.sub}` : r.label,
+          style: { fill: r.labelColor, fontSize: 18, fontWeight: "800", fontFamily: "Inter, system-ui, sans-serif", stroke: { color: 0x000000, width: 3 } },
+        });
+        lbl.x = r.x + 14;
+        lbl.y = r.y + 10;
+        roomLayer.addChild(lbl);
+      }
+      for (const w of WALLS) {
+        const wall = new Graphics();
+        wall.rect(w.x, w.y, w.w, w.h).fill({ color: 0x2a2f3a }).stroke({ width: 1, color: 0x3a4150 });
+        roomLayer.addChild(wall);
+      }
+      console.log("Rooms drawn:", ROOMS.length, "walls:", WALLS.length);
 
       // ── Characters (agents already wired to backend) ────────────
       const grid = makeGrid(blockers);

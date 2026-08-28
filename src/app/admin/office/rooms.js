@@ -5,20 +5,31 @@
 
 export const WORLD = { w: 1280, h: 960 };
 
-// Rooms are drawn as filled rectangles with a label + divider walls.
+// Room zones drawn on top of the SkyOffice base map (tint + label + wall dividers).
+// Coordinates are pixels in the 1280x960 office space.
 export const ROOMS = [
-  { id: "main",    x: 0,   y: 0,   w: 760, h: 680, label: "Open Office",      fill: 0x14181f, labelColor: 0x6b7686 },
-  { id: "ceo",     x: 760, y: 0,   w: 340, h: 340, label: "Michael's Office", fill: 0x1b1d12, labelColor: 0xf4d35e },
-  { id: "meeting", x: 760, y: 340, w: 340, h: 170, label: "Meeting Room",     fill: 0x121b1b, labelColor: 0x5fd0c5 },
-  { id: "cafe",    x: 760, y: 510, w: 340, h: 170, label: "Cafeteria",        fill: 0x1a141b, labelColor: 0xd98cff },
+  { id: "ceo",     x: 800, y: 32,  w: 448, h: 304, label: "CEO Office",    fill: 0x1b1d12, labelColor: 0xf4d35e, sub: "Michael" },
+  { id: "meeting", x: 32,  y: 32,  w: 768, h: 304, label: "Meeting Room",  fill: 0x121b1b, labelColor: 0x5fd0c5 },
+  { id: "open",    x: 32,  y: 352, w: 1216,h: 576, label: "Open Office",   fill: 0x14181f, labelColor: 0x6b7686 },
+];
+
+// Interior wall divider segments (rectangles) — drawn over the floor to separate rooms.
+// Door gaps left between segments so agents can walk between rooms.
+export const WALLS = [
+  // horizontal divider between top rooms and open office (y=336), with 2 door gaps
+  { x: 32,  y: 330, w: 348, h: 12 },   // meeting door gap after x=380
+  { x: 440, y: 330, w: 540, h: 12 },   // ceo door gap after x=980
+  { x: 1040,y: 330, w: 208, h: 12 },
+  // vertical divider between CEO (right) and Meeting (left) at x=792, with door gap
+  { x: 792, y: 32,  w: 12, h: 150 },   // door gap y=182..230
+  { x: 792, y: 230, w: 12, h: 106 },
 ];
 
 // Shared stations characters walk to (besides their own desk).
-// Coordinates are in the SkyOffice 1280x960 office space.
 export const STATIONS = {
   entrance:  { x: 640, y: 560, label: "Entrance" },
   cafeteria: { x: 1180, y: 560, label: "Coffee" },
-  meeting:   { x: 930, y: 200, label: "Table" },
+  meeting:   { x: 416, y: 200, label: "Table" },
 };
 
 // Floor / wall accent colors
