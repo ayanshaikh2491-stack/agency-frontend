@@ -14,15 +14,15 @@ export const ROOMS = [
 ];
 
 // Interior wall divider segments (rectangles) — drawn over the floor to separate rooms.
-// Door gaps left between segments so agents can walk between rooms.
+// Door gaps left between segments so agents can walk between rooms. Thick (20px) for clarity.
 export const WALLS = [
   // horizontal divider between top rooms and open office (y=336), with 2 door gaps
-  { x: 32,  y: 330, w: 348, h: 12 },   // meeting door gap after x=380
-  { x: 440, y: 330, w: 540, h: 12 },   // ceo door gap after x=980
-  { x: 1040,y: 330, w: 208, h: 12 },
+  { x: 32,  y: 326, w: 348, h: 20 },   // meeting door gap after x=380
+  { x: 440, y: 326, w: 540, h: 20 },   // ceo door gap after x=980
+  { x: 1040,y: 326, w: 208, h: 20 },
   // vertical divider between CEO (right) and Meeting (left) at x=792, with door gap
-  { x: 792, y: 32,  w: 12, h: 150 },   // door gap y=182..230
-  { x: 792, y: 230, w: 12, h: 106 },
+  { x: 788, y: 32,  w: 20, h: 150 },   // door gap y=182..230
+  { x: 788, y: 230, w: 20, h: 106 },
 ];
 
 // Shared stations characters walk to (besides their own desk).

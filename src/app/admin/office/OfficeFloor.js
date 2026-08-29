@@ -99,13 +99,13 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
         }
       }
 
-      // ── 3. Walls: inner dividers + outer border (thick + clear) ─
+      // ── 3. Walls: inner dividers + outer border (thick + clearly visible) ─
       const wallLayer = new Container();
       wallLayer.label = "walls";
       app.stage.addChild(wallLayer);
       const drawWall = (x, y, w, h) => {
         const g = new Graphics();
-        g.rect(x, y, w, h).fill({ color: 0x10131a }).stroke({ width: 2, color: 0x3a4150 });
+        g.rect(x, y, w, h).fill({ color: 0x232a33 }).stroke({ width: 2, color: 0x8893a3 });
         wallLayer.addChild(g);
       };
       for (const wseg of WALLS) drawWall(wseg.x, wseg.y, wseg.w, wseg.h);
@@ -113,6 +113,16 @@ export default function OfficeFloor({ onSelectCeo, liveState }) {
       drawWall(0, H - WALL_T, W, WALL_T);
       drawWall(0, 0, WALL_T, H);
       drawWall(W - WALL_T, 0, WALL_T, H);
+
+      // ── 3b. Room frame outlines — so each room boundary is undeniable ─
+      const frameLayer = new Container();
+      frameLayer.label = "room-frames";
+      app.stage.addChild(frameLayer);
+      for (const r of ROOMS) {
+        const f = new Graphics();
+        f.rect(r.x, r.y, r.w, r.h).stroke({ width: 3, color: r.labelColor, alpha: 0.9 });
+        frameLayer.addChild(f);
+      }
 
       // ── 4. Per-agent desk (so each agent clearly sits at a desk) ─
       const deskLayer = new Container();
